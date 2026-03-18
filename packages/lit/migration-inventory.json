@@ -1,0 +1,272 @@
+{
+  "sourcePackage": "@base-ui/react",
+  "targetPackage": "@base-ui/lit",
+  "generatedAt": "2026-03-18T09:54:48.261Z",
+  "entrypointCount": 44,
+  "entrypoints": [
+    {
+      "exportPath": ".",
+      "sourcePath": "./src/index.ts",
+      "category": "root",
+      "status": "scaffolded"
+    },
+    {
+      "exportPath": "./accordion",
+      "sourcePath": "./src/accordion/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./alert-dialog",
+      "sourcePath": "./src/alert-dialog/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./autocomplete",
+      "sourcePath": "./src/autocomplete/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./avatar",
+      "sourcePath": "./src/avatar/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./button",
+      "sourcePath": "./src/button/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./checkbox",
+      "sourcePath": "./src/checkbox/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./checkbox-group",
+      "sourcePath": "./src/checkbox-group/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./collapsible",
+      "sourcePath": "./src/collapsible/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./combobox",
+      "sourcePath": "./src/combobox/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./context-menu",
+      "sourcePath": "./src/context-menu/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./csp-provider",
+      "sourcePath": "./src/csp-provider/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./dialog",
+      "sourcePath": "./src/dialog/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./direction-provider",
+      "sourcePath": "./src/direction-provider/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./drawer",
+      "sourcePath": "./src/drawer/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./field",
+      "sourcePath": "./src/field/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./fieldset",
+      "sourcePath": "./src/fieldset/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./form",
+      "sourcePath": "./src/form/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./input",
+      "sourcePath": "./src/input/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./menu",
+      "sourcePath": "./src/menu/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./menubar",
+      "sourcePath": "./src/menubar/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./merge-props",
+      "sourcePath": "./src/merge-props/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./meter",
+      "sourcePath": "./src/meter/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./navigation-menu",
+      "sourcePath": "./src/navigation-menu/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./number-field",
+      "sourcePath": "./src/number-field/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./popover",
+      "sourcePath": "./src/popover/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./preview-card",
+      "sourcePath": "./src/preview-card/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./progress",
+      "sourcePath": "./src/progress/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./radio",
+      "sourcePath": "./src/radio/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./radio-group",
+      "sourcePath": "./src/radio-group/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./scroll-area",
+      "sourcePath": "./src/scroll-area/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./select",
+      "sourcePath": "./src/select/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./separator",
+      "sourcePath": "./src/separator/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./slider",
+      "sourcePath": "./src/slider/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./switch",
+      "sourcePath": "./src/switch/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./tabs",
+      "sourcePath": "./src/tabs/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./toast",
+      "sourcePath": "./src/toast/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./toggle",
+      "sourcePath": "./src/toggle/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./toggle-group",
+      "sourcePath": "./src/toggle-group/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./toolbar",
+      "sourcePath": "./src/toolbar/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./tooltip",
+      "sourcePath": "./src/tooltip/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./types",
+      "sourcePath": "./src/types/index.ts",
+      "category": "utility",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./unstable-use-media-query",
+      "sourcePath": "./src/unstable-use-media-query/index.ts",
+      "category": "utility",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./use-render",
+      "sourcePath": "./src/use-render/index.ts",
+      "category": "utility",
+      "status": "pending"
+    }
+  ]
+}
