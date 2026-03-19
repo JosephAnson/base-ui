@@ -85,7 +85,7 @@ const globbedDemos = import.meta.glob<{ default: React.ComponentType<unknown> }>
 const demoFixtures: Fixture[] = [];
 
 for (const path in globbedDemos) {
-  const [name, ...suiteArray] = path.split('react')[1].split('/').reverse();
+  const [name, ...suiteArray] = path.split('lit')[1].split('/').reverse();
   const suite = `docs-${suiteArray
     .filter((v) => v)
     .reverse()

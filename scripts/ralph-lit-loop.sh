@@ -16,6 +16,9 @@ RESUME_FILE=""
 SESSION_FILE=""
 CODEX_PROMPT_FILE=""
 BACKGROUND_PIDS_FILE=""
+TARGET_COMMIT_STATUS="pending"
+TARGET_COMMIT_SHA=""
+TARGET_COMMIT_REASON=""
 
 log() {
   printf '[ralph] %s\n' "$*"
@@ -223,6 +226,47 @@ cleanup() {
 }
 
 trap cleanup EXIT
+
+write_status_file() {
+  local status="$1"
+  local iteration="$2"
+
+  node -e '
+    const fs = require("fs");
+    const payload = {
+      target: process.argv[2],
+      status: process.argv[3],
+      iteration: Number(process.argv[4]),
+      commitStatus: process.argv[5],
+      commitSha: process.argv[6] || null,
+      commitReason: process.argv[7] || null,
+    };
+    fs.writeFileSync(process.argv[1], JSON.stringify(payload, null, 2) + "\n");
+  ' \
+    "$CURRENT_TARGET_ARTIFACTS_DIR/status.json" \
+    "$CURRENT_TARGET" \
+    "$status" \
+    "$iteration" \
+    "$TARGET_COMMIT_STATUS" \
+    "$TARGET_COMMIT_SHA" \
+    "$TARGET_COMMIT_REASON"
+}
+
+read_status_field() {
+  local status_file="$1"
+  local field_name="$2"
+
+  node -e '
+    const fs = require("fs");
+    const status = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const field = process.argv[2];
+    const value = status[field];
+    if (value === undefined || value === null) {
+      process.exit(1);
+    }
+    process.stdout.write(String(value));
+  ' "$status_file" "$field_name"
+}
 
 read_target_queue() {
   node -e '
@@ -496,6 +540,145 @@ get_lit_docs_target_dir() {
   esac
 }
 
+get_target_commit_paths() {
+  local lit_target_file="packages/lit/${CURRENT_SOURCE_PATH#./}"
+  local lit_target_dir
+  lit_target_dir="$(dirname "$lit_target_file")"
+  local lit_docs_dir=""
+  local pascal_name
+  pascal_name="$(pascal_target_name)"
+  lit_docs_dir="$(get_lit_docs_target_dir "$CURRENT_TARGET_CATEGORY")"
+
+  cat <<EOF
+packages/lit/package.json
+packages/lit/migration-inventory.json
+packages/lit/src/index.ts
+packages/lit/src/index.test.ts
+$lit_target_file
+$lit_target_dir
+test/e2e-lit/index.test.ts
+test/e2e-lit/main.tsx
+test/e2e-lit/fixtures/$CURRENT_TARGET_LABEL
+test/e2e-lit/fixtures/${pascal_name}.ts
+test/e2e-lit/fixtures/${pascal_name}.tsx
+test/e2e-lit/fixtures/${pascal_name}.js
+test/e2e-lit/fixtures/${pascal_name}.jsx
+test/regressions-lit/index.test.ts
+test/regressions-lit/main.tsx
+test/regressions-lit/fixtures/$CURRENT_TARGET_LABEL
+docs/src/app/(docs)/lit
+$lit_docs_dir
+EOF
+}
+
+is_ignored_commit_artifact() {
+  local file_path="$1"
+  case "$file_path" in
+    .ralph/*|test/regressions-lit/screenshots/*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+path_in_scope() {
+  local file_path="$1"
+  shift
+
+  local scoped_path=""
+  for scoped_path in "$@"; do
+    [[ -z "$scoped_path" ]] && continue
+    if [[ "$file_path" == "$scoped_path" || "$file_path" == "$scoped_path"/* ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+collect_changed_files() {
+  (
+    cd "$ROOT_DIR"
+    {
+      git diff --name-only
+      git diff --cached --name-only
+      git ls-files --others --exclude-standard
+    } | sed '/^$/d' | sort -u
+  )
+}
+
+maybe_commit_target() {
+  TARGET_COMMIT_STATUS="pending"
+  TARGET_COMMIT_SHA=""
+  TARGET_COMMIT_REASON=""
+
+  local -a scoped_paths=()
+  local -a changed_files=()
+  local -a scoped_changed_files=()
+  local -a out_of_scope_files=()
+  local changed_file=""
+
+  mapfile -t scoped_paths < <(get_target_commit_paths | sed '/^$/d' | sort -u)
+  mapfile -t changed_files < <(collect_changed_files)
+
+  if [[ "${#changed_files[@]}" -eq 0 ]]; then
+    TARGET_COMMIT_STATUS="skipped"
+    TARGET_COMMIT_REASON="No tracked or untracked changes to commit."
+    return 0
+  fi
+
+  for changed_file in "${changed_files[@]}"; do
+    if is_ignored_commit_artifact "$changed_file"; then
+      continue
+    fi
+
+    if path_in_scope "$changed_file" "${scoped_paths[@]}"; then
+      scoped_changed_files+=("$changed_file")
+    else
+      out_of_scope_files+=("$changed_file")
+    fi
+  done
+
+  if [[ "${#scoped_changed_files[@]}" -eq 0 ]]; then
+    TARGET_COMMIT_STATUS="skipped"
+    TARGET_COMMIT_REASON="No in-scope target changes to commit."
+    return 0
+  fi
+
+  if [[ "${#out_of_scope_files[@]}" -gt 0 ]]; then
+    TARGET_COMMIT_STATUS="skipped"
+    TARGET_COMMIT_REASON="Worktree has out-of-scope changes: $(printf '%s, ' "${out_of_scope_files[@]}" | sed 's/, $//')"
+    return 0
+  fi
+
+  local previous_dir="$PWD"
+  cd "$ROOT_DIR"
+
+  git add -A -- "${scoped_changed_files[@]}"
+
+  if git diff --cached --quiet; then
+    TARGET_COMMIT_STATUS="skipped"
+    TARGET_COMMIT_REASON="No staged in-scope changes to commit."
+    cd "$previous_dir"
+    return 0
+  fi
+
+  if git commit -m "[${CURRENT_TARGET_LABEL}] Port Lit surface" >/dev/null 2>&1; then
+    TARGET_COMMIT_STATUS="committed"
+    TARGET_COMMIT_SHA="$(git rev-parse HEAD)"
+    TARGET_COMMIT_REASON=""
+    cd "$previous_dir"
+    return 0
+  fi
+
+  TARGET_COMMIT_STATUS="failed"
+  TARGET_COMMIT_REASON="git commit failed for the completed target."
+  cd "$previous_dir"
+  return 0
+}
+
 run_e2e_gate() {
   local target_fragment="$CURRENT_TARGET_LABEL"
   local pascal_name
@@ -588,6 +771,7 @@ run_lit_e2e_gate() {
 }
 
 run_lit_regression_gate() {
+  local target_fragment="$CURRENT_TARGET_LABEL"
   local target_category="$CURRENT_TARGET_CATEGORY"
   local react_docs_dir=""
   local lit_docs_dir=""
@@ -631,7 +815,7 @@ run_lit_regression_gate() {
     "test:regressions:lit:server" \
     "test/regressions-lit/vitest.config.mts" \
     "test/regressions-lit/index.test.ts" \
-    "${target_fragment}|${pascal_name}" \
+    "${target_fragment}" \
     "http://localhost:5175"
 }
 
@@ -896,6 +1080,52 @@ target_already_complete() {
   ' "$status_file"
 }
 
+target_has_existing_artifacts() {
+  local label="$1"
+  local target_dir="$ARTIFACTS_DIR/targets/$label"
+
+  if [[ ! -d "$target_dir" ]]; then
+    return 1
+  fi
+
+  find "$target_dir" -mindepth 1 -print -quit >/dev/null 2>&1
+}
+
+finalize_existing_complete_target() {
+  local target="$1"
+  local label="$2"
+  local status_file="$ARTIFACTS_DIR/targets/$label/status.json"
+  local iteration="0"
+  local current_commit_status=""
+
+  if [[ ! -f "$status_file" ]]; then
+    return 0
+  fi
+
+  if ! target_already_complete "$label"; then
+    return 0
+  fi
+
+  current_commit_status="$(read_status_field "$status_file" commitStatus 2>/dev/null || true)"
+  if [[ "$current_commit_status" == "committed" ]]; then
+    return 0
+  fi
+
+  iteration="$(read_status_field "$status_file" iteration 2>/dev/null || printf '0')"
+
+  CURRENT_TARGET="$(normalize_target "$target")"
+  CURRENT_TARGET_LABEL="$label"
+  CURRENT_TARGET_CATEGORY="$(get_target_category "$GLOBAL_INVENTORY_FILE" "$CURRENT_TARGET")"
+  CURRENT_TARGET_ARTIFACTS_DIR="$ARTIFACTS_DIR/targets/$CURRENT_TARGET_LABEL"
+  CURRENT_SOURCE_PATH="$(get_source_path "$GLOBAL_INVENTORY_FILE" "$CURRENT_TARGET")"
+  TARGET_COMMIT_STATUS="pending"
+  TARGET_COMMIT_SHA=""
+  TARGET_COMMIT_REASON=""
+
+  maybe_commit_target
+  write_status_file "complete" "$iteration"
+}
+
 run_target_loop() {
 CURRENT_TARGET="$(normalize_target "$1")"
   CURRENT_TARGET_LABEL="$(target_label "$CURRENT_TARGET")"
@@ -907,11 +1137,15 @@ CURRENT_TARGET="$(normalize_target "$1")"
   CURRENT_SOURCE_PATH="$(get_source_path "$GLOBAL_INVENTORY_FILE" "$CURRENT_TARGET")"
 
   mkdir -p "$CURRENT_TARGET_ARTIFACTS_DIR"
+  TARGET_COMMIT_STATUS="pending"
+  TARGET_COMMIT_SHA=""
+  TARGET_COMMIT_REASON=""
   log "Starting target sweep: $CURRENT_TARGET"
   run_iteration_gates 0
 
   if all_gates_passed "$CURRENT_TARGET_ARTIFACTS_DIR/iteration-0"; then
-    echo "{\"target\":\"$CURRENT_TARGET\",\"status\":\"complete\",\"iteration\":0}" >"$CURRENT_TARGET_ARTIFACTS_DIR/status.json"
+    maybe_commit_target
+    write_status_file "complete" 0
     log "Target already passes gates without Codex: $CURRENT_TARGET"
     return 0
   fi
@@ -944,7 +1178,8 @@ CURRENT_TARGET="$(normalize_target "$1")"
     fi
 
     if [[ "$last_message" == "COMPLETE" ]] && all_gates_passed "$CURRENT_TARGET_ARTIFACTS_DIR/iteration-$iteration"; then
-      echo "{\"target\":\"$CURRENT_TARGET\",\"status\":\"complete\",\"iteration\":$iteration}" >"$CURRENT_TARGET_ARTIFACTS_DIR/status.json"
+      maybe_commit_target
+      write_status_file "complete" "$iteration"
       log "Target complete: $CURRENT_TARGET"
       return 0
     fi
@@ -957,7 +1192,10 @@ CURRENT_TARGET="$(normalize_target "$1")"
       "$(cat "$CODEX_PROMPT_FILE")"
   done
 
-  echo "{\"target\":\"$CURRENT_TARGET\",\"status\":\"max-iterations\"}" >"$CURRENT_TARGET_ARTIFACTS_DIR/status.json"
+  TARGET_COMMIT_STATUS="not-applicable"
+  TARGET_COMMIT_SHA=""
+  TARGET_COMMIT_REASON="Target did not complete."
+  write_status_file "max-iterations" "$MAX_ITERATIONS"
   return 1
 }
 
@@ -973,6 +1211,17 @@ BACKGROUND_PIDS_FILE="$ARTIFACTS_DIR/background-pids.txt"
 write_inventory_snapshot "$GLOBAL_INVENTORY_FILE"
 
 if [[ "$RUN_ALL_TARGETS" -eq 0 ]]; then
+  single_label="$(target_label "$(normalize_target "$TARGET")")"
+  if target_has_existing_artifacts "$single_label" && [[ ! -f "$ARTIFACTS_DIR/targets/$single_label/status.json" ]]; then
+    log "Found existing partial artifacts for $(normalize_target "$TARGET") without status; rerunning target"
+  fi
+  finalize_existing_complete_target "$(normalize_target "$TARGET")" "$single_label"
+  if target_already_complete "$single_label"; then
+    log "Skipping completed target: $(normalize_target "$TARGET")"
+    printf '%s\n' "$(normalize_target "$TARGET")" >>"$COMPLETED_TARGETS_FILE"
+    echo "COMPLETE"
+    exit 0
+  fi
   if ! run_target_loop "$TARGET"; then
     log "Requested target failed: $(normalize_target "$TARGET")"
     exit 1
@@ -987,6 +1236,12 @@ log "Sweeping ${#TARGET_QUEUE[@]} export paths from the migration backlog"
 
 for queued_target in "${TARGET_QUEUE[@]}"; do
   local_label="$(target_label "$queued_target")"
+  if target_has_existing_artifacts "$local_label" && [[ ! -f "$ARTIFACTS_DIR/targets/$local_label/status.json" ]]; then
+    log "Found existing partial artifacts for $queued_target without status; rerunning target"
+  fi
+
+  finalize_existing_complete_target "$queued_target" "$local_label"
+
   if target_already_complete "$local_label"; then
     log "Skipping completed target: $queued_target"
     printf '%s\n' "$queued_target" >>"$COMPLETED_TARGETS_FILE"

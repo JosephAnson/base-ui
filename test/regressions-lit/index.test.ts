@@ -5,11 +5,14 @@ import { chromium, Locator } from '@playwright/test';
 
 const baseUrl = 'http://localhost:5175';
 const screenshotDir = path.resolve(__dirname, './screenshots/chrome');
+const staticRoot = process.env.BASE_UI_LOCAL_BUILD_ROOT;
+const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH;
 
 const browser = await chromium.launch({
-  args: ['--font-render-hinting=none'],
+  args: ['--disable-crash-reporter', '--disable-crashpad', '--font-render-hinting=none'],
   // otherwise the loaded google Roboto font isn't applied
-  headless: false,
+  executablePath,
+  headless: Boolean(executablePath),
 });
 // reuse viewport from `vrtest`
 // https://github.com/nathanmarks/vrtest/blob/1185b852a6c1813cedf5d81f6d6843d9a241c1ce/src/server/runner.js#L44
@@ -21,9 +24,15 @@ await page.route(/./, async (route, request) => {
   const type = await request.resourceType();
   if (type === 'image') {
     route.abort();
-  } else {
-    route.continue();
+    return;
   }
+
+  if (staticRoot != null && request.url().startsWith(baseUrl)) {
+    await fulfillFromBuild(route, request.url());
+    return;
+  }
+
+  route.continue();
 });
 
 // Wait for all requests to finish.
@@ -69,6 +78,46 @@ async function takeScreenshot({ testcase, route }: { testcase: Locator; route: s
   const screenshotTarget = explicitScreenshotTarget || testcase;
 
   await screenshotTarget?.screenshot({ path: screenshotPath, type: 'png' });
+}
+
+async function fulfillFromBuild(route: Parameters<typeof page.route>[1], requestUrl: string) {
+  const url = new URL(requestUrl);
+  const pathname = decodeURIComponent(url.pathname);
+  const relativePath = pathname === '/' ? 'index.html' : pathname.slice(1);
+  const filePath = path.join(staticRoot!, relativePath);
+  const fallbackPath = path.join(staticRoot!, 'index.html');
+
+  let responsePath = filePath;
+  try {
+    await fs.access(responsePath);
+  } catch {
+    responsePath = fallbackPath;
+  }
+
+  await route.fulfill({
+    body: await fs.readFile(responsePath),
+    contentType: getContentType(responsePath),
+    status: 200,
+  });
+}
+
+function getContentType(filePath: string) {
+  switch (path.extname(filePath)) {
+    case '.css':
+      return 'text/css';
+    case '.html':
+      return 'text/html';
+    case '.js':
+      return 'text/javascript';
+    case '.json':
+      return 'application/json';
+    case '.png':
+      return 'image/png';
+    case '.woff2':
+      return 'font/woff2';
+    default:
+      return 'application/octet-stream';
+  }
 }
 
 // prepare screenshots

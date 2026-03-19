@@ -15,6 +15,7 @@
 /docs/public/feed/
 /docs/reference/temp/*
 /test/regressions/screenshots
+/test/regressions-lit/screenshots
 # created by netlify dev (to perform local debug)
 .netlify
 build

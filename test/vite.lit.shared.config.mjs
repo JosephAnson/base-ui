@@ -21,6 +21,7 @@ export default defineConfig({
             '@base-ui/lit': path.join(process.cwd(), 'packages/lit/src'),
             '@base-ui/react': path.join(process.cwd(), 'packages/react/src'),
             '@base-ui/utils': path.join(process.cwd(), 'packages/utils/src'),
+            lit: path.join(process.cwd(), 'packages/lit/node_modules/lit'),
           }),
       './fonts': path.join(process.cwd(), '/docs/src/css/fonts'),
       docs: path.join(process.cwd(), '/docs'),
