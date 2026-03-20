@@ -9,17 +9,13 @@ import { DemoProgressHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { Progress } from '@base-ui/lit/progress';
-
-render(
-  Progress.Root({
-    value: 60,
-    children: [Progress.Track({ children: Progress.Indicator() }), Progress.Value()],
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<progress-root value="60">
+  <progress-track>
+    <progress-indicator></progress-indicator>
+  </progress-track>
+  <progress-value></progress-value>
+</progress-root>
 ```
 
 ## Status

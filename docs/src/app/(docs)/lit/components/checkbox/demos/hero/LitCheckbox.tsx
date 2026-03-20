@@ -1,12 +1,24 @@
 'use client';
 import * as React from 'react';
-import { nothing, render as renderTemplate, svg, type TemplateResult } from 'lit';
-import type { CheckboxIndicatorProps, CheckboxRootProps } from '@base-ui/lit/checkbox';
-import { Checkbox } from '@base-ui/lit/checkbox';
+import { html, nothing, render as renderTemplate, svg, type TemplateResult } from 'lit';
+import '@base-ui/lit/checkbox';
 
 export interface LitCheckboxProps {
-  rootProps?: CheckboxRootProps | undefined;
-  indicatorProps?: CheckboxIndicatorProps | undefined;
+  rootProps?: {
+    className?: string;
+    defaultChecked?: boolean;
+    checked?: boolean;
+    disabled?: boolean;
+    indeterminate?: boolean;
+    name?: string;
+    parent?: boolean;
+    required?: boolean;
+    value?: string;
+    'data-testid'?: string;
+  } | undefined;
+  indicatorProps?: {
+    className?: string;
+  } | undefined;
   indicatorChildren?: TemplateResult | undefined;
 }
 
@@ -22,13 +34,21 @@ export function LitCheckbox(props: LitCheckboxProps) {
     }
 
     renderTemplate(
-      Checkbox.Root({
-        ...rootProps,
-        children: Checkbox.Indicator({
-          ...indicatorProps,
-          children: indicatorChildren ?? checkIcon(),
-        }),
-      }),
+      html`<checkbox-root
+        class=${rootProps?.className ?? ''}
+        ?checked=${rootProps?.defaultChecked ?? false}
+        ?disabled=${rootProps?.disabled ?? false}
+        ?indeterminate=${rootProps?.indeterminate ?? false}
+        ?required=${rootProps?.required ?? false}
+        ?parent=${rootProps?.parent ?? false}
+        name=${rootProps?.name ?? nothing}
+        value=${rootProps?.value ?? nothing}
+        data-testid=${rootProps?.['data-testid'] ?? nothing}
+      >
+        <checkbox-indicator class=${indicatorProps?.className ?? ''}>
+          ${indicatorChildren ?? checkIcon()}
+        </checkbox-indicator>
+      </checkbox-root>`,
       host,
     );
 

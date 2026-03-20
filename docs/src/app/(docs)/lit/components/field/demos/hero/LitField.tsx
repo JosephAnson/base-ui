@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
-import { nothing, render as renderTemplate } from 'lit';
-import { Field } from '@base-ui/lit/field';
+import { html, nothing, render as renderTemplate } from 'lit';
+import '@base-ui/lit/field';
 
 export interface LitFieldProps {
   descriptionClassName?: string | undefined;
@@ -24,30 +24,20 @@ export function LitField(props: LitFieldProps) {
     }
 
     renderTemplate(
-      Field.Root({
-        className: rootClassName,
-        children: [
-          Field.Label({
-            className: labelClassName,
-            children: 'Name',
-          }),
-          Field.Control({
-            required: true,
-            defaultValue: '',
-            placeholder: 'Required',
-            className: inputClassName,
-          }),
-          Field.Error({
-            className: errorClassName,
-            match: 'valueMissing',
-            children: 'Please enter your name',
-          }),
-          Field.Description({
-            className: descriptionClassName,
-            children: 'Visible on your profile',
-          }),
-        ],
-      }),
+      html`<field-root class=${rootClassName ?? ''}>
+        <field-label class=${labelClassName ?? ''}>Name</field-label>
+        <field-control
+          class=${inputClassName ?? ''}
+          required
+          placeholder="Required"
+        ></field-control>
+        <field-error class=${errorClassName ?? ''} match="valueMissing">
+          Please enter your name
+        </field-error>
+        <field-description class=${descriptionClassName ?? ''}>
+          Visible on your profile
+        </field-description>
+      </field-root>`,
       host,
     );
 

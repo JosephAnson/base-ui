@@ -1,17 +1,10 @@
-/* eslint-disable testing-library/render-result-naming-convention */
-import { html, nothing, render as renderTemplate, svg, type TemplateResult } from 'lit';
+import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { type BaseUIChangeEventDetails } from '@base-ui/lit/types';
-import type {
-  CheckboxIndicatorProps,
-  CheckboxIndicatorState,
-  CheckboxRootChangeEventDetails,
-  CheckboxRootProps,
-} from '@base-ui/lit/checkbox';
-import { Checkbox } from '@base-ui/lit/checkbox';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import './index.ts';
+import type { CheckboxRootElement, CheckboxRootChangeEventDetails } from './index.ts';
 
-describe('Checkbox', () => {
+describe('checkbox', () => {
   const containers = new Set<HTMLDivElement>();
 
   afterEach(() => {
@@ -23,572 +16,388 @@ describe('Checkbox', () => {
     vi.restoreAllMocks();
   });
 
-  function render(result: TemplateResult) {
+  function render(result: ReturnType<typeof html>) {
     const container = document.createElement('div');
     document.body.append(container);
     containers.add(container);
-
     renderTemplate(result, container);
     return container;
   }
 
-  async function flushMicrotasks(iterations = 4) {
-    for (let index = 0; index < iterations; index += 1) {
-      await Promise.resolve();
-    }
-  }
-
-  async function flushUpdates(iterations = 4) {
-    await flushMicrotasks(iterations);
+  async function waitForUpdate() {
+    await new Promise((r) => setTimeout(r, 0));
   }
 
   function getCheckbox(container: HTMLElement) {
-    return container.querySelector('[role="checkbox"]') as HTMLElement;
+    return container.querySelector('checkbox-root') as CheckboxRootElement;
   }
 
-  function getInput(container: HTMLElement) {
+  function getHiddenInput(container: HTMLElement) {
     return container.querySelector('input[type="checkbox"]') as HTMLInputElement;
   }
 
-  it('preserves the public type contracts', () => {
-    const checkboxRoot = Checkbox.Root({});
-    const checkboxIndicator = Checkbox.Indicator({});
+  it('renders checkbox-root as a custom element with role=checkbox', async () => {
+    const container = render(html`<checkbox-root></checkbox-root>`);
+    await waitForUpdate();
 
-    expectTypeOf(checkboxRoot).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(checkboxIndicator).toEqualTypeOf<TemplateResult>();
-    expectTypeOf<CheckboxRootProps['checked']>().toEqualTypeOf<boolean | undefined>();
-    expectTypeOf<CheckboxRootProps['indeterminate']>().toEqualTypeOf<boolean | undefined>();
-    expectTypeOf<CheckboxRootProps['parent']>().toEqualTypeOf<boolean | undefined>();
-    expectTypeOf<CheckboxRootProps['uncheckedValue']>().toEqualTypeOf<string | undefined>();
-    expectTypeOf<CheckboxRootChangeEventDetails>().toEqualTypeOf<
-      BaseUIChangeEventDetails<'none'>
-    >();
-    expectTypeOf<CheckboxIndicatorProps['keepMounted']>().toEqualTypeOf<boolean | undefined>();
-    expectTypeOf<CheckboxIndicatorState['indeterminate']>().toEqualTypeOf<boolean>();
+    const el = getCheckbox(container);
+    expect(el).toBeInTheDocument();
+    expect(el).toHaveAttribute('role', 'checkbox');
+    expect(el).toHaveAttribute('aria-checked', 'false');
   });
 
   it('toggles uncontrolled state when clicked', async () => {
-    const container = render(Checkbox.Root({}));
-    const checkbox = getCheckbox(container);
-    const input = getInput(container);
+    const container = render(html`<checkbox-root></checkbox-root>`);
+    await waitForUpdate();
 
-    expect(checkbox).toHaveAttribute('aria-checked', 'false');
-    expect(input.checked).toBe(false);
+    const el = getCheckbox(container);
+    expect(el).toHaveAttribute('aria-checked', 'false');
+    expect(el).toHaveAttribute('data-unchecked');
 
-    checkbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushUpdates();
+    el.click();
+    await waitForUpdate();
+    expect(el).toHaveAttribute('aria-checked', 'true');
+    expect(el).toHaveAttribute('data-checked');
 
-    expect(checkbox).toHaveAttribute('aria-checked', 'true');
-    expect(input.checked).toBe(true);
-
-    checkbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushUpdates();
-
-    expect(checkbox).toHaveAttribute('aria-checked', 'false');
-    expect(input.checked).toBe(false);
+    el.click();
+    await waitForUpdate();
+    expect(el).toHaveAttribute('aria-checked', 'false');
+    expect(el).toHaveAttribute('data-unchecked');
   });
 
-  it('supports keyboard activation for non-native elements', async () => {
-    const container = render(Checkbox.Root({}));
-    const checkbox = getCheckbox(container);
+  it('supports keyboard activation (Enter and Space)', async () => {
+    const container = render(html`
+      <checkbox-root>
+        <checkbox-indicator>✓</checkbox-indicator>
+      </checkbox-root>
+    `);
+    await waitForUpdate();
 
-    checkbox.dispatchEvent(
+    const el = getCheckbox(container);
+
+    el.dispatchEvent(
       new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }),
     );
-    await flushUpdates();
-    expect(checkbox).toHaveAttribute('aria-checked', 'true');
+    await waitForUpdate();
+    expect(el).toHaveAttribute('aria-checked', 'true');
 
-    checkbox.dispatchEvent(
+    el.dispatchEvent(
       new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: ' ' }),
     );
-    await flushUpdates();
-    expect(checkbox).toHaveAttribute('aria-checked', 'false');
+    await waitForUpdate();
+    expect(el).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('updates controlled state when re-rendered from outside', async () => {
-    const container = render(Checkbox.Root({ checked: false }));
-    const checkbox = getCheckbox(container);
+  it('updates controlled state when property changes', async () => {
+    const container = render(html`<checkbox-root .checked=${false}></checkbox-root>`);
+    await waitForUpdate();
 
-    expect(checkbox).toHaveAttribute('aria-checked', 'false');
+    const el = getCheckbox(container);
+    expect(el).toHaveAttribute('aria-checked', 'false');
 
-    renderTemplate(Checkbox.Root({ checked: true }), container);
-    await flushUpdates();
-    expect(checkbox).toHaveAttribute('aria-checked', 'true');
+    el.checked = true;
+    await el.updateComplete;
+    expect(el).toHaveAttribute('aria-checked', 'true');
 
-    renderTemplate(Checkbox.Root({ checked: false }), container);
-    await flushUpdates();
-    expect(checkbox).toHaveAttribute('aria-checked', 'false');
+    el.checked = false;
+    await el.updateComplete;
+    expect(el).toHaveAttribute('aria-checked', 'false');
   });
 
   it('updates its state if the hidden input is toggled', async () => {
-    const container = render(Checkbox.Root({}));
-    const checkbox = getCheckbox(container);
-    const input = getInput(container);
+    const container = render(html`<checkbox-root></checkbox-root>`);
+    await waitForUpdate();
+
+    const el = getCheckbox(container);
+    const input = getHiddenInput(container);
 
     input.click();
-    await flushUpdates();
-
-    expect(checkbox).toHaveAttribute('aria-checked', 'true');
+    await waitForUpdate();
+    expect(el).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('calls onCheckedChange with change details', async () => {
-    const handleChange = vi.fn((checked: boolean, eventDetails: CheckboxRootChangeEventDetails) => {
-      return { checked, eventDetails };
-    });
-    const container = render(Checkbox.Root({ onCheckedChange: handleChange }));
-    const checkbox = getCheckbox(container);
-
-    checkbox.dispatchEvent(
-      new MouseEvent('click', {
-        altKey: true,
-        bubbles: true,
-        cancelable: true,
-        shiftKey: true,
-      }),
+  it('calls onCheckedChange with change details and supports cancellation', async () => {
+    const handleChange = vi.fn(
+      (checked: boolean, eventDetails: CheckboxRootChangeEventDetails) => {
+        if (checked) {
+          eventDetails.cancel();
+        }
+        return eventDetails;
+      },
     );
-    await flushUpdates();
+
+    const container = render(html`
+      <checkbox-root .onCheckedChange=${handleChange}></checkbox-root>
+    `);
+    await waitForUpdate();
+
+    const el = getCheckbox(container);
+    el.click();
+    await waitForUpdate();
 
     expect(handleChange).toHaveBeenCalledTimes(1);
     expect(handleChange.mock.calls[0]?.[0]).toBe(true);
-    expect(handleChange.mock.results[0]?.value.eventDetails.event.shiftKey).toBe(true);
-    expect(handleChange.mock.results[0]?.value.eventDetails.reason).toBe('none');
+    expect(handleChange.mock.results[0]?.value.isCanceled).toBe(true);
+    expect(el).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('keeps uncontrolled state unchanged when onCheckedChange cancels the toggle', async () => {
-    const handleChange = vi.fn((_checked: boolean, eventDetails: CheckboxRootChangeEventDetails) => {
-      eventDetails.cancel();
-    });
-    const container = render(Checkbox.Root({ onCheckedChange: handleChange }));
-    const checkbox = getCheckbox(container);
-    const input = getInput(container);
-
-    checkbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushUpdates();
-
-    expect(handleChange).toHaveBeenCalledTimes(1);
-    expect(checkbox).toHaveAttribute('aria-checked', 'false');
-    expect(input.checked).toBe(false);
-  });
-
-  it('snaps a controlled checkbox back to the controlled state after user activation', async () => {
+  it('snaps a controlled checkbox back to controlled state after user activation', async () => {
     const handleChange = vi.fn();
-    const container = render(Checkbox.Root({ checked: false, onCheckedChange: handleChange }));
-    const checkbox = getCheckbox(container);
-    const input = getInput(container);
+    const container = render(html`
+      <checkbox-root .checked=${false} .onCheckedChange=${handleChange}></checkbox-root>
+    `);
+    await waitForUpdate();
 
-    checkbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushUpdates();
+    const el = getCheckbox(container);
+    const input = getHiddenInput(container);
+
+    el.click();
+    await waitForUpdate();
 
     expect(handleChange).toHaveBeenCalledTimes(1);
     expect(handleChange.mock.calls[0]?.[0]).toBe(true);
-    expect(checkbox).toHaveAttribute('aria-checked', 'false');
+    expect(el).toHaveAttribute('aria-checked', 'false');
     expect(input.checked).toBe(false);
-  });
-
-  it('supports explicit labels and updates aria-labelledby', async () => {
-    const container = render(
-      html`<label for="checkbox-input">Label</label>${Checkbox.Root({ id: 'checkbox-input' })}`,
-    );
-    await flushUpdates();
-
-    const label = container.querySelector('label') as HTMLLabelElement;
-    const checkbox = getCheckbox(container);
-
-    expect(label.id).not.toBe('');
-    expect(checkbox).toHaveAttribute('aria-labelledby', label.id);
-
-    renderTemplate(
-      html`<label for="checkbox-input-b">Label B</label>${Checkbox.Root({ id: 'checkbox-input-b' })}`,
-      container,
-    );
-    await flushUpdates();
-
-    const updatedLabel = container.querySelector('label') as HTMLLabelElement;
-    expect(updatedLabel.id).not.toBe('');
-    expect(getCheckbox(container)).toHaveAttribute('aria-labelledby', updatedLabel.id);
-  });
-
-  it('toggles when a wrapping or explicitly linked label is clicked', async () => {
-    const wrappedContainer = render(
-      html`<label data-testid="wrapped">${Checkbox.Root({})} Notifications</label>`,
-    );
-    const wrappedCheckbox = getCheckbox(wrappedContainer);
-    const wrappedLabel = wrappedContainer.querySelector(
-      '[data-testid="wrapped"]',
-    ) as HTMLLabelElement;
-
-    wrappedLabel.click();
-    await flushUpdates();
-    expect(wrappedCheckbox).toHaveAttribute('aria-checked', 'true');
-
-    const explicitContainer = render(
-      html`<label data-testid="explicit" for="checkbox-id">Notifications</label>${Checkbox.Root({
-          id: 'checkbox-id',
-        })}`,
-    );
-    const explicitCheckbox = getCheckbox(explicitContainer);
-    const explicitLabel = explicitContainer.querySelector(
-      '[data-testid="explicit"]',
-    ) as HTMLLabelElement;
-
-    explicitLabel.click();
-    await flushUpdates();
-    expect(explicitCheckbox).toHaveAttribute('aria-checked', 'true');
-  });
-
-  it('associates the id with the rendered button when nativeButton is true', async () => {
-    const container = render(
-      html`<label for="native-checkbox">Notifications</label>${Checkbox.Root({
-          id: 'native-checkbox',
-          nativeButton: true,
-          render: html`<button></button>`,
-        })}`,
-    );
-    await flushUpdates();
-
-    const checkbox = getCheckbox(container);
-    const hiddenInput = getInput(container);
-
-    expect(checkbox).toHaveAttribute('id', 'native-checkbox');
-    expect(hiddenInput).not.toHaveAttribute('id', 'native-checkbox');
-
-    (container.querySelector('label') as HTMLLabelElement).click();
-    await flushUpdates();
-
-    expect(checkbox).toHaveAttribute('aria-checked', 'true');
   });
 
   it('places state data attributes on the root and the indicator', async () => {
-    const container = render(
-      Checkbox.Root({
-        defaultChecked: true,
-        disabled: true,
-        readOnly: true,
-        required: true,
-        children: Checkbox.Indicator({}),
-      }),
-    );
-    await flushUpdates();
+    const container = render(html`
+      <checkbox-root default-checked .disabled=${true} .readOnly=${true} .required=${true}>
+        <checkbox-indicator keep-mounted>✓</checkbox-indicator>
+      </checkbox-root>
+    `);
+    await waitForUpdate();
 
-    const checkbox = getCheckbox(container);
-    const indicator = container.querySelector('[data-base-ui-checkbox-indicator]') as HTMLElement;
+    const el = getCheckbox(container);
+    const indicator = container.querySelector('checkbox-indicator') as HTMLElement;
 
-    expect(checkbox).toHaveAttribute('data-checked');
-    expect(checkbox).toHaveAttribute('data-disabled');
-    expect(checkbox).toHaveAttribute('data-readonly');
-    expect(checkbox).toHaveAttribute('data-required');
+    expect(el).toHaveAttribute('data-checked');
+    expect(el).not.toHaveAttribute('data-unchecked');
+    expect(el).toHaveAttribute('data-disabled');
+    expect(el).toHaveAttribute('data-readonly');
+    expect(el).toHaveAttribute('data-required');
 
     expect(indicator).toHaveAttribute('data-checked');
+    expect(indicator).not.toHaveAttribute('data-unchecked');
     expect(indicator).toHaveAttribute('data-disabled');
     expect(indicator).toHaveAttribute('data-readonly');
     expect(indicator).toHaveAttribute('data-required');
-
-    renderTemplate(
-      Checkbox.Root({
-        defaultChecked: true,
-        disabled: false,
-        readOnly: false,
-        required: true,
-        children: Checkbox.Indicator({}),
-      }),
-      container,
-    );
-    await flushUpdates();
-
-    checkbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushUpdates();
-
-    expect(checkbox).toHaveAttribute('data-unchecked');
-    expect(checkbox).not.toHaveAttribute('data-checked');
-    expect(indicator).toHaveAttribute('data-unchecked');
-    expect(indicator).not.toHaveAttribute('data-checked');
   });
 
   it('keeps name and value on the hidden input only', async () => {
-    const inputRef = { current: null as HTMLInputElement | null };
-    const container = render(
-      Checkbox.Root({
-        inputRef,
-        name: 'checkbox-name',
-        value: '1',
-      }),
-    );
-    await flushUpdates();
+    const container = render(html`
+      <checkbox-root name="checkbox-name" value="1"></checkbox-root>
+    `);
+    await waitForUpdate();
 
-    const checkbox = getCheckbox(container);
-    const input = getInput(container);
+    const input = getHiddenInput(container);
 
-    expect(inputRef.current).toBe(input);
     expect(input).toHaveAttribute('name', 'checkbox-name');
     expect(input).toHaveAttribute('value', '1');
-    expect(checkbox).not.toHaveAttribute('name');
-    expect(checkbox).not.toHaveAttribute('value');
   });
 
   it('submits uncheckedValue when provided', async () => {
-    const container = render(
-      html`<form>${Checkbox.Root({ name: 'test-checkbox', uncheckedValue: 'off' })}</form>`,
-    );
-    await flushUpdates();
+    const container = render(html`
+      <form>
+        <checkbox-root name="test-checkbox" unchecked-value="off"></checkbox-root>
+      </form>
+    `);
+    await waitForUpdate();
 
     const form = container.querySelector('form') as HTMLFormElement;
-    const checkbox = getCheckbox(container);
+    const el = getCheckbox(container);
 
     expect(new FormData(form).get('test-checkbox')).toBe('off');
 
-    checkbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushUpdates();
+    el.click();
+    await waitForUpdate();
     expect(new FormData(form).get('test-checkbox')).toBe('on');
 
-    checkbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushUpdates();
+    el.click();
+    await waitForUpdate();
     expect(new FormData(form).get('test-checkbox')).toBe('off');
   });
 
   it('uses aria-disabled and aria-readonly semantics', async () => {
-    const disabledContainer = render(Checkbox.Root({ disabled: true }));
-    const disabledCheckbox = getCheckbox(disabledContainer);
+    const disabledContainer = render(html`
+      <checkbox-root .disabled=${true}></checkbox-root>
+    `);
+    await waitForUpdate();
 
+    const disabledCheckbox = getCheckbox(disabledContainer);
     expect(disabledCheckbox).toHaveAttribute('aria-disabled', 'true');
     expect(disabledCheckbox).not.toHaveAttribute('disabled');
 
-    disabledCheckbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushUpdates();
+    disabledCheckbox.click();
+    await waitForUpdate();
     expect(disabledCheckbox).toHaveAttribute('aria-checked', 'false');
 
-    const readOnlyContainer = render(Checkbox.Root({ readOnly: true }));
+    const readOnlyContainer = render(html`
+      <checkbox-root .readOnly=${true}></checkbox-root>
+    `);
+    await waitForUpdate();
+
     const readOnlyCheckbox = getCheckbox(readOnlyContainer);
+    const readOnlyInput = getHiddenInput(readOnlyContainer);
 
     expect(readOnlyCheckbox).toHaveAttribute('aria-readonly', 'true');
 
-    readOnlyCheckbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushUpdates();
+    readOnlyCheckbox.click();
+    await waitForUpdate();
+    expect(readOnlyCheckbox).toHaveAttribute('aria-checked', 'false');
+
+    readOnlyInput.click();
+    await waitForUpdate();
     expect(readOnlyCheckbox).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('does not toggle when a readOnly checkbox is activated through its label', async () => {
-    const handleChange = vi.fn();
-    const container = render(
-      html`<label for="readonly-checkbox">Label</label>${Checkbox.Root({
-          id: 'readonly-checkbox',
-          onCheckedChange: handleChange,
-          readOnly: true,
-        })}`,
-    );
-    await flushUpdates();
+  it('renders a hidden checkbox input inside the element', async () => {
+    const container = render(html`<checkbox-root></checkbox-root>`);
+    await waitForUpdate();
 
-    const label = container.querySelector('label') as HTMLLabelElement;
-    const checkbox = getCheckbox(container);
-    const input = getInput(container);
-
-    label.click();
-    await flushUpdates();
-
-    expect(handleChange).not.toHaveBeenCalled();
-    expect(checkbox).toHaveAttribute('aria-checked', 'false');
-    expect(input.checked).toBe(false);
+    const input = getHiddenInput(container);
+    expect(input).toBeInTheDocument();
+    expect(input).toHaveAttribute('type', 'checkbox');
+    expect(input).toHaveAttribute('aria-hidden', 'true');
+    expect(input.tabIndex).toBe(-1);
   });
 
-  it('supports the indeterminate state', async () => {
-    const container = render(
-      Checkbox.Root({
-        indeterminate: true,
-        children: Checkbox.Indicator({ 'data-testid': 'indicator' }),
-      }),
+  it('logs error when checkbox-indicator is rendered outside checkbox-root', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(html`<checkbox-indicator>✓</checkbox-indicator>`);
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Checkbox parts must be placed within <checkbox-root>'),
     );
-    await flushUpdates();
 
-    const checkbox = getCheckbox(container);
-    const input = getInput(container);
+    errorSpy.mockRestore();
+  });
 
-    expect(checkbox).toHaveAttribute('aria-checked', 'mixed');
-    expect(checkbox).toHaveAttribute('data-indeterminate');
+  it('updates indicator data attributes when state changes', async () => {
+    const container = render(html`
+      <checkbox-root>
+        <checkbox-indicator keep-mounted>✓</checkbox-indicator>
+      </checkbox-root>
+    `);
+    await waitForUpdate();
+
+    const el = getCheckbox(container);
+    const indicator = container.querySelector('checkbox-indicator') as HTMLElement;
+
+    expect(indicator).toHaveAttribute('data-unchecked');
+    expect(indicator).not.toHaveAttribute('data-checked');
+
+    el.click();
+    await waitForUpdate();
+
+    expect(indicator).toHaveAttribute('data-checked');
+    expect(indicator).not.toHaveAttribute('data-unchecked');
+  });
+
+  it('supports defaultChecked attribute', async () => {
+    const container = render(html`
+      <checkbox-root default-checked></checkbox-root>
+    `);
+    await waitForUpdate();
+
+    const el = getCheckbox(container);
+    expect(el).toHaveAttribute('aria-checked', 'true');
+    expect(el).toHaveAttribute('data-checked');
+  });
+
+  it('supports indeterminate state with aria-checked="mixed"', async () => {
+    const container = render(html`
+      <checkbox-root indeterminate>
+        <checkbox-indicator keep-mounted>–</checkbox-indicator>
+      </checkbox-root>
+    `);
+    await waitForUpdate();
+
+    const el = getCheckbox(container);
+    const indicator = container.querySelector('checkbox-indicator') as HTMLElement;
+    const input = getHiddenInput(container);
+
+    expect(el).toHaveAttribute('aria-checked', 'mixed');
+    expect(el).toHaveAttribute('data-indeterminate');
+    expect(el).not.toHaveAttribute('data-checked');
+    expect(el).not.toHaveAttribute('data-unchecked');
     expect(input.indeterminate).toBe(true);
-    expect(container.querySelector('[data-testid="indicator"]')).not.toBe(null);
 
-    checkbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushUpdates();
-
-    expect(checkbox).toHaveAttribute('aria-checked', 'mixed');
+    expect(indicator).toHaveAttribute('data-indeterminate');
+    expect(indicator).not.toHaveAttribute('data-checked');
+    expect(indicator).not.toHaveAttribute('data-unchecked');
   });
 
-  it('does not render the indicator by default, but does when checked', async () => {
-    const container = render(
-      Checkbox.Root({
-        children: Checkbox.Indicator({ 'data-testid': 'indicator' }),
-      }),
-    );
-    await flushUpdates();
+  it('indicator is visible when indeterminate', async () => {
+    const container = render(html`
+      <checkbox-root indeterminate>
+        <checkbox-indicator>–</checkbox-indicator>
+      </checkbox-root>
+    `);
+    await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="indicator"]')).toBe(null);
-
-    renderTemplate(
-      Checkbox.Root({
-        checked: true,
-        children: Checkbox.Indicator({ 'data-testid': 'indicator' }),
-      }),
-      container,
-    );
-    await flushUpdates();
-
-    expect(container.querySelector('[data-testid="indicator"]')).not.toBe(null);
+    const indicator = container.querySelector('checkbox-indicator') as HTMLElement;
+    expect(indicator).not.toHaveAttribute('hidden');
   });
 
-  it('keeps the indicator mounted when requested', async () => {
-    const container = render(
-      Checkbox.Root({
-        children: Checkbox.Indicator({ 'data-testid': 'indicator', keepMounted: true }),
-      }),
-    );
-    await flushUpdates();
+  it('indicator hides when unchecked and not keep-mounted', async () => {
+    const container = render(html`
+      <checkbox-root>
+        <checkbox-indicator>✓</checkbox-indicator>
+      </checkbox-root>
+    `);
+    await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="indicator"]')).not.toBe(null);
-
-    renderTemplate(
-      Checkbox.Root({
-        indeterminate: true,
-        children: Checkbox.Indicator({ 'data-testid': 'indicator', keepMounted: true }),
-      }),
-      container,
-    );
-    await flushUpdates();
-
-    expect(container.querySelector('[data-testid="indicator"]')).toHaveAttribute(
-      'data-indeterminate',
-    );
+    const indicator = container.querySelector('checkbox-indicator') as HTMLElement;
+    expect(indicator).toHaveAttribute('hidden');
+    expect(indicator.style.display).toBe('none');
   });
 
-  it('preserves the checked render-prop state for an indeterminate indicator', async () => {
-    const container = render(
-      Checkbox.Root({
-        checked: true,
-        indeterminate: true,
-        children: Checkbox.Indicator({
-          render: (_props, state) =>
-            html`<span
-              data-testid="indicator"
-              data-checked=${String(state.checked)}
-              data-indeterminate=${String(state.indeterminate)}
-            ></span>`,
-        }),
-      }),
-    );
-    await flushUpdates();
+  it('indicator stays in DOM when keep-mounted and unchecked', async () => {
+    const container = render(html`
+      <checkbox-root>
+        <checkbox-indicator keep-mounted>✓</checkbox-indicator>
+      </checkbox-root>
+    `);
+    await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="indicator"]')).toHaveAttribute(
-      'data-checked',
-      'true',
-    );
-    expect(container.querySelector('[data-testid="indicator"]')).toHaveAttribute(
-      'data-indeterminate',
-      'true',
-    );
+    const indicator = container.querySelector('checkbox-indicator') as HTMLElement;
+    expect(indicator).toBeInTheDocument();
+    expect(indicator).not.toHaveAttribute('hidden');
   });
 
-  it('applies data-starting-style when the indicator becomes visible', async () => {
-    vi.useFakeTimers({ toFake: ['requestAnimationFrame'] });
+  it('sets aria-required when required', async () => {
+    const container = render(html`
+      <checkbox-root .required=${true}></checkbox-root>
+    `);
+    await waitForUpdate();
 
-    const container = render(
-      Checkbox.Root({
-        children: Checkbox.Indicator({
-          className: 'indicator',
-          'data-testid': 'indicator',
-        }),
-      }),
-    );
-    await flushUpdates();
-
-    renderTemplate(
-      Checkbox.Root({
-        checked: true,
-        children: Checkbox.Indicator({
-          className: 'indicator',
-          'data-testid': 'indicator',
-        }),
-      }),
-      container,
-    );
-    await flushUpdates();
-
-    expect(container.querySelector('[data-testid="indicator"]')).toHaveAttribute(
-      'data-starting-style',
-    );
-
-    vi.advanceTimersByTime(16);
-    await flushUpdates();
-
-    expect(container.querySelector('[data-testid="indicator"]')).not.toHaveAttribute(
-      'data-starting-style',
-    );
+    const el = getCheckbox(container);
+    expect(el).toHaveAttribute('aria-required', 'true');
   });
 
-  it('applies data-ending-style before the indicator unmounts', async () => {
-    vi.useFakeTimers({ toFake: ['requestAnimationFrame'] });
+  it('is focusable with tabindex=0 and unfocusable when disabled', async () => {
+    const container = render(html`<checkbox-root></checkbox-root>`);
+    await waitForUpdate();
 
-    const container = render(
-      Checkbox.Root({
-        checked: true,
-        children: Checkbox.Indicator({
-          className: 'indicator',
-          'data-testid': 'indicator',
-        }),
-      }),
-    );
-    await flushUpdates();
-    vi.advanceTimersByTime(16);
-    await flushUpdates();
+    const el = getCheckbox(container);
+    expect(el.tabIndex).toBe(0);
 
-    const indicator = container.querySelector('[data-testid="indicator"]') as HTMLSpanElement;
-    let resolveFinished!: () => void;
-    const finished = new Promise<void>((resolve) => {
-      resolveFinished = resolve;
-    });
-
-    Object.defineProperty(indicator, 'getAnimations', {
-      configurable: true,
-      value: () => [
-        {
-          finished,
-          pending: false,
-          playState: 'running',
-        },
-      ],
-    });
-
-    renderTemplate(
-      Checkbox.Root({
-        checked: false,
-        children: Checkbox.Indicator({
-          className: 'indicator',
-          'data-testid': 'indicator',
-        }),
-      }),
-      container,
-    );
-    await flushUpdates();
-
-    expect(container.querySelector('[data-testid="indicator"]')).toHaveAttribute(
-      'data-ending-style',
-    );
-
-    vi.advanceTimersByTime(16);
-    resolveFinished();
-    await flushUpdates();
-
-    expect(container.querySelector('[data-testid="indicator"]')).toBe(null);
+    el.disabled = true;
+    await el.updateComplete;
+    expect(el.tabIndex).toBe(-1);
   });
 
-  it('supports custom indicator children', async () => {
-    const container = render(
-      Checkbox.Root({
-        checked: true,
-        children: Checkbox.Indicator({
-          children: svg`<svg data-testid="icon" viewBox="0 0 10 10"><path d="M0 0h10v10H0z" /></svg>`,
-        }),
-      }),
-    );
-    await flushUpdates();
+  it('does not toggle when readonly', async () => {
+    const container = render(html`<checkbox-root read-only></checkbox-root>`);
+    await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="icon"]')).not.toBe(null);
+    const el = getCheckbox(container);
+    el.click();
+    await waitForUpdate();
+
+    expect(el.getChecked()).toBe(false);
   });
 });

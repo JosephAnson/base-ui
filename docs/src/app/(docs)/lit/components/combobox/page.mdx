@@ -1,0 +1,38 @@
+# Combobox
+
+<Subtitle>A combobox input with filterable popup options.</Subtitle>
+<Meta name="description" content="A combobox input with filterable popup options." />
+
+## Anatomy
+
+```html title="Anatomy"
+<combobox-root>
+  <combobox-label>Label</combobox-label>
+  <combobox-input-group>
+    <combobox-input></combobox-input>
+    <combobox-trigger>
+      <combobox-icon></combobox-icon>
+    </combobox-trigger>
+    <combobox-clear>Clear</combobox-clear>
+  </combobox-input-group>
+  <combobox-popup>
+    <combobox-group>
+      <combobox-group-label>Group</combobox-group-label>
+      <combobox-item>
+        <combobox-item-indicator>✓</combobox-item-indicator>
+        <combobox-item-text>Option</combobox-item-text>
+      </combobox-item>
+    </combobox-group>
+    <combobox-empty>No results</combobox-empty>
+  </combobox-popup>
+  <combobox-value></combobox-value>
+</combobox-root>
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Combobox', 'Combobox', 'Base UI Lit'],
+};

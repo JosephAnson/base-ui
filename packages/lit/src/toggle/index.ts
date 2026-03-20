@@ -1,193 +1,195 @@
-import { html, type TemplateResult } from 'lit';
-// eslint-disable-next-line import/extensions
-import { AsyncDirective, directive } from 'lit/async-directive.js';
-import { Button } from '../button/index.ts';
-import type { BaseUIChangeEventDetails, ComponentRenderFn, HTMLProps } from '../types/index.ts';
-import type { BaseUIEvent } from '../types/index.ts';
-import { useRender } from '../use-render/index.ts';
-
-type ToggleClickEvent = KeyboardEvent | MouseEvent;
-type ToggleEventHandler<EventType extends Event> = (event: BaseUIEvent<EventType>) => void;
-
-type ComponentPropsWithChildren<
-  ElementType extends keyof HTMLElementTagNameMap,
-  State,
-  Children = unknown,
-  RenderFunctionProps = HTMLProps,
-> = Omit<useRender.ComponentProps<ElementType, State, RenderFunctionProps>, 'children'> & {
-  children?: Children | undefined;
-};
-
-type ToggleRenderProps = Omit<
-  HTMLProps<HTMLElement>,
-  'children' | 'onClick' | 'onKeyDown' | 'onKeyUp' | 'onMouseDown' | 'onPointerDown'
-> & {
-  children?: unknown;
-  onClick?: ToggleEventHandler<ToggleClickEvent> | undefined;
-  onKeyDown?: ToggleEventHandler<KeyboardEvent> | undefined;
-  onKeyUp?: ToggleEventHandler<KeyboardEvent> | undefined;
-  onMouseDown?: ToggleEventHandler<MouseEvent> | undefined;
-  onPointerDown?: ToggleEventHandler<PointerEvent> | undefined;
-};
-
-type ToggleRenderProp =
-  | TemplateResult
-  | ComponentRenderFn<ToggleRenderProps, ToggleState>
-  | undefined;
-
-class ToggleDirective extends AsyncDirective {
-  private latestProps: ToggleProps<string> | null = null;
-  private defaultPressed = false;
-  private initialized = false;
-  private root: HTMLElement | null = null;
-
-  render(_componentProps: ToggleProps<string>) {
-    return html``;
-  }
-
-  override update(
-    _part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [ToggleProps<string>],
-  ) {
-    this.latestProps = componentProps;
-
-    if (!this.initialized) {
-      this.initialized = true;
-      this.defaultPressed = Boolean(componentProps.defaultPressed);
-    }
-
-    return this.renderCurrent();
-  }
-
-  override disconnected() {
-    this.root = null;
-  }
-
-  override reconnected() {}
-
-  private renderCurrent() {
-    if (this.latestProps == null) {
-      return html``;
-    }
-
-    const {
-      defaultPressed: _defaultPressed,
-      disabled = false,
-      form: _form,
-      onPressedChange,
-      pressed: pressedProp,
-      render,
-      type: _type,
-      value: _value,
-      ...elementProps
-    } = this.latestProps;
-    const externalRef = this.latestProps.ref as HTMLProps<HTMLElement>['ref'] | undefined;
-
-    const pressed = pressedProp ?? this.defaultPressed;
-    const state: ToggleState = {
-      disabled,
-      pressed,
-    };
-
-    return Button({
-      ...elementProps,
-      ref: this.createRootRef(externalRef),
-      disabled,
-      render: this.resolveRenderProp(render, state),
-      'aria-pressed': pressed ? 'true' : 'false',
-      'data-pressed': pressed ? '' : undefined,
-      onClick: (event) => {
-        const nextPressed = !pressed;
-        const eventDetails = createChangeEventDetails(event, this.root ?? undefined);
-
-        onPressedChange?.(nextPressed, eventDetails);
-
-        if (eventDetails.isCanceled) {
-          this.requestComponentUpdate();
-          return;
-        }
-
-        if (pressedProp === undefined) {
-          this.defaultPressed = nextPressed;
-        }
-
-        this.requestComponentUpdate();
-      },
-    });
-  }
-
-  private requestComponentUpdate() {
-    this.setValue(this.renderCurrent());
-  }
-
-  private resolveRenderProp(render: ToggleRenderProp, state: ToggleState) {
-    if (typeof render !== 'function') {
-      return render;
-    }
-
-    return (props: ToggleRenderProps) => render(props, state);
-  }
-
-  private createRootRef(externalRef: HTMLProps<HTMLElement>['ref'] | undefined) {
-    return (element: HTMLElement | null) => {
-      this.root = element;
-      assignRef(externalRef, element);
-    };
-  }
-}
-
-const toggleDirective = directive(ToggleDirective);
+import { ReactiveElement } from 'lit';
+import type { ToggleGroupRootElement } from '../toggle-group/index.ts';
 
 /**
  * A two-state button that can be on or off.
- * Renders a `<button>` element.
+ * Renders a `<toggle-root>` custom element.
+ *
+ * When placed inside a `<toggle-group-root>`, the pressed state is managed
+ * by the group and the `value` property is used as the toggle's identifier.
  *
  * Documentation: [Base UI Toggle](https://base-ui.com/react/components/toggle)
  */
-export function Toggle<TValue extends string = string>(
-  componentProps: Toggle.Props<TValue>,
-): TemplateResult {
-  return html`${toggleDirective(componentProps)}`;
-}
+export class ToggleRootElement extends ReactiveElement {
+  static properties = {
+    pressed: { type: Boolean, reflect: true },
+    defaultPressed: { type: Boolean, attribute: 'default-pressed' },
+    disabled: { type: Boolean, reflect: true },
+    value: { type: String },
+  };
 
-function assignRef<T>(ref: HTMLProps<T>['ref'], value: T | null) {
-  if (typeof ref === 'function') {
-    ref(value);
-    return;
+  declare pressed: boolean | undefined;
+  declare defaultPressed: boolean;
+  declare disabled: boolean;
+  declare value: string | undefined;
+
+  /** Callback fired when the pressed state changes. Set via `.onPressedChange=${fn}`. */
+  onPressedChange: ((pressed: boolean, event: Event) => void) | undefined;
+
+  private _internalPressed = false;
+  private _initialized = false;
+  private _group: ToggleGroupRootElement | null = null;
+  private _groupStateHandler = () => this._syncFromGroup();
+
+  constructor() {
+    super();
+    this.pressed = undefined;
+    this.defaultPressed = false;
+    this.disabled = false;
   }
 
-  if (ref != null && typeof ref === 'object') {
-    ref.current = value;
+  override createRenderRoot() {
+    return this;
   }
-}
 
-function createChangeEventDetails(
-  event: Event,
-  trigger: Element | undefined,
-): BaseUIChangeEventDetails<'none'> {
-  let isCanceled = false;
-  let isPropagationAllowed = false;
+  override connectedCallback() {
+    super.connectedCallback();
 
-  return {
-    allowPropagation() {
-      isPropagationAllowed = true;
-    },
-    cancel() {
-      isCanceled = true;
-    },
-    event,
-    get isCanceled() {
-      return isCanceled;
-    },
-    get isPropagationAllowed() {
-      return isPropagationAllowed;
-    },
-    reason: 'none',
-    trigger,
+    // Detect toggle-group parent
+    this._group = this.closest('toggle-group-root') as ToggleGroupRootElement | null;
+
+    if (!this._initialized) {
+      this._initialized = true;
+      if (!this._group) {
+        this._internalPressed = this.pressed ?? this.defaultPressed;
+      }
+    }
+
+    if (this._group) {
+      this._group.addEventListener('base-ui-toggle-group-state-change', this._groupStateHandler);
+    }
+
+    this.addEventListener('click', this._handleClick);
+    this.addEventListener('keydown', this._handleKeyDown);
+    this.addEventListener('keyup', this._handleKeyUp);
+    this._syncAttributes();
+
+    // When in a group, let the group manage tabindex after all items connect
+    if (this._group) {
+      queueMicrotask(() => this._group?._syncTabIndices());
+    }
+  }
+
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this.removeEventListener('click', this._handleClick);
+    this.removeEventListener('keydown', this._handleKeyDown);
+    this.removeEventListener('keyup', this._handleKeyUp);
+
+    if (this._group) {
+      this._group.removeEventListener(
+        'base-ui-toggle-group-state-change',
+        this._groupStateHandler,
+      );
+      this._group = null;
+    }
+  }
+
+  protected override updated() {
+    this._syncAttributes();
+  }
+
+  /** Returns the effective disabled state, inheriting from group if applicable. */
+  private _isDisabled(): boolean {
+    return this.disabled || (this._group?.disabled ?? false);
+  }
+
+  getPressed(): boolean {
+    // When inside a toggle-group, derive pressed from the group's value array
+    if (this._group && this.value !== undefined) {
+      return this._group.isPressed(this.value);
+    }
+    return this.pressed ?? this._internalPressed;
+  }
+
+  toggle(event?: Event) {
+    const effectiveDisabled = this._isDisabled();
+    if (effectiveDisabled) return;
+
+    const nextPressed = !this.getPressed();
+
+    // When inside a toggle-group, delegate to the group
+    if (this._group && this.value !== undefined) {
+      this.onPressedChange?.(nextPressed, event ?? new Event('change'));
+      this._group.setGroupValue(this.value, nextPressed, event ?? new Event('change'));
+      return;
+    }
+
+    this.onPressedChange?.(nextPressed, event ?? new Event('change'));
+
+    // Update internal state (uncontrolled mode)
+    if (this.pressed === undefined) {
+      this._internalPressed = nextPressed;
+    }
+
+    this._syncAttributes();
+    this.requestUpdate();
+  }
+
+  private _syncFromGroup() {
+    this._syncAttributes();
+    this.requestUpdate();
+  }
+
+  private _syncAttributes() {
+    const isPressed = this.getPressed();
+    const effectiveDisabled = this._isDisabled();
+
+    // ARIA
+    this.setAttribute('role', 'button');
+    this.setAttribute('aria-pressed', isPressed ? 'true' : 'false');
+
+    // Data attributes
+    this.toggleAttribute('data-pressed', isPressed);
+    this.toggleAttribute('data-disabled', effectiveDisabled);
+
+    // Tabindex: when in a group, the group manages roving tabindex
+    if (!this._group) {
+      this.tabIndex = effectiveDisabled ? -1 : 0;
+    }
+  }
+
+  private _handleClick = (event: MouseEvent) => {
+    if (this._isDisabled()) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    this.toggle(event);
+  };
+
+  private _handleKeyDown = (event: KeyboardEvent) => {
+    if (this._isDisabled()) {
+      event.preventDefault();
+      return;
+    }
+
+    if (event.target !== this) return;
+
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+    }
+
+    if (event.key === 'Enter') {
+      this.toggle(event);
+    }
+  };
+
+  private _handleKeyUp = (event: KeyboardEvent) => {
+    if (this._isDisabled()) return;
+    if (event.target !== this) return;
+
+    if (event.key === ' ') {
+      this.toggle(event);
+    }
   };
 }
 
-export interface ToggleState {
+if (!customElements.get('toggle-root')) {
+  customElements.define('toggle-root', ToggleRootElement);
+}
+
+export interface ToggleRootState {
   /**
    * Whether the toggle is currently pressed.
    */
@@ -198,59 +200,12 @@ export interface ToggleState {
   disabled: boolean;
 }
 
-export interface ToggleProps<TValue extends string = string> extends Omit<
-  ComponentPropsWithChildren<'button', ToggleState, unknown, ToggleRenderProps>,
-  'children' | 'defaultPressed' | 'disabled' | 'form' | 'render' | 'type' | 'value'
-> {
-  children?: unknown;
-  /**
-   * Whether the toggle button is currently pressed.
-   * This is the controlled counterpart of `defaultPressed`.
-   */
-  pressed?: boolean | undefined;
-  /**
-   * Whether the toggle button is initially pressed.
-   * This is the uncontrolled counterpart of `pressed`.
-   * @default false
-   */
-  defaultPressed?: boolean | undefined;
-  /**
-   * Whether the component should ignore user interaction.
-   * @default false
-   */
-  disabled?: boolean | undefined;
-  /**
-   * Whether the component renders a native `<button>` element when replacing it
-   * via the `render` prop.
-   * Set to `false` if the rendered element is not a button (e.g. `<div>`).
-   * @default true
-   */
-  nativeButton?: boolean | undefined;
-  /**
-   * Callback fired when the pressed state changes.
-   */
-  onPressedChange?:
-    | ((pressed: boolean, eventDetails: Toggle.ChangeEventDetails) => void)
-    | undefined;
-  /**
-   * Allows you to replace the component's HTML element
-   * with a different tag, or compose it with a template that has a single root element.
-   */
-  render?: ToggleRenderProp;
-  /**
-   * A unique string that identifies the toggle when used
-   * inside a toggle group.
-   */
-  value?: TValue | undefined;
+export namespace ToggleRoot {
+  export type State = ToggleRootState;
 }
 
-export type ToggleChangeEventReason = 'none';
-
-export type ToggleChangeEventDetails = BaseUIChangeEventDetails<ToggleChangeEventReason>;
-
-export namespace Toggle {
-  export type Props<TValue extends string = string> = ToggleProps<TValue>;
-  export type State = ToggleState;
-  export type ChangeEventReason = ToggleChangeEventReason;
-  export type ChangeEventDetails = ToggleChangeEventDetails;
+declare global {
+  interface HTMLElementTagNameMap {
+    'toggle-root': ToggleRootElement;
+  }
 }

@@ -24,27 +24,13 @@ import DetachedControlledDemo from './demos/detached-triggers-controlled/css-mod
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { Tooltip } from '@base-ui/lit/tooltip';
-
-render(
-  Tooltip.Provider({
-    children: Tooltip.Root({
-      children: [
-        Tooltip.Trigger({ children: 'Open' }),
-        Tooltip.Portal({
-          children: Tooltip.Positioner({
-            children: Tooltip.Popup({
-              children: Tooltip.Arrow(),
-            }),
-          }),
-        }),
-      ],
-    }),
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<tooltip-root>
+  <tooltip-trigger>Open</tooltip-trigger>
+  <tooltip-popup>
+    <tooltip-arrow></tooltip-arrow>
+  </tooltip-popup>
+</tooltip-root>
 ```
 
 export const metadata = {

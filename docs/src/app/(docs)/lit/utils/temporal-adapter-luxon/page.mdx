@@ -1,0 +1,45 @@
+# TemporalAdapterLuxon
+
+<Subtitle>Luxon implementation of the TemporalAdapter interface.</Subtitle>
+<Meta
+  name="description"
+  content="A Luxon adapter for use with Base UI Lit temporal components like Calendar."
+/>
+
+## Usage
+
+```ts title="Creating the adapter"
+import { TemporalAdapterLuxon } from '@base-ui/lit/temporal-adapter-luxon';
+
+const adapter = new TemporalAdapterLuxon();
+
+// With a custom locale:
+const frenchAdapter = new TemporalAdapterLuxon({ locale: 'fr' });
+```
+
+### With the provider
+
+```ts title="Providing to components"
+const provider = document.querySelector('temporal-adapter-provider');
+provider.adapter = new TemporalAdapterLuxon();
+```
+
+## API
+
+### `TemporalAdapterLuxon`
+
+Implements the full `TemporalAdapter` interface using Luxon.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `locale` | `string` | `'en-US'` | The locale code for formatting and parsing. |
+
+Supports timezone-aware dates via Luxon's built-in zone handling.
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
+
+export const metadata = {
+  keywords: ['Lit TemporalAdapterLuxon', 'Luxon', 'Date adapter', 'Base UI Lit'],
+};

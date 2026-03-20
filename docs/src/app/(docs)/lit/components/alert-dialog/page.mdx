@@ -12,30 +12,16 @@ import { DemoAlertDialogHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { AlertDialog } from '@base-ui/lit/alert-dialog';
-
-render(
-  AlertDialog.Root({
-    children: [
-      AlertDialog.Trigger({ children: 'Discard draft' }),
-      AlertDialog.Portal({
-        children: [
-          AlertDialog.Backdrop(),
-          AlertDialog.Popup({
-            children: [
-              AlertDialog.Title({ children: 'Discard draft?' }),
-              AlertDialog.Description({ children: "You can't undo this action." }),
-              AlertDialog.Close({ children: 'Cancel' }),
-            ],
-          }),
-        ],
-      }),
-    ],
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<alert-dialog-root>
+  <alert-dialog-trigger>Discard draft</alert-dialog-trigger>
+  <alert-dialog-backdrop></alert-dialog-backdrop>
+  <alert-dialog-popup>
+    <alert-dialog-title>Discard draft?</alert-dialog-title>
+    <alert-dialog-description>You can't undo this action.</alert-dialog-description>
+    <alert-dialog-close>Cancel</alert-dialog-close>
+  </alert-dialog-popup>
+</alert-dialog-root>
 ```
 
 ## Status

@@ -1,10 +1,12 @@
 'use client';
 import * as React from 'react';
 import { useTimeout } from '@base-ui/utils/useTimeout';
-import { nothing, render as renderTemplate } from 'lit';
-import { Button } from '@base-ui/lit/button';
+import { html, nothing, render as renderTemplate } from 'lit';
+import '@base-ui/lit/button';
 
-interface LitLoadingButtonProps extends Pick<Button.Props, 'className'> {}
+interface LitLoadingButtonProps {
+  className?: string | undefined;
+}
 
 export function LitLoadingButton(props: LitLoadingButtonProps) {
   const { className } = props;
@@ -20,18 +22,17 @@ export function LitLoadingButton(props: LitLoadingButtonProps) {
     }
 
     renderTemplate(
-      Button({
-        className,
-        disabled: loading,
-        focusableWhenDisabled: true,
-        onClick() {
+      html`<button-root
+        class=${className ?? ''}
+        ?disabled=${loading}
+        .focusableWhenDisabled=${true}
+        @click=${() => {
           setLoading(true);
           timeout.start(4000, () => {
             setLoading(false);
           });
-        },
-        children: loading ? 'Submitting' : 'Submit',
-      }),
+        }}
+      >${loading ? 'Submitting' : 'Submit'}</button-root>`,
       host,
     );
 

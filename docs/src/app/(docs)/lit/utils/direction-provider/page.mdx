@@ -1,0 +1,53 @@
+# DirectionProvider
+
+<Subtitle>Provides text direction (LTR/RTL) to child components.</Subtitle>
+<Meta
+  name="description"
+  content="A provider element and utility for resolving text direction in Base UI Lit components."
+/>
+
+## Usage
+
+The `getDirection` utility resolves the text direction for any element by walking up the DOM tree to find the nearest `[dir]` attribute.
+
+```ts title="Using getDirection"
+import { getDirection } from '@base-ui/lit/direction-provider';
+
+const dir = getDirection(element); // 'ltr' or 'rtl'
+```
+
+The `<direction-provider>` element sets the text direction for its subtree:
+
+```html title="Anatomy"
+<direction-provider dir="rtl">
+  <!-- All children will resolve to RTL -->
+  <accordion-root>...</accordion-root>
+</direction-provider>
+```
+
+The provider renders with `display: contents` so it doesn't affect layout.
+
+## API
+
+### `getDirection(element: Element): TextDirection`
+
+Returns `'ltr'` or `'rtl'` by checking:
+1. The nearest ancestor with a `[dir]` attribute
+2. The document element's `dir` attribute
+3. Falls back to `'ltr'`
+
+### `DirectionProviderElement`
+
+Custom element: `<direction-provider>`
+
+| Attribute | Type | Default | Description |
+| --- | --- | --- | --- |
+| `dir` | `'ltr' \| 'rtl'` | `'ltr'` | The text direction to provide. |
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
+
+export const metadata = {
+  keywords: ['Lit DirectionProvider', 'DirectionProvider', 'RTL', 'Base UI Lit', 'Text direction'],
+};

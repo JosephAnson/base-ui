@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import { html, nothing, render as renderTemplate } from 'lit';
-import { Avatar } from '@base-ui/lit/avatar';
+import '@base-ui/lit/avatar';
 
 interface LitAvatarProps {
   alt?: string | undefined;
@@ -26,26 +26,20 @@ export function LitAvatar(props: LitAvatarProps) {
     }
 
     renderTemplate(
-      Avatar.Root({
-        className,
-        children: html`
-          ${src
-            ? Avatar.Image({
-                alt,
-                className: imageClassName,
-                height,
-                src,
-                width,
-              })
-            : nothing}
-          ${fallback
-            ? Avatar.Fallback({
-                className: fallbackClassName,
-                children: fallback,
-              })
-            : nothing}
-        `,
-      }),
+      html`<avatar-root class=${className ?? ''}>
+        ${src
+          ? html`<avatar-image
+              alt=${alt ?? nothing}
+              class=${imageClassName ?? ''}
+              height=${height ?? nothing}
+              src=${src}
+              width=${width ?? nothing}
+            ></avatar-image>`
+          : nothing}
+        ${fallback
+          ? html`<avatar-fallback class=${fallbackClassName ?? ''}>${fallback}</avatar-fallback>`
+          : nothing}
+      </avatar-root>`,
       host,
     );
 

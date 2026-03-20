@@ -259,7 +259,7 @@ describe('e2e', () => {
 
         await page.keyboard.press('Tab');
         await page.keyboard.press('Enter');
-        // first item (page one) is initially highlighted
+        await expect(page.getByTestId('link-one')).toBeFocused();
         await page.keyboard.press('ArrowDown');
         await page.keyboard.press('Enter');
 

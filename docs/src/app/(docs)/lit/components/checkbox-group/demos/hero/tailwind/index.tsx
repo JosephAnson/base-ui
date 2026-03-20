@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import { html } from 'lit';
-import { Checkbox } from '@base-ui/lit/checkbox';
+import '@base-ui/lit/checkbox';
 import { LitCheckboxGroup } from '../../shared/LitCheckboxGroup';
 import { checkIcon } from '../../shared/icons';
 
@@ -20,44 +20,41 @@ export default function ExampleCheckboxGroup() {
         <div class="font-medium" id=${id}>Apples</div>
 
         <label class="flex items-center gap-2">
-          ${Checkbox.Root({
-            name: 'apple',
-            value: 'fuji-apple',
-            className:
-              'flex size-5 items-center justify-center rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-800 data-[checked]:bg-gray-900 data-[unchecked]:border data-[unchecked]:border-gray-300',
-            children: Checkbox.Indicator({
-              className: 'flex text-gray-50 data-[unchecked]:hidden',
-              children: checkIcon('size-3'),
-            }),
-          })}
+          <checkbox-root
+            name="apple"
+            value="fuji-apple"
+            class="flex size-5 items-center justify-center rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-800 data-[checked]:bg-gray-900 data-[unchecked]:border data-[unchecked]:border-gray-300"
+          >
+            <checkbox-indicator class="flex text-gray-50 data-[unchecked]:hidden">
+              ${checkIcon('size-3')}
+            </checkbox-indicator>
+          </checkbox-root>
           Fuji
         </label>
 
         <label class="flex items-center gap-2">
-          ${Checkbox.Root({
-            name: 'apple',
-            value: 'gala-apple',
-            className:
-              'flex size-5 items-center justify-center rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-800 data-[checked]:bg-gray-900 data-[unchecked]:border data-[unchecked]:border-gray-300',
-            children: Checkbox.Indicator({
-              className: 'flex text-gray-50 data-[unchecked]:hidden',
-              children: checkIcon('size-3'),
-            }),
-          })}
+          <checkbox-root
+            name="apple"
+            value="gala-apple"
+            class="flex size-5 items-center justify-center rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-800 data-[checked]:bg-gray-900 data-[unchecked]:border data-[unchecked]:border-gray-300"
+          >
+            <checkbox-indicator class="flex text-gray-50 data-[unchecked]:hidden">
+              ${checkIcon('size-3')}
+            </checkbox-indicator>
+          </checkbox-root>
           Gala
         </label>
 
         <label class="flex items-center gap-2">
-          ${Checkbox.Root({
-            name: 'apple',
-            value: 'granny-smith-apple',
-            className:
-              'flex size-5 items-center justify-center rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-800 data-[checked]:bg-gray-900 data-[unchecked]:border data-[unchecked]:border-gray-300',
-            children: Checkbox.Indicator({
-              className: 'flex text-gray-50 data-[unchecked]:hidden',
-              children: checkIcon('size-3'),
-            }),
-          })}
+          <checkbox-root
+            name="apple"
+            value="granny-smith-apple"
+            class="flex size-5 items-center justify-center rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-800 data-[checked]:bg-gray-900 data-[unchecked]:border data-[unchecked]:border-gray-300"
+          >
+            <checkbox-indicator class="flex text-gray-50 data-[unchecked]:hidden">
+              ${checkIcon('size-3')}
+            </checkbox-indicator>
+          </checkbox-root>
           Granny Smith
         </label>
       `}

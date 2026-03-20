@@ -9,19 +9,11 @@ import { DemoAvatarHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { html, render } from 'lit';
-import { Avatar } from '@base-ui/lit/avatar';
-
-render(
-  Avatar.Root({
-    children: html`
-      ${Avatar.Image({ src: '/avatar.jpg', alt: 'Ada Lovelace' })}
-      ${Avatar.Fallback({ children: 'AL' })}
-    `,
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<avatar-root>
+  <avatar-image src="/avatar.jpg" alt="Ada Lovelace"></avatar-image>
+  <avatar-fallback>AL</avatar-fallback>
+</avatar-root>
 ```
 
 ## Status

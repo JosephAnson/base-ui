@@ -1,108 +1,134 @@
-import { html, noChange, nothing, type TemplateResult } from 'lit';
-// eslint-disable-next-line import/extensions
-import { AsyncDirective, directive } from 'lit/async-directive.js';
-import type { BaseUIGenericEventDetails, ComponentRenderFn, HTMLProps } from '../types/index.ts';
-import { useRender } from '../use-render/index.ts';
+import { BaseHTMLElement } from '../utils/index.ts';
 import {
   FORM_CONTEXT_ATTRIBUTE,
   FORM_STATE_CHANGE_EVENT,
   type Errors,
   type FormFieldEntry,
   type FormRuntime,
-  type FormValidationMode as SharedFormValidationMode,
+  type FormValidationMode,
   setFormRuntime,
 } from './shared.ts';
 
-type ComponentPropsWithChildren<
-  ElementType extends keyof HTMLElementTagNameMap,
-  State,
-  Children = unknown,
-  RenderFunctionProps = HTMLProps,
-> = Omit<useRender.ComponentProps<ElementType, State, RenderFunctionProps>, 'children'> & {
-  children?: Children | undefined;
-};
+// ─── Types ──────────────────────────────────────────────────────────────────────
 
-type FormRenderProps = HTMLProps<HTMLFormElement> & {
-  children?: unknown;
-};
+export type FormSubmitEventReason = 'none';
 
-type FormRenderProp = TemplateResult | ComponentRenderFn<FormRenderProps, FormState>;
+export interface FormSubmitEventDetails {
+  reason: FormSubmitEventReason;
+  event: SubmitEvent;
+}
 
-class FormDirective<FormValues extends Record<string, any> = Record<string, any>>
-  extends AsyncDirective
-  implements FormRuntime
-{
-  private latestProps: FormProps<FormValues> | null = null;
-  private root: HTMLFormElement | null = null;
-  private errors: Errors = {};
-  private externalErrors: Errors | undefined = undefined;
-  private fields = new Map<Element, FormFieldEntry>();
-  private initialized = false;
-  private lastPublishedStateKey: string | null = null;
-  private submitted = false;
-  private pendingFocusInvalidField = false;
-  private pendingFocusInvalidFieldQueued = false;
+export interface FormActions {
+  validate: (fieldName?: string) => void;
+}
 
-  render(_componentProps: FormProps<FormValues>) {
-    return noChange;
+export interface FormState {}
+
+export { type FormValidationMode } from './shared.ts';
+
+// ─── FormRootElement ─────────────────────────────────────────────────────────────
+
+/**
+ * A form context provider that enhances a nested `<form>` element with
+ * consolidated error handling and field validation.
+ * Renders a `<form-root>` custom element (display:contents).
+ *
+ * Usage:
+ * ```html
+ * <form-root .onFormSubmit=${handler} .errors=${errors}>
+ *   <form>
+ *     <field-root>...</field-root>
+ *     <button type="submit">Submit</button>
+ *   </form>
+ * </form-root>
+ * ```
+ *
+ * Documentation: [Base UI Form](https://base-ui.com/react/components/form)
+ */
+export class FormRootElement extends BaseHTMLElement implements FormRuntime {
+  // --- Properties (set via Lit property binding) ---
+
+  /** External errors keyed by field name. */
+  private _errors: Errors | undefined;
+  get errors(): Errors | undefined {
+    return this._errors;
+  }
+  set errors(value: Errors | undefined) {
+    this._syncExternalErrors(value);
   }
 
-  override update(
-    _part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [FormProps<FormValues>],
-  ) {
-    this.latestProps = componentProps;
+  /** Validation mode inherited by child fields. */
+  validationMode: FormValidationMode | undefined;
 
-    if (!this.initialized) {
-      this.initialized = true;
-      this.syncExternalErrors(componentProps.errors);
-      if (componentProps.actionsRef != null) {
-        componentProps.actionsRef.current = { validate: (fieldName) => this.validate(fieldName) };
-      }
-    } else {
-      this.syncExternalErrors(componentProps.errors);
-      if (componentProps.actionsRef != null) {
-        componentProps.actionsRef.current = { validate: (fieldName) => this.validate(fieldName) };
-      }
+  /** Called on valid submit with collected form values. Prevents native submit. */
+  onFormSubmit:
+    | ((values: Record<string, unknown>, details: FormSubmitEventDetails) => void)
+    | undefined;
+
+  /** Native submit handler. Called after validation passes. */
+  onSubmit: ((event: SubmitEvent) => void) | undefined;
+
+  /** Ref object for imperative validation. */
+  private _actionsRef: { current: FormActions | null } | undefined;
+  get actionsRef(): { current: FormActions | null } | undefined {
+    return this._actionsRef;
+  }
+  set actionsRef(value: { current: FormActions | null } | undefined) {
+    this._actionsRef = value;
+    if (value != null) {
+      value.current = { validate: (name) => this._validateFields(name) };
     }
-
-    return this.renderCurrent();
   }
 
-  override disconnected() {
-    setFormRuntime(this.root, null);
-    if (this.latestProps?.actionsRef != null) {
-      this.latestProps.actionsRef.current = null;
+  // --- Internal state ---
+
+  private _form: HTMLFormElement | null = null;
+  private _internalErrors: Errors = {};
+  private _externalErrors: Errors | undefined;
+  private _fields = new Map<Element, FormFieldEntry>();
+  private _submitted = false;
+  private _pendingFocusInvalid = false;
+  private _pendingFocusQueued = false;
+  private _lastPublishedStateKey: string | null = null;
+
+  connectedCallback() {
+    this.style.display = 'contents';
+    this.setAttribute(FORM_CONTEXT_ATTRIBUTE, '');
+
+    queueMicrotask(() => {
+      this._attachForm();
+    });
+  }
+
+  disconnectedCallback() {
+    this._detachForm();
+    if (this._actionsRef != null) {
+      this._actionsRef.current = null;
     }
-    this.root = null;
-    this.fields.clear();
-    this.lastPublishedStateKey = null;
+    this._fields.clear();
+    this._lastPublishedStateKey = null;
   }
 
-  override reconnected() {}
+  // --- FormRuntime implementation ---
 
   clearErrors(name: string | undefined) {
-    if (name == null || !Object.hasOwn(this.errors, name)) {
-      return;
-    }
-
-    const nextErrors = { ...this.errors };
-    delete nextErrors[name];
-    this.errors = nextErrors;
-    this.publishStateChange();
+    if (name == null || !Object.hasOwn(this._internalErrors, name)) return;
+    const next = { ...this._internalErrors };
+    delete next[name];
+    this._internalErrors = next;
+    this._publishStateChange();
   }
 
-  getErrors() {
-    return this.errors;
+  getErrors(): Errors {
+    return this._internalErrors;
   }
 
-  getFormValues() {
-    return this.getConnectedFields().reduce(
+  getFormValues(): Record<string, unknown> {
+    return this._getConnectedFields().reduce(
       (values, field) => {
         if (field.name) {
           values[field.name] = field.getValue();
         }
-
         return values;
       },
       {} as Record<string, unknown>,
@@ -110,262 +136,169 @@ class FormDirective<FormValues extends Record<string, any> = Record<string, any>
   }
 
   getValidationMode(): FormValidationMode {
-    return this.latestProps?.validationMode ?? 'onSubmit';
+    return this.validationMode ?? 'onSubmit';
   }
 
   registerField(element: Element, entry: FormFieldEntry) {
-    this.fields.set(element, entry);
-    this.queueFocusInvalidField();
+    this._fields.set(element, entry);
+    this._queueFocusInvalidField();
   }
 
   unregisterField(element: Element) {
-    this.fields.delete(element);
+    this._fields.delete(element);
   }
 
-  private renderCurrent() {
-    if (this.latestProps == null) {
-      return nothing;
-    }
+  // --- Private methods ---
 
-    const {
-      actionsRef: _actionsRef,
-      children,
-      errors: _errors,
-      onFormSubmit: _onFormSubmit,
-      onSubmit: _onSubmit,
-      render,
-      validationMode: _validationMode,
-      ...elementProps
-    } = this.latestProps;
-    void _actionsRef;
-    void _errors;
-    void _onFormSubmit;
-    void _onSubmit;
-    void _validationMode;
+  private _attachForm() {
+    const form = this.querySelector('form');
+    if (!form || this._form === form) return;
 
-    const noValidate = this.latestProps.noValidate ?? true;
-
-    return useRender<FormState, HTMLFormElement>({
-      defaultTagName: 'form',
-      render: render as FormRenderProp | undefined,
-      ref: this.handleRootRef,
-      state: {},
-      props: {
-        [FORM_CONTEXT_ATTRIBUTE]: '',
-        noValidate,
-        onSubmit: (event: SubmitEvent) => {
-          this.handleSubmit(event);
-        },
-        ...(children === undefined ? elementProps : { ...elementProps, children }),
-      },
-    });
+    this._detachForm();
+    this._form = form;
+    form.noValidate = true;
+    setFormRuntime(form, this);
+    form.addEventListener('submit', this._handleSubmit);
+    this._publishStateChange();
   }
 
-  private handleRootRef = (element: HTMLFormElement | null) => {
-    if (this.root === element) {
+  private _detachForm() {
+    if (!this._form) return;
+    this._form.removeEventListener('submit', this._handleSubmit);
+    setFormRuntime(this._form, null);
+    this._form = null;
+  }
+
+  private _handleSubmit = (event: SubmitEvent) => {
+    this._validateFields(undefined, true);
+
+    const invalidField = this._getFirstInvalidField();
+    if (invalidField) {
+      event.preventDefault();
+      this._focusControl(invalidField.getControl());
       return;
     }
 
-    setFormRuntime(this.root, null);
-    this.root = element;
-    setFormRuntime(this.root, this);
-    this.publishStateChange();
+    this._submitted = true;
+
+    this.onSubmit?.(event);
+
+    if (this.onFormSubmit) {
+      event.preventDefault();
+      this.onFormSubmit(this.getFormValues(), { reason: 'none', event });
+    }
   };
 
-  private handleSubmit(event: SubmitEvent) {
-    this.validate(undefined, true);
+  private _syncExternalErrors(nextErrors: Errors | undefined) {
+    if (this._externalErrors === nextErrors) return;
+    this._externalErrors = nextErrors;
+    this._errors = nextErrors;
+    this._internalErrors = nextErrors ?? {};
+    this._publishStateChange();
 
-    const invalidField = this.getFirstInvalidField();
-
-    if (invalidField != null) {
-      event.preventDefault();
-      this.focusControl(invalidField.getControl());
-      return;
-    }
-
-    this.submitted = true;
-
-    const onSubmit = this.latestProps?.onSubmit as ((event: SubmitEvent) => void) | undefined;
-    onSubmit?.(event);
-
-    if (this.latestProps?.onFormSubmit != null) {
-      event.preventDefault();
-      this.latestProps.onFormSubmit(this.getTypedFormValues(), createSubmitEventDetails(event));
-    }
-  }
-
-  private syncExternalErrors(nextErrors: Errors | undefined) {
-    if (this.externalErrors === nextErrors) {
-      return;
-    }
-
-    this.externalErrors = nextErrors;
-    this.errors = nextErrors ?? {};
-    this.publishStateChange();
-
-    if (!this.submitted) {
-      return;
-    }
-
-    this.submitted = false;
+    if (!this._submitted) return;
+    this._submitted = false;
     queueMicrotask(() => {
-      this.pendingFocusInvalidField = true;
-      this.queueFocusInvalidField();
+      this._pendingFocusInvalid = true;
+      this._queueFocusInvalidField();
     });
   }
 
-  private publishStateChange() {
-    if (this.root == null) {
-      return;
-    }
+  private _publishStateChange() {
+    if (this._form == null) return;
 
-    const nextStateKey = JSON.stringify({
-      errors: this.errors,
+    const nextKey = JSON.stringify({
+      errors: this._internalErrors,
       validationMode: this.getValidationMode(),
     });
 
-    if (nextStateKey === this.lastPublishedStateKey) {
-      return;
-    }
-
-    this.lastPublishedStateKey = nextStateKey;
-    this.root.dispatchEvent(new CustomEvent(FORM_STATE_CHANGE_EVENT));
+    if (nextKey === this._lastPublishedStateKey) return;
+    this._lastPublishedStateKey = nextKey;
+    this._form.dispatchEvent(new CustomEvent(FORM_STATE_CHANGE_EVENT));
   }
 
-  private validate(fieldName?: string, submitAttempted = false) {
-    const fields = this.getConnectedFields();
+  private _validateFields(fieldName?: string, submitAttempted = false) {
+    const fields = this._getConnectedFields();
 
     if (fieldName != null) {
-      const namedField = fields.find((field) => field.name === fieldName);
+      const namedField = fields.find((f) => f.name === fieldName);
       namedField?.validate(submitAttempted);
       return;
     }
 
-    fields.forEach((field) => {
-      field.validate(submitAttempted);
-    });
+    fields.forEach((f) => f.validate(submitAttempted));
   }
 
-  private getFirstInvalidField() {
-    return this.getConnectedFields().find((field) => {
-      return field.getValidityData().state.valid === false;
-    });
+  private _getFirstInvalidField() {
+    return this._getConnectedFields().find(
+      (f) => f.getValidityData().state.valid === false,
+    );
   }
 
-  private getConnectedFields() {
-    const connectedFields: FormFieldEntry[] = [];
-
-    this.fields.forEach((field, element) => {
+  private _getConnectedFields() {
+    const connected: FormFieldEntry[] = [];
+    this._fields.forEach((field, element) => {
       if (!element.isConnected) {
-        this.fields.delete(element);
+        this._fields.delete(element);
         return;
       }
-
-      connectedFields.push(field);
+      connected.push(field);
     });
-
-    return connectedFields;
+    return connected;
   }
 
-  private queueFocusInvalidField() {
-    if (!this.pendingFocusInvalidField || this.pendingFocusInvalidFieldQueued) {
-      return;
-    }
-
-    this.pendingFocusInvalidFieldQueued = true;
+  private _queueFocusInvalidField() {
+    if (!this._pendingFocusInvalid || this._pendingFocusQueued) return;
+    this._pendingFocusQueued = true;
     queueMicrotask(() => {
-      this.pendingFocusInvalidFieldQueued = false;
+      this._pendingFocusQueued = false;
+      if (!this._pendingFocusInvalid) return;
 
-      if (!this.pendingFocusInvalidField) {
-        return;
-      }
+      const invalidField = this._getFirstInvalidField();
+      const control =
+        invalidField?.getControl() ?? this._getFirstInvalidControlFromDom();
+      if (!control) return;
 
-      const invalidField = this.getFirstInvalidField();
-      const invalidControl = invalidField?.getControl() ?? this.getFirstInvalidControlFromDom();
-
-      if (invalidControl == null) {
-        return;
-      }
-
-      this.pendingFocusInvalidField = false;
-      this.focusControl(invalidControl);
+      this._pendingFocusInvalid = false;
+      this._focusControl(control);
     });
   }
 
-  private getFirstInvalidControlFromDom() {
+  private _getFirstInvalidControlFromDom() {
     return (
-      this.root?.querySelector<HTMLElement>(
-        '[data-base-ui-field-control][aria-invalid="true"], [data-base-ui-field-control][data-invalid]',
+      this._form?.querySelector<HTMLElement>(
+        '[aria-invalid="true"]',
       ) ?? null
     );
   }
 
-  private focusControl(control: HTMLElement | null) {
-    if (control == null) {
-      return;
-    }
-
+  private _focusControl(control: HTMLElement | null) {
+    if (!control) return;
     control.focus();
-
     if (control instanceof HTMLInputElement) {
       control.select();
     }
   }
-
-  private getTypedFormValues() {
-    return this.getFormValues() as FormValues;
-  }
 }
 
-const formDirective = directive(FormDirective);
-
-/**
- * A native form element with consolidated error handling.
- * Renders a `<form>` element.
- *
- * Documentation: [Base UI Form](https://base-ui.com/react/components/form)
- */
-export function Form<FormValues extends Record<string, any> = Record<string, any>>(
-  componentProps: Form.Props<FormValues>,
-): TemplateResult {
-  return html`${formDirective(componentProps as FormProps<Record<string, any>>)}`;
+if (!customElements.get('form-root')) {
+  customElements.define('form-root', FormRootElement);
 }
 
-function createSubmitEventDetails(
-  event: SubmitEvent,
-): BaseUIGenericEventDetails<FormSubmitEventReason> {
-  return {
-    reason: 'none',
-    event,
-  };
-}
+// ─── Namespace exports ──────────────────────────────────────────────────────────
 
-export type FormSubmitEventReason = 'none';
-export type FormSubmitEventDetails = BaseUIGenericEventDetails<Form.SubmitEventReason>;
-export type FormActions = {
-  validate: (fieldName?: string | undefined) => void;
-};
-export type FormState = {};
-export type FormValidationMode = SharedFormValidationMode;
-
-export interface FormProps<
-  FormValues extends Record<string, any> = Record<string, any>,
-> extends ComponentPropsWithChildren<'form', FormState, unknown, FormRenderProps> {
-  actionsRef?: { current: Form.Actions | null } | undefined;
-  errors?: Errors | undefined;
-  onFormSubmit?:
-    | ((formValues: FormValues, eventDetails: Form.SubmitEventDetails) => void)
-    | undefined;
-  validationMode?: Form.ValidationMode | undefined;
-}
-
-export namespace Form {
+export namespace FormRoot {
   export type Actions = FormActions;
-  export type Props<FormValues extends Record<string, any> = Record<string, any>> =
-    FormProps<FormValues>;
   export type State = FormState;
   export type SubmitEventDetails = FormSubmitEventDetails;
   export type SubmitEventReason = FormSubmitEventReason;
   export type ValidationMode = FormValidationMode;
-  export type Values<FormValues extends Record<string, any> = Record<string, any>> = FormValues;
+}
+
+// ─── Global type declarations ───────────────────────────────────────────────────
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'form-root': FormRootElement;
+  }
 }

@@ -1,17 +1,8 @@
-/* eslint-disable testing-library/render-result-naming-convention */
-import { html, nothing, render as renderTemplate, type TemplateResult } from 'lit';
+import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import {
-  Avatar,
-  type AvatarFallbackProps,
-  type AvatarImageProps,
-  type AvatarRootProps,
-  type ImageLoadingStatus,
-} from '@base-ui/lit/avatar';
-
-const AVATAR_CONTEXT_ERROR =
-  'Base UI: AvatarRootContext is missing. Avatar parts must be placed within <Avatar.Root>.';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import './index.ts';
+import type { AvatarRootElement } from './index.ts';
 
 class MockImage {
   static instances: MockImage[] = [];
@@ -35,7 +26,7 @@ class MockImage {
   }
 }
 
-describe('Avatar', () => {
+describe('avatar', () => {
   const containers = new Set<HTMLDivElement>();
   const nativeImage = globalThis.Image;
 
@@ -55,179 +46,203 @@ describe('Avatar', () => {
     vi.useRealTimers();
   });
 
-  function render(result: TemplateResult) {
+  function render(result: ReturnType<typeof html>) {
     const container = document.createElement('div');
     document.body.append(container);
     containers.add(container);
-
     renderTemplate(result, container);
     return container;
   }
 
-  async function flushUpdates() {
-    await Promise.resolve();
-    await Promise.resolve();
+  async function waitForUpdate() {
+    await new Promise((r) => setTimeout(r, 0));
   }
 
-  it('preserves the public type contracts', () => {
-    const root = Avatar.Root({});
-    const image = Avatar.Image({});
-    const fallback = Avatar.Fallback({});
-
-    expectTypeOf(root).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(image).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(fallback).toEqualTypeOf<TemplateResult>();
-    expectTypeOf<AvatarImageProps['onLoadingStatusChange']>().toEqualTypeOf<
-      ((status: ImageLoadingStatus) => void) | undefined
-    >();
-    expectTypeOf<AvatarFallbackProps['delay']>().toEqualTypeOf<number | undefined>();
+  it('renders avatar-root as a custom element', () => {
+    const container = render(html`<avatar-root>LT</avatar-root>`);
+    const root = container.querySelector('avatar-root');
+    expect(root).toBeInTheDocument();
+    expect(root?.textContent).toBe('LT');
   });
 
-  it('renders a span root by default', () => {
-    const container = render(Avatar.Root({ children: 'LT' }));
-    const root = container.querySelector('span');
-
-    expect(root).toBeVisible();
-    expect(root).toHaveTextContent('LT');
-  });
-
-  it('throws when Avatar.Image is rendered outside Avatar.Root', () => {
-    expect(() => {
-      render(Avatar.Image({ src: 'avatar.png' }));
-    }).toThrow(AVATAR_CONTEXT_ERROR);
-  });
-
-  it('throws when Avatar.Fallback is rendered outside Avatar.Root', () => {
-    expect(() => {
-      render(Avatar.Fallback({ children: 'LT' }));
-    }).toThrow(AVATAR_CONTEXT_ERROR);
-  });
-
-  it('keeps the fallback mounted while the image is loading and swaps it out once loaded', async () => {
+  it('tracks image loading status', async () => {
     const handleStatusChange = vi.fn();
-    const container = render(
-      Avatar.Root({
-        children: html`
-          ${Avatar.Image({
-            src: 'avatar.png',
-            'data-testid': 'image',
-            onLoadingStatusChange: handleStatusChange,
-          })}
-          ${Avatar.Fallback({ 'data-testid': 'fallback', children: 'LT' })}
-        `,
-      }),
-    );
+    const container = render(html`
+      <avatar-root>
+        <avatar-image src="avatar.png" .onLoadingStatusChange=${handleStatusChange}></avatar-image>
+        <avatar-fallback>LT</avatar-fallback>
+      </avatar-root>
+    `);
+    await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="image"]')).toBe(null);
-    expect(container.querySelector('[data-testid="fallback"]')).toHaveTextContent('LT');
+    // Image is hidden while loading
+    const image = container.querySelector('avatar-image')! as HTMLElement;
+    expect(image).toHaveAttribute('hidden');
+    expect(handleStatusChange).toHaveBeenCalledWith('loading');
+
+    // Fallback is visible
+    const fallback = container.querySelector('avatar-fallback')! as HTMLElement;
+    expect(fallback).not.toHaveAttribute('hidden');
+    expect(fallback.textContent).toBe('LT');
+  });
+
+  it('shows image and hides fallback when image loads', async () => {
+    const container = render(html`
+      <avatar-root>
+        <avatar-image src="avatar.png"></avatar-image>
+        <avatar-fallback>LT</avatar-fallback>
+      </avatar-root>
+    `);
+    await waitForUpdate();
+
+    // Simulate successful load
+    MockImage.instances[0].emitLoad();
+    await waitForUpdate();
+
+    const image = container.querySelector('avatar-image')! as HTMLElement;
+    const fallback = container.querySelector('avatar-fallback')! as HTMLElement;
+
+    expect(image).not.toHaveAttribute('hidden');
+    expect(fallback).toHaveAttribute('hidden');
+  });
+
+  it('shows fallback when image fails to load', async () => {
+    const container = render(html`
+      <avatar-root>
+        <avatar-image src="bad-url.png"></avatar-image>
+        <avatar-fallback>LT</avatar-fallback>
+      </avatar-root>
+    `);
+    await waitForUpdate();
+
+    MockImage.instances[0].emitError();
+    await waitForUpdate();
+
+    const fallback = container.querySelector('avatar-fallback')! as HTMLElement;
+    expect(fallback).not.toHaveAttribute('hidden');
+  });
+
+  it('shows fallback when no src is provided', async () => {
+    const container = render(html`
+      <avatar-root>
+        <avatar-image></avatar-image>
+        <avatar-fallback>LT</avatar-fallback>
+      </avatar-root>
+    `);
+    await waitForUpdate();
+
+    const fallback = container.querySelector('avatar-fallback')! as HTMLElement;
+    expect(fallback).not.toHaveAttribute('hidden');
+  });
+
+  it('supports fallback delay', async () => {
+    vi.useFakeTimers();
+
+    const container = render(html`
+      <avatar-root>
+        <avatar-fallback delay="100">LT</avatar-fallback>
+      </avatar-root>
+    `);
+
+    // Fallback should be hidden until delay passes
+    const fallback = container.querySelector('avatar-fallback')! as HTMLElement;
+    expect(fallback).toHaveAttribute('hidden');
+
+    vi.advanceTimersByTime(100);
+
+    expect(fallback).not.toHaveAttribute('hidden');
+  });
+
+  it('calls onLoadingStatusChange with each status', async () => {
+    const handleStatusChange = vi.fn();
+    const container = render(html`
+      <avatar-root>
+        <avatar-image src="avatar.png" .onLoadingStatusChange=${handleStatusChange}></avatar-image>
+      </avatar-root>
+    `);
+    await waitForUpdate();
+
     expect(handleStatusChange).toHaveBeenCalledWith('loading');
 
     MockImage.instances[0].emitLoad();
-    await flushUpdates();
+    await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="image"]')).toHaveAttribute('src', 'avatar.png');
-    expect(container.querySelector('[data-testid="fallback"]')).toBe(null);
-    expect(handleStatusChange).toHaveBeenLastCalledWith('loaded');
+    expect(handleStatusChange).toHaveBeenCalledWith('loaded');
   });
 
-  it('shows the fallback after its delay elapses', async () => {
-    vi.useFakeTimers();
+  it('updates when src changes', async () => {
+    const handleStatusChange = vi.fn();
+    const container = render(html`
+      <avatar-root>
+        <avatar-image src="avatar1.png" .onLoadingStatusChange=${handleStatusChange}></avatar-image>
+      </avatar-root>
+    `);
+    await waitForUpdate();
 
-    const container = render(
-      Avatar.Root({
-        children: Avatar.Fallback({
-          delay: 100,
-          'data-testid': 'fallback',
-          children: 'LT',
-        }),
-      }),
-    );
-
-    expect(container.querySelector('[data-testid="fallback"]')).toBe(null);
-
-    vi.advanceTimersByTime(100);
-    await flushUpdates();
-
-    expect(container.querySelector('[data-testid="fallback"]')).toHaveTextContent('LT');
-  });
-
-  it('applies data-starting-style when the image becomes visible', async () => {
-    vi.useFakeTimers({ toFake: ['requestAnimationFrame'] });
-
-    const container = render(
-      Avatar.Root({
-        children: Avatar.Image({
-          src: 'avatar.png',
-          className: 'avatar-image',
-          'data-testid': 'image',
-        }),
-      }),
-    );
-
+    expect(handleStatusChange).toHaveBeenCalledWith('loading');
     MockImage.instances[0].emitLoad();
-    await flushUpdates();
+    await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="image"]')).toHaveAttribute('data-starting-style');
+    // Change src
+    const imageEl = container.querySelector('avatar-image')!;
+    imageEl.setAttribute('src', 'avatar2.png');
+    await waitForUpdate();
 
-    vi.advanceTimersByTime(16);
-    await flushUpdates();
-
-    expect(container.querySelector('[data-testid="image"]')).not.toHaveAttribute(
-      'data-starting-style',
-    );
+    expect(handleStatusChange).toHaveBeenCalledWith('loading');
+    expect(MockImage.instances).toHaveLength(2);
+    expect(MockImage.instances[1].src).toBe('avatar2.png');
   });
 
-  it('applies data-ending-style before the image unmounts', async () => {
-    vi.useFakeTimers({ toFake: ['requestAnimationFrame'] });
+  it('cleans up image listeners on disconnect', async () => {
+    const container = render(html`
+      <avatar-root>
+        <avatar-image src="avatar.png"></avatar-image>
+      </avatar-root>
+    `);
+    await waitForUpdate();
 
-    const container = render(
-      Avatar.Root({
-        children: Avatar.Image({
-          src: 'avatar.png',
-          className: 'avatar-image',
-          'data-testid': 'image',
-        }),
-      }),
+    const mockImage = MockImage.instances[0];
+    const imageEl = container.querySelector('avatar-image')!;
+    imageEl.remove();
+
+    // Loading after disconnect should not cause errors
+    mockImage.emitLoad();
+  });
+
+  it('logs error when parts render outside avatar-root', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(html`<avatar-image src="avatar.png"></avatar-image>`);
+    render(html`<avatar-fallback>LT</avatar-fallback>`);
+
+    expect(errorSpy).toHaveBeenCalledTimes(2);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Avatar parts must be placed within <avatar-root>'),
     );
 
-    MockImage.instances[0].emitLoad();
-    await flushUpdates();
-    vi.advanceTimersByTime(16);
-    await flushUpdates();
+    errorSpy.mockRestore();
+  });
 
-    const image = container.querySelector('[data-testid="image"]') as HTMLImageElement;
-    let resolveFinished!: () => void;
-    const finished = new Promise<void>((resolve) => {
-      resolveFinished = resolve;
-    });
+  it('passes crossOrigin and referrerPolicy to image probe', async () => {
+    const container = render(html`
+      <avatar-root>
+        <avatar-image
+          src="avatar.png"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"
+        ></avatar-image>
+      </avatar-root>
+    `);
+    await waitForUpdate();
 
-    Object.defineProperty(image, 'getAnimations', {
-      configurable: true,
-      value: () => [
-        {
-          finished,
-          pending: false,
-          playState: 'running',
-        },
-      ],
-    });
+    const mockImage = MockImage.instances[0];
+    expect(mockImage.crossOrigin).toBe('anonymous');
+    expect(mockImage.referrerPolicy).toBe('no-referrer');
+  });
 
-    renderTemplate(
-      Avatar.Root({
-        children: Avatar.Image({
-          'data-testid': 'image',
-        }),
-      }),
-      container,
-    );
-    await flushUpdates();
-
-    expect(container.querySelector('[data-testid="image"]')).toHaveAttribute('data-ending-style');
-
-    vi.advanceTimersByTime(16);
-    resolveFinished();
-    await flushUpdates();
-
-    expect(container.querySelector('[data-testid="image"]')).toBe(null);
+  it('root reports initial idle status', () => {
+    const container = render(html`<avatar-root></avatar-root>`);
+    const root = container.querySelector('avatar-root')! as AvatarRootElement;
+    expect(root.getImageLoadingStatus()).toBe('idle');
   });
 });

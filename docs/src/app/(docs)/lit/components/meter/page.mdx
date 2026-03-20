@@ -9,17 +9,14 @@ import { DemoMeterHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { Meter } from '@base-ui/lit/meter';
-
-render(
-  Meter.Root({
-    value: 72,
-    children: [Meter.Track({ children: Meter.Indicator() }), Meter.Value(), Meter.Label()],
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<meter-root value="72">
+  <meter-track>
+    <meter-indicator></meter-indicator>
+  </meter-track>
+  <meter-value></meter-value>
+  <meter-label></meter-label>
+</meter-root>
 ```
 
 ## Status

@@ -15,24 +15,15 @@ import { DemoAccordionMultiple } from './demos/multiple';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { Accordion } from '@base-ui/lit/accordion';
-
-render(
-  Accordion.Root({
-    children: Accordion.Item({
-      value: 'item-1',
-      children: [
-        Accordion.Header({
-          children: Accordion.Trigger({ children: 'Section title' }),
-        }),
-        Accordion.Panel({ children: 'Section content' }),
-      ],
-    }),
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<accordion-root>
+  <accordion-item value="item-1">
+    <accordion-header>
+      <accordion-trigger>Section title</accordion-trigger>
+    </accordion-header>
+    <accordion-panel>Section content</accordion-panel>
+  </accordion-item>
+</accordion-root>
 ```
 
 ## Examples

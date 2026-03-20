@@ -25,11 +25,11 @@ Lit renders templates into a DOM container. Start with a dedicated mount node fo
 
 ### Render a component
 
-Base UI for Lit exposes template helpers that you render with Lit's `render()` API.
+Base UI for Lit exposes custom elements that you render with Lit's `html` tagged templates and `render()` API.
 
 ```ts title="main.ts"
-import { render } from 'lit';
-import { Button } from '@base-ui/lit/button';
+import { html, render } from 'lit';
+import '@base-ui/lit/button';
 
 const app = document.querySelector('#app');
 
@@ -37,7 +37,7 @@ if (app == null) {
   throw new Error('Missing #app container');
 }
 
-render(Button({ children: 'Submit' }), app);
+render(html`<button-root>Submit</button-root>`, app);
 ```
 
 ### Styling
@@ -54,21 +54,19 @@ import { DemoQuickStartHero } from './demos/hero';
 
 ### Compose primitives
 
-Complex controls are assembled from parts in the same render tree. For example, `Field` is composed from `Root`, `Label`, `Control`, `Error`, and `Description`:
+Complex controls are assembled from nested custom elements in the same render tree. For example, `Field` is composed from `field-root`, `field-label`, `field-control`, `field-error`, and `field-description`:
 
 ```ts title="field.ts"
-import { render } from 'lit';
-import { Field } from '@base-ui/lit/field';
+import { html, render } from 'lit';
+import '@base-ui/lit/field';
 
 render(
-  Field.Root({
-    children: [
-      Field.Label({ children: 'Name' }),
-      Field.Control({ required: true }),
-      Field.Error({ match: 'valueMissing', children: 'Required' }),
-      Field.Description({ children: 'Visible on your profile' }),
-    ],
-  }),
+  html`<field-root>
+    <field-label>Name</field-label>
+    <field-control required></field-control>
+    <field-error match="valueMissing">Required</field-error>
+    <field-description>Visible on your profile</field-description>
+  </field-root>`,
   app,
 );
 ```

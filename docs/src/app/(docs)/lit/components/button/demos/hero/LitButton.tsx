@@ -1,9 +1,16 @@
 'use client';
 import * as React from 'react';
-import { nothing, render as renderTemplate } from 'lit';
-import { Button } from '@base-ui/lit/button';
+import { html, nothing, render as renderTemplate } from 'lit';
+import '@base-ui/lit/button';
 
-export function LitButton(props: Button.Props) {
+interface LitButtonProps {
+  children?: string | undefined;
+  className?: string | undefined;
+  disabled?: boolean | undefined;
+}
+
+export function LitButton(props: LitButtonProps) {
+  const { children, className, disabled } = props;
   const hostRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -13,12 +20,15 @@ export function LitButton(props: Button.Props) {
       return undefined;
     }
 
-    renderTemplate(Button(props), host);
+    renderTemplate(
+      html`<button-root class=${className ?? ''} ?disabled=${disabled ?? false}>${children}</button-root>`,
+      host,
+    );
 
     return () => {
       renderTemplate(nothing, host);
     };
-  }, [props]);
+  }, [children, className, disabled]);
 
   return <div ref={hostRef} style={{ display: 'contents' }} />;
 }

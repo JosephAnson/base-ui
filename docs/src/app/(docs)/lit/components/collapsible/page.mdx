@@ -12,19 +12,11 @@ import { DemoCollapsibleHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { Collapsible } from '@base-ui/lit/collapsible';
-
-render(
-  Collapsible.Root({
-    children: [
-      Collapsible.Trigger({ children: 'Toggle section' }),
-      Collapsible.Panel({ children: 'Section content' }),
-    ],
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<collapsible-root>
+  <collapsible-trigger>Toggle section</collapsible-trigger>
+  <collapsible-panel>Section content</collapsible-panel>
+</collapsible-root>
 ```
 
 ## Status

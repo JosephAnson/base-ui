@@ -1,24 +1,15 @@
-import { html, noChange, type TemplateResult } from 'lit';
-// eslint-disable-next-line import/extensions
-import { AsyncDirective, directive } from 'lit/async-directive.js';
-import { useRender as renderElement } from '../use-render/index.ts';
+import { ReactiveElement } from 'lit';
+import { BaseHTMLElement, ensureId, formatNumberValue, valueToPercent } from '../utils/index.ts';
 
-const PROGRESS_ROOT_ATTRIBUTE = 'data-base-ui-progress-root';
-const PROGRESS_CONTEXT_ATTRIBUTE = 'data-base-ui-progress-context';
-const PROGRESS_FORMATTED_VALUE_ATTRIBUTE = 'data-base-ui-progress-formatted-value';
-const PROGRESS_STATUS_ATTRIBUTE = 'data-base-ui-progress-status';
-const PROGRESS_LABEL_MODE_ATTRIBUTE = 'data-base-ui-progress-label-mode';
-const PROGRESS_LABEL_MODE_AUTO = 'auto';
-const PROGRESS_LABEL_MODE_EXPLICIT = 'explicit';
-const PROGRESS_COMPLETE_ATTRIBUTE = 'data-complete';
-const PROGRESS_INDETERMINATE_ATTRIBUTE = 'data-indeterminate';
-const PROGRESS_PROGRESSING_ATTRIBUTE = 'data-progressing';
+// ─── Constants ──────────────────────────────────────────────────────────────────
+
+const STATE_CHANGE_EVENT = 'base-ui-progress-state-change';
 const NVDA_FORCE_ANNOUNCEMENT_STYLE =
-  'position:fixed;top:0;left:0;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;white-space:nowrap;clip-path:inset(50%);';
-const PROGRESS_CONTEXT_ERROR =
-  'Base UI: ProgressRootContext is missing. Progress parts must be placed within <Progress.Root>.';
+  'position:fixed;top:0;left:0;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;white-space:nowrap;clip-path:inset(50%)';
+const CONTEXT_ERROR =
+  'Base UI: ProgressRootContext is missing. Progress parts must be placed within <progress-root>.';
 
-let progressLabelId = 0;
+// ─── Types ──────────────────────────────────────────────────────────────────────
 
 export type ProgressStatus = 'indeterminate' | 'progressing' | 'complete';
 export type Status = ProgressStatus;
@@ -30,523 +21,373 @@ export interface ProgressRootState {
   status: ProgressStatus;
 }
 
-type ProgressContext = {
-  formattedValue: string;
-  max: number;
-  min: number;
-  state: ProgressRootState;
-  status: ProgressStatus;
-  value: number | null;
-};
+export interface ProgressTrackState extends ProgressRootState {}
+export interface ProgressIndicatorState extends ProgressRootState {}
+export interface ProgressValueState extends ProgressRootState {}
+export interface ProgressLabelState extends ProgressRootState {}
 
-const progressStateAttributesMapping: renderElement.Parameters<
-  ProgressRootState,
-  HTMLDivElement,
-  undefined
->['stateAttributesMapping'] = {
-  status(status) {
-    let attributeName: string | null = null;
-
-    if (status === 'progressing') {
-      attributeName = PROGRESS_PROGRESSING_ATTRIBUTE;
-    } else if (status === 'complete') {
-      attributeName = PROGRESS_COMPLETE_ATTRIBUTE;
-    } else if (status === 'indeterminate') {
-      attributeName = PROGRESS_INDETERMINATE_ATTRIBUTE;
-    }
-
-    if (attributeName == null) {
-      return null;
-    }
-
-    return { [attributeName]: '' };
-  },
-};
+// ─── Helpers ─────────────────────────────────────────────────────────────────────
 
 function getDefaultAriaValueText(formattedValue: string | null, value: number | null) {
   if (value == null) {
     return 'indeterminate progress';
   }
-
   return formattedValue || `${value}%`;
 }
 
+function getStatus(value: number | null, max: number): ProgressStatus {
+  if (!Number.isFinite(value) || value == null) {
+    return 'indeterminate';
+  }
+  return value === max ? 'complete' : 'progressing';
+}
+
+function setStatusAttributes(element: HTMLElement, status: ProgressStatus) {
+  element.toggleAttribute('data-indeterminate', status === 'indeterminate');
+  element.toggleAttribute('data-progressing', status === 'progressing');
+  element.toggleAttribute('data-complete', status === 'complete');
+}
+
+// ─── ProgressRootElement ─────────────────────────────────────────────────────────
+
 /**
  * Groups all parts of the progress bar and provides the task completion status to screen readers.
- * Renders a `<div>` element.
+ * Renders a `<progress-root>` custom element.
+ *
+ * Documentation: [Base UI Progress](https://base-ui.com/react/components/progress)
  */
-function ProgressRoot(componentProps: ProgressRootProps): TemplateResult {
-  const {
-    format,
-    getAriaValueText = getDefaultAriaValueText,
-    locale,
-    max = 100,
-    min = 0,
-    value,
-    render,
-    children,
-    ...elementProps
-  } = componentProps;
+export class ProgressRootElement extends ReactiveElement {
+  static properties = {
+    value: { type: Number, reflect: true },
+    min: { type: Number, reflect: true },
+    max: { type: Number, reflect: true },
+  };
 
-  let status: ProgressStatus = 'indeterminate';
-  if (Number.isFinite(value)) {
-    status = value === max ? 'complete' : 'progressing';
+  declare value: number | null;
+  declare min: number;
+  declare max: number;
+
+  /** Custom aria-valuetext function. Set via `.getAriaValueText=${fn}`. */
+  getAriaValueText:
+    | ((formattedValue: string | null, value: number | null) => string)
+    | undefined;
+
+  /** Number format options. Set via `.format=${options}`. */
+  format: Intl.NumberFormatOptions | undefined;
+
+  /** Locale for formatting. Set via `.locale=${locale}`. */
+  locale: Intl.LocalesArgument | undefined;
+
+  private _labelId: string | undefined;
+  private _labelMode: 'auto' | 'explicit' = 'auto';
+  private _nvdaSpan: HTMLSpanElement | null = null;
+
+  constructor() {
+    super();
+    this.value = null;
+    this.min = 0;
+    this.max = 100;
   }
 
-  const formattedValue = formatNumberValue(value, locale, format);
-  const state: ProgressRootState = { status };
-
-  return renderElement<ProgressRootState, HTMLDivElement>({
-    defaultTagName: 'div',
-    render,
-    state,
-    stateAttributesMapping: progressStateAttributesMapping,
-    props: {
-      [PROGRESS_ROOT_ATTRIBUTE]: '',
-      [PROGRESS_CONTEXT_ATTRIBUTE]: '',
-      [PROGRESS_FORMATTED_VALUE_ATTRIBUTE]: formattedValue,
-      [PROGRESS_LABEL_MODE_ATTRIBUTE]:
-        elementProps['aria-labelledby'] == null
-          ? PROGRESS_LABEL_MODE_AUTO
-          : PROGRESS_LABEL_MODE_EXPLICIT,
-      [PROGRESS_STATUS_ATTRIBUTE]: status,
-      role: 'progressbar',
-      'aria-valuemax': max,
-      'aria-valuemin': min,
-      'aria-valuenow': value ?? undefined,
-      'aria-valuetext': getAriaValueText(formattedValue, value),
-      children: html`${children}<span role="presentation" style=${NVDA_FORCE_ANNOUNCEMENT_STYLE}
-          >x</span
-        >`,
-      ...elementProps,
-    },
-  });
-}
-
-class ProgressIndicatorDirective extends AsyncDirective {
-  render(_componentProps: ProgressIndicatorProps) {
-    return noChange;
+  override createRenderRoot() {
+    return this;
   }
 
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [ProgressIndicatorProps],
-  ) {
-    const { render, ...elementProps } = componentProps;
-    const context = getProgressContext(part);
-    const percentageValue =
-      Number.isFinite(context.value) && context.value !== null
-        ? valueToPercent(context.value, context.min, context.max)
-        : null;
+  override connectedCallback() {
+    super.connectedCallback();
 
-    return renderElement<ProgressIndicatorState, HTMLDivElement>({
-      defaultTagName: 'div',
-      render,
-      state: context.state,
-      stateAttributesMapping: progressStateAttributesMapping,
-      props: {
-        ...elementProps,
-        style: mergeStyle(
-          percentageValue == null
-            ? {}
-            : {
-                insetInlineStart: 0,
-                height: 'inherit',
-                width: `${percentageValue}%`,
-              },
-          elementProps.style,
-        ),
-      },
-    });
-  }
-}
-
-class ProgressTrackDirective extends AsyncDirective {
-  render(_componentProps: ProgressTrackProps) {
-    return noChange;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [ProgressTrackProps],
-  ) {
-    const { render, children, ...elementProps } = componentProps;
-    const context = getProgressContext(part);
-
-    return renderElement<ProgressTrackState, HTMLDivElement>({
-      defaultTagName: 'div',
-      render,
-      state: context.state,
-      stateAttributesMapping: progressStateAttributesMapping,
-      props: {
-        ...getProgressContextAttributes(context),
-        ...elementProps,
-        children,
-      },
-    });
-  }
-}
-
-class ProgressLabelDirective extends AsyncDirective {
-  private generatedId = `base-ui-progress-label-${(progressLabelId += 1)}`;
-  private renderedRoot: Element | null = null;
-  private renderedId: string | null = null;
-
-  render(_componentProps: ProgressLabelProps) {
-    return noChange;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [ProgressLabelProps],
-  ) {
-    const { render, id: idProp, ...elementProps } = componentProps;
-    const root = getProgressRoot(part);
-    const context = getProgressContextFromElement(root);
-    const id = idProp ?? this.generatedId;
-
-    this.syncLabelRegistration(root, id);
-
-    return renderElement<ProgressLabelState, HTMLSpanElement>({
-      defaultTagName: 'span',
-      render,
-      state: context.state,
-      stateAttributesMapping: progressStateAttributesMapping,
-      props: {
-        id,
-        role: 'presentation',
-        ...elementProps,
-      },
-    });
-  }
-
-  override disconnected() {
-    this.clearLabelRegistration();
-  }
-
-  override reconnected() {}
-
-  private syncLabelRegistration(root: Element, id: string) {
-    if (this.renderedRoot != null && this.renderedRoot !== root) {
-      this.clearLabelRegistration();
+    // Create NVDA force-announcement span
+    if (!this._nvdaSpan) {
+      this._nvdaSpan = document.createElement('span');
+      this._nvdaSpan.setAttribute('role', 'presentation');
+      this._nvdaSpan.style.cssText = NVDA_FORCE_ANNOUNCEMENT_STYLE;
+      this._nvdaSpan.textContent = 'x';
+      this.appendChild(this._nvdaSpan);
     }
 
-    this.renderedRoot = root;
-    this.renderedId = id;
-
-    if (root.getAttribute(PROGRESS_LABEL_MODE_ATTRIBUTE) === PROGRESS_LABEL_MODE_EXPLICIT) {
-      return;
-    }
-
-    root.setAttribute('aria-labelledby', id);
+    this.syncAttributes();
   }
 
-  private clearLabelRegistration() {
-    if (
-      this.renderedRoot != null &&
-      this.renderedId != null &&
-      this.renderedRoot.getAttribute(PROGRESS_LABEL_MODE_ATTRIBUTE) === PROGRESS_LABEL_MODE_AUTO &&
-      this.renderedRoot.getAttribute('aria-labelledby') === this.renderedId
-    ) {
-      this.renderedRoot.removeAttribute('aria-labelledby');
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this._nvdaSpan?.remove();
+    this._nvdaSpan = null;
+  }
+
+  protected override updated() {
+    this.syncAttributes();
+  }
+
+  getStatus(): ProgressStatus {
+    return getStatus(this.value, this.max);
+  }
+
+  getFormattedValue(): string {
+    return formatNumberValue(this.value, this.locale, this.format);
+  }
+
+  getProgressContext() {
+    return {
+      value: this.value,
+      min: this.min,
+      max: this.max,
+      status: this.getStatus(),
+      formattedValue: this.getFormattedValue(),
+    };
+  }
+
+  registerLabel(id: string) {
+    if (this._labelMode === 'explicit') return;
+    this._labelId = id;
+    this.setAttribute('aria-labelledby', id);
+  }
+
+  unregisterLabel(id: string) {
+    if (this._labelId === id) {
+      this._labelId = undefined;
+      this.removeAttribute('aria-labelledby');
+    }
+  }
+
+  setLabelMode(mode: 'auto' | 'explicit') {
+    this._labelMode = mode;
+  }
+
+  private syncAttributes() {
+    const status = this.getStatus();
+    const formattedValue = this.getFormattedValue();
+    const getValueText = this.getAriaValueText ?? getDefaultAriaValueText;
+
+    this.setAttribute('role', 'progressbar');
+    this.setAttribute('aria-valuemin', String(this.min));
+    this.setAttribute('aria-valuemax', String(this.max));
+
+    if (this.value != null && Number.isFinite(this.value)) {
+      this.setAttribute('aria-valuenow', String(this.value));
+    } else {
+      this.removeAttribute('aria-valuenow');
     }
 
-    this.renderedRoot = null;
-    this.renderedId = null;
+    this.setAttribute('aria-valuetext', getValueText(formattedValue || null, this.value));
+
+    setStatusAttributes(this, status);
+
+    this.dispatchEvent(new CustomEvent(STATE_CHANGE_EVENT, { bubbles: false }));
   }
 }
 
-class ProgressValueDirective extends AsyncDirective {
-  render(_componentProps: ProgressValueProps) {
-    return noChange;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [ProgressValueProps],
-  ) {
-    const { children, render, ...elementProps } = componentProps;
-    const context = getProgressContext(part);
-    const formattedValueArg = context.value == null ? 'indeterminate' : context.formattedValue;
-    const formattedValueDisplay = context.value == null ? null : context.formattedValue;
-    const resolvedChildren =
-      typeof children === 'function'
-        ? children(formattedValueArg, context.value)
-        : formattedValueDisplay;
-
-    return renderElement<ProgressValueState, HTMLSpanElement>({
-      defaultTagName: 'span',
-      render,
-      state: context.state,
-      stateAttributesMapping: progressStateAttributesMapping,
-      props: {
-        'aria-hidden': true,
-        children: resolvedChildren,
-        ...elementProps,
-      },
-    });
-  }
+if (!customElements.get('progress-root')) {
+  customElements.define('progress-root', ProgressRootElement);
 }
 
-const progressTrackDirective = directive(ProgressTrackDirective);
-const progressIndicatorDirective = directive(ProgressIndicatorDirective);
-const progressLabelDirective = directive(ProgressLabelDirective);
-const progressValueDirective = directive(ProgressValueDirective);
+// ─── ProgressTrackElement ────────────────────────────────────────────────────────
 
 /**
  * Contains the progress bar indicator.
- * Renders a `<div>` element.
+ * Renders a `<progress-track>` custom element.
  */
-function ProgressTrack(componentProps: ProgressTrackProps): TemplateResult {
-  return html`${progressTrackDirective(componentProps)}`;
+export class ProgressTrackElement extends BaseHTMLElement {
+  private _root: ProgressRootElement | null = null;
+  private _handler = () => this.syncAttributes();
+
+  connectedCallback() {
+    this._root = this.closest('progress-root') as ProgressRootElement | null;
+    if (!this._root) {
+      console.error(CONTEXT_ERROR);
+      return;
+    }
+
+    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    queueMicrotask(() => this.syncAttributes());
+  }
+
+  disconnectedCallback() {
+    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
+    this._root = null;
+  }
+
+  private syncAttributes() {
+    if (!this._root) return;
+    setStatusAttributes(this, this._root.getStatus());
+  }
 }
+
+if (!customElements.get('progress-track')) {
+  customElements.define('progress-track', ProgressTrackElement);
+}
+
+// ─── ProgressIndicatorElement ────────────────────────────────────────────────────
 
 /**
  * Visualizes the completion status of the task.
- * Renders a `<div>` element.
+ * Renders a `<progress-indicator>` custom element.
  */
-function ProgressIndicator(componentProps: ProgressIndicatorProps): TemplateResult {
-  return html`${progressIndicatorDirective(componentProps)}`;
+export class ProgressIndicatorElement extends BaseHTMLElement {
+  private _root: ProgressRootElement | null = null;
+  private _handler = () => this.syncAttributes();
+
+  connectedCallback() {
+    this._root = this.closest('progress-root') as ProgressRootElement | null;
+    if (!this._root) {
+      console.error(CONTEXT_ERROR);
+      return;
+    }
+
+    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    queueMicrotask(() => this.syncAttributes());
+  }
+
+  disconnectedCallback() {
+    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
+    this._root = null;
+  }
+
+  private syncAttributes() {
+    if (!this._root) return;
+    const ctx = this._root.getProgressContext();
+
+    setStatusAttributes(this, ctx.status);
+
+    if (ctx.value != null && Number.isFinite(ctx.value)) {
+      const percent = valueToPercent(ctx.value, ctx.min, ctx.max);
+      this.style.width = `${percent}%`;
+      this.style.insetInlineStart = '0';
+      this.style.height = 'inherit';
+    } else {
+      this.style.width = '';
+      this.style.insetInlineStart = '';
+      this.style.height = '';
+    }
+  }
 }
 
-/**
- * A text label displaying the current value.
- * Renders a `<span>` element.
- */
-function ProgressValue(componentProps: ProgressValueProps): TemplateResult {
-  return html`${progressValueDirective(componentProps)}`;
+if (!customElements.get('progress-indicator')) {
+  customElements.define('progress-indicator', ProgressIndicatorElement);
 }
+
+// ─── ProgressLabelElement ────────────────────────────────────────────────────────
 
 /**
  * An accessible label for the progress bar.
- * Renders a `<span>` element.
+ * Renders a `<progress-label>` custom element.
  */
-function ProgressLabel(componentProps: ProgressLabelProps): TemplateResult {
-  return html`${progressLabelDirective(componentProps)}`;
-}
+export class ProgressLabelElement extends BaseHTMLElement {
+  private _root: ProgressRootElement | null = null;
+  private _handler = () => this.syncAttributes();
 
-function getProgressContext(part: Parameters<AsyncDirective['update']>[0]): ProgressContext {
-  const context = getProgressContextOrNull(part);
+  connectedCallback() {
+    this._root = this.closest('progress-root') as ProgressRootElement | null;
+    if (!this._root) {
+      console.error(CONTEXT_ERROR);
+      return;
+    }
 
-  if (context == null) {
-    throw new Error(PROGRESS_CONTEXT_ERROR);
+    this.setAttribute('role', 'presentation');
+    const id = ensureId(this, 'base-ui-progress-label');
+    this._root.registerLabel(id);
+    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    queueMicrotask(() => this.syncAttributes());
   }
 
-  return context;
-}
-
-function getProgressContextOrNull(part: Parameters<AsyncDirective['update']>[0]) {
-  const parentNode = (part as { parentNode?: Node | null | undefined }).parentNode ?? null;
-  const parentElement = getParentElement(parentNode);
-  const carrier = parentElement?.closest(`[${PROGRESS_CONTEXT_ATTRIBUTE}]`);
-
-  if (carrier == null) {
-    return null;
+  disconnectedCallback() {
+    if (this._root && this.id) {
+      this._root.unregisterLabel(this.id);
+    }
+    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
+    this._root = null;
   }
 
-  return getProgressContextFromElement(carrier);
+  private syncAttributes() {
+    if (!this._root) return;
+    setStatusAttributes(this, this._root.getStatus());
+  }
 }
 
-function getProgressContextFromElement(element: Element): ProgressContext {
-  const status = getProgressStatusFromElement(element);
-
-  return {
-    formattedValue: element.getAttribute(PROGRESS_FORMATTED_VALUE_ATTRIBUTE) ?? '',
-    max: Number(element.getAttribute('aria-valuemax')),
-    min: Number(element.getAttribute('aria-valuemin')),
-    state: { status },
-    status,
-    value: element.hasAttribute('aria-valuenow')
-      ? Number(element.getAttribute('aria-valuenow'))
-      : null,
-  };
+if (!customElements.get('progress-label')) {
+  customElements.define('progress-label', ProgressLabelElement);
 }
 
-function getProgressContextAttributes(context: ProgressContext) {
-  return {
-    [PROGRESS_CONTEXT_ATTRIBUTE]: '',
-    [PROGRESS_FORMATTED_VALUE_ATTRIBUTE]: context.formattedValue,
-    [PROGRESS_STATUS_ATTRIBUTE]: context.status,
-    'aria-valuemax': context.max,
-    'aria-valuemin': context.min,
-    'aria-valuenow': context.value ?? undefined,
-  };
-}
+// ─── ProgressValueElement ────────────────────────────────────────────────────────
 
-function getProgressRoot(part: Parameters<AsyncDirective['update']>[0]) {
-  const parentNode = (part as { parentNode?: Node | null | undefined }).parentNode ?? null;
-  const parentElement = getParentElement(parentNode);
-  const root = parentElement?.closest(`[${PROGRESS_ROOT_ATTRIBUTE}]`);
+/**
+ * A text label displaying the current value.
+ * Renders a `<progress-value>` custom element.
+ */
+export class ProgressValueElement extends BaseHTMLElement {
+  private _root: ProgressRootElement | null = null;
+  private _handler = () => this.syncAttributes();
 
-  if (root == null) {
-    throw new Error(PROGRESS_CONTEXT_ERROR);
+  /** Custom render function for value display. Set via `.renderValue=${fn}`. */
+  renderValue:
+    | ((formattedValue: string | null, value: number | null) => string)
+    | undefined;
+
+  connectedCallback() {
+    this._root = this.closest('progress-root') as ProgressRootElement | null;
+    if (!this._root) {
+      console.error(CONTEXT_ERROR);
+      return;
+    }
+
+    this.setAttribute('aria-hidden', 'true');
+    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    queueMicrotask(() => this.syncAttributes());
   }
 
-  return root;
-}
-
-function getProgressStatusFromElement(element: Element): ProgressStatus {
-  const status = element.getAttribute(PROGRESS_STATUS_ATTRIBUTE);
-
-  if (status === 'complete' || status === 'progressing' || status === 'indeterminate') {
-    return status;
+  disconnectedCallback() {
+    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
+    this._root = null;
   }
 
-  if (element.hasAttribute(PROGRESS_COMPLETE_ATTRIBUTE)) {
-    return 'complete';
+  private syncAttributes() {
+    if (!this._root) return;
+    const ctx = this._root.getProgressContext();
+
+    setStatusAttributes(this, ctx.status);
+
+    if (this.renderValue) {
+      const formattedArg = ctx.value == null ? 'indeterminate' : ctx.formattedValue;
+      this.textContent = this.renderValue(formattedArg, ctx.value);
+    } else {
+      this.textContent = ctx.value == null ? null : ctx.formattedValue;
+    }
   }
+}
 
-  if (element.hasAttribute(PROGRESS_PROGRESSING_ATTRIBUTE)) {
-    return 'progressing';
+if (!customElements.get('progress-value')) {
+  customElements.define('progress-value', ProgressValueElement);
+}
+
+// ─── Namespace exports ──────────────────────────────────────────────────────────
+
+export namespace ProgressRoot {
+  export type State = ProgressRootState;
+}
+
+export namespace ProgressTrack {
+  export type State = ProgressTrackState;
+}
+
+export namespace ProgressIndicator {
+  export type State = ProgressIndicatorState;
+}
+
+export namespace ProgressLabel {
+  export type State = ProgressLabelState;
+}
+
+export namespace ProgressValue {
+  export type State = ProgressValueState;
+}
+
+// ─── Global type declarations ───────────────────────────────────────────────────
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'progress-root': ProgressRootElement;
+    'progress-track': ProgressTrackElement;
+    'progress-indicator': ProgressIndicatorElement;
+    'progress-label': ProgressLabelElement;
+    'progress-value': ProgressValueElement;
   }
-
-  return 'indeterminate';
 }
-
-function getParentElement(node: Node | null) {
-  if (node == null) {
-    return null;
-  }
-
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    return node as Element;
-  }
-
-  return node.parentElement;
-}
-
-function valueToPercent(value: number, min: number, max: number) {
-  return ((value - min) * 100) / (max - min);
-}
-
-const formatterCache = new Map<string, Intl.NumberFormat>();
-
-function getFormatter(locale?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions) {
-  const cacheKey = JSON.stringify({ locale, options });
-  const cachedFormatter = formatterCache.get(cacheKey);
-
-  if (cachedFormatter) {
-    return cachedFormatter;
-  }
-
-  const formatter = new Intl.NumberFormat(locale, options);
-  formatterCache.set(cacheKey, formatter);
-  return formatter;
-}
-
-function formatNumber(
-  value: number | null,
-  locale?: Intl.LocalesArgument,
-  options?: Intl.NumberFormatOptions,
-) {
-  if (value == null) {
-    return '';
-  }
-
-  return getFormatter(locale, options).format(value);
-}
-
-function formatNumberValue(
-  value: number | null,
-  locale?: Intl.LocalesArgument,
-  format?: Intl.NumberFormatOptions,
-) {
-  if (value == null) {
-    return '';
-  }
-
-  if (!format) {
-    return formatNumber(value / 100, locale, { style: 'percent' });
-  }
-
-  return formatNumber(value, locale, format);
-}
-
-function mergeStyle(defaultStyle: Record<string, unknown>, style: unknown) {
-  if (style == null || typeof style !== 'object') {
-    return defaultStyle;
-  }
-
-  return {
-    ...defaultStyle,
-    ...(style as Record<string, unknown>),
-  };
-}
-
-type ComponentPropsWithChildren<
-  ElementType extends keyof HTMLElementTagNameMap,
-  State,
-  Children = unknown,
-> = Omit<renderElement.ComponentProps<ElementType, State>, 'children' | 'render'> & {
-  children?: Children | undefined;
-  render?: renderElement.RenderProp<State> | undefined;
-};
-
-export interface ProgressRootProps extends ComponentPropsWithChildren<'div', ProgressRootState> {
-  /**
-   * A string value that provides a user-friendly name for `aria-valuenow`, the current value of the progress bar.
-   */
-  'aria-valuetext'?: string | undefined;
-  /**
-   * Options to format the value.
-   */
-  format?: Intl.NumberFormatOptions | undefined;
-  /**
-   * Accepts a function which returns a string value that provides a human-readable text alternative for the current value of the progress bar.
-   */
-  getAriaValueText?: ((formattedValue: string | null, value: number | null) => string) | undefined;
-  /**
-   * The locale used by `Intl.NumberFormat` when formatting the value.
-   * Defaults to the user's runtime locale.
-   */
-  locale?: Intl.LocalesArgument | undefined;
-  /**
-   * The maximum value.
-   * @default 100
-   */
-  max?: number | undefined;
-  /**
-   * The minimum value.
-   * @default 0
-   */
-  min?: number | undefined;
-  /**
-   * The current value. The component is indeterminate when value is `null`.
-   */
-  value: number | null;
-}
-
-export interface ProgressTrackState extends ProgressRootState {}
-
-export interface ProgressTrackProps extends ComponentPropsWithChildren<'div', ProgressTrackState> {}
-
-export interface ProgressIndicatorState extends ProgressRootState {}
-
-export interface ProgressIndicatorProps extends ComponentPropsWithChildren<
-  'div',
-  ProgressIndicatorState
-> {}
-
-export interface ProgressValueState extends ProgressRootState {}
-
-export interface ProgressValueProps extends ComponentPropsWithChildren<
-  'span',
-  ProgressValueState,
-  null | ((formattedValue: string | null, value: number | null) => unknown)
-> {
-  children?: null | ((formattedValue: string | null, value: number | null) => unknown) | undefined;
-}
-
-export interface ProgressLabelState extends ProgressRootState {}
-
-export interface ProgressLabelProps extends ComponentPropsWithChildren<'span', ProgressLabelState> {
-  id?: string | undefined;
-}
-
-export const Progress = {
-  Root: ProgressRoot,
-  Track: ProgressTrack,
-  Indicator: ProgressIndicator,
-  Value: ProgressValue,
-  Label: ProgressLabel,
-} as const;

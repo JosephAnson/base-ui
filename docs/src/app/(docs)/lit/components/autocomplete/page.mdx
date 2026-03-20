@@ -1,0 +1,38 @@
+# Autocomplete
+
+<Subtitle>An autocomplete input with popup suggestions.</Subtitle>
+<Meta name="description" content="An autocomplete input with popup suggestions." />
+
+## Anatomy
+
+```html title="Anatomy"
+<autocomplete-root>
+  <autocomplete-label>Label</autocomplete-label>
+  <autocomplete-input-group>
+    <autocomplete-input></autocomplete-input>
+    <autocomplete-trigger>
+      <autocomplete-icon></autocomplete-icon>
+    </autocomplete-trigger>
+    <autocomplete-clear>Clear</autocomplete-clear>
+  </autocomplete-input-group>
+  <autocomplete-popup>
+    <autocomplete-group>
+      <autocomplete-group-label>Group</autocomplete-group-label>
+      <autocomplete-item>
+        <autocomplete-item-indicator>✓</autocomplete-item-indicator>
+        <autocomplete-item-text>Option</autocomplete-item-text>
+      </autocomplete-item>
+    </autocomplete-group>
+    <autocomplete-empty>No results</autocomplete-empty>
+  </autocomplete-popup>
+  <autocomplete-value></autocomplete-value>
+</autocomplete-root>
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Autocomplete', 'Autocomplete', 'Base UI Lit'],
+};

@@ -9,17 +9,11 @@ import { DemoCheckboxGroupHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { html, render } from 'lit';
-import { Checkbox } from '@base-ui/lit/checkbox';
-import { CheckboxGroup } from '@base-ui/lit/checkbox-group';
-
-render(
-  CheckboxGroup({
-    children: html` ${Checkbox.Root({ value: 'apple' })} ${Checkbox.Root({ value: 'orange' })} `,
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<checkbox-group>
+  <checkbox-root value="apple"></checkbox-root>
+  <checkbox-root value="orange"></checkbox-root>
+</checkbox-group>
 ```
 
 ## Status

@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import { html } from 'lit';
-import { Checkbox } from '@base-ui/lit/checkbox';
+import '@base-ui/lit/checkbox';
 import styles from 'docs/src/app/(docs)/react/components/checkbox-group/demos/parent/css-modules/index.module.css';
 import { LitCheckboxGroup } from '../../shared/LitCheckboxGroup';
 import { checkIcon, horizontalRuleIcon } from '../../shared/icons';
@@ -26,52 +26,52 @@ export default function ExampleCheckboxGroup() {
     >
       {html`
         <label class=${styles.Item} id=${id} style="margin-left: -1rem;">
-          ${Checkbox.Root({
-            parent: true,
-            className: styles.Checkbox,
-            children: Checkbox.Indicator({
-              className: styles.Indicator,
-              children: parentIsMixed
+          <checkbox-root
+            ?parent=${true}
+            class=${styles.Checkbox}
+          >
+            <checkbox-indicator class=${styles.Indicator}>
+              ${parentIsMixed
                 ? horizontalRuleIcon(styles.Icon)
-                : checkIcon(styles.Icon),
-            }),
-          })}
+                : checkIcon(styles.Icon)}
+            </checkbox-indicator>
+          </checkbox-root>
           Apples
         </label>
 
         <label class=${styles.Item}>
-          ${Checkbox.Root({
-            value: 'fuji-apple',
-            className: styles.Checkbox,
-            children: Checkbox.Indicator({
-              className: styles.Indicator,
-              children: checkIcon(styles.Icon),
-            }),
-          })}
+          <checkbox-root
+            value="fuji-apple"
+            class=${styles.Checkbox}
+          >
+            <checkbox-indicator class=${styles.Indicator}>
+              ${checkIcon(styles.Icon)}
+            </checkbox-indicator>
+          </checkbox-root>
           Fuji
         </label>
 
         <label class=${styles.Item}>
-          ${Checkbox.Root({
-            value: 'gala-apple',
-            className: styles.Checkbox,
-            children: Checkbox.Indicator({
-              className: styles.Indicator,
-              children: checkIcon(styles.Icon),
-            }),
-          })}
+          <checkbox-root
+            value="gala-apple"
+            class=${styles.Checkbox}
+          >
+            <checkbox-indicator class=${styles.Indicator}>
+              ${checkIcon(styles.Icon)}
+            </checkbox-indicator>
+          </checkbox-root>
           Gala
         </label>
 
         <label class=${styles.Item}>
-          ${Checkbox.Root({
-            value: 'granny-smith-apple',
-            className: styles.Checkbox,
-            children: Checkbox.Indicator({
-              className: styles.Indicator,
-              children: checkIcon(styles.Icon),
-            }),
-          })}
+          <checkbox-root
+            value="granny-smith-apple"
+            class=${styles.Checkbox}
+          >
+            <checkbox-indicator class=${styles.Indicator}>
+              ${checkIcon(styles.Icon)}
+            </checkbox-indicator>
+          </checkbox-root>
           Granny Smith
         </label>
       `}

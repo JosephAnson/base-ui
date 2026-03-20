@@ -1,8 +1,7 @@
 'use client';
 import * as React from 'react';
 import { html, nothing, render as renderTemplate } from 'lit';
-import type { AccordionRootProps } from '@base-ui/lit/accordion';
-import { Accordion } from '@base-ui/lit/accordion';
+import '@base-ui/lit/accordion';
 
 const ITEMS = [
   {
@@ -13,7 +12,7 @@ const ITEMS = [
   },
   {
     answer:
-      'Head to the “Quick start” guide in the docs. If you’ve used unstyled libraries before, you’ll feel at home.',
+      'Head to the "Quick start" guide in the docs. If you\'ve used unstyled libraries before, you\'ll feel at home.',
     question: 'How do I get started?',
     value: 'how-do-i-get-started',
   },
@@ -29,7 +28,10 @@ export interface LitAccordionProps {
   headerClassName?: string | undefined;
   itemClassName?: string | undefined;
   panelClassName?: string | undefined;
-  rootProps?: AccordionRootProps<string> | undefined;
+  rootProps?: {
+    className?: string;
+    multiple?: boolean;
+  } | undefined;
   triggerClassName?: string | undefined;
   triggerIconClassName?: string | undefined;
 }
@@ -54,28 +56,26 @@ export function LitAccordion(props: LitAccordionProps) {
     }
 
     renderTemplate(
-      Accordion.Root({
-        ...rootProps,
-        children: ITEMS.map((item) =>
-          Accordion.Item({
-            className: itemClassName,
-            value: item.value,
-            children: [
-              Accordion.Header({
-                className: headerClassName,
-                children: Accordion.Trigger({
-                  className: triggerClassName,
-                  children: [item.question, plusIcon(triggerIconClassName)],
-                }),
-              }),
-              Accordion.Panel({
-                className: panelClassName,
-                children: html`<div class=${contentClassName ?? ''}>${item.answer}</div>`,
-              }),
-            ],
-          }),
-        ),
-      }),
+      html`<accordion-root
+        class=${rootProps?.className ?? ''}
+        .multiple=${rootProps?.multiple ?? false}
+      >
+        ${ITEMS.map(
+          (item) => html`
+            <accordion-item class=${itemClassName ?? ''} .itemValue=${item.value}>
+              <accordion-header class=${headerClassName ?? ''}>
+                <accordion-trigger class=${triggerClassName ?? ''}>
+                  ${item.question}
+                  ${plusIcon(triggerIconClassName)}
+                </accordion-trigger>
+              </accordion-header>
+              <accordion-panel class=${panelClassName ?? ''}>
+                <div class=${contentClassName ?? ''}>${item.answer}</div>
+              </accordion-panel>
+            </accordion-item>
+          `,
+        )}
+      </accordion-root>`,
       host,
     );
 

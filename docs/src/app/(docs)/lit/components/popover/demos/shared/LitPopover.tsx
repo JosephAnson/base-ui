@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
-import { svg } from 'lit';
-import { Popover } from '@base-ui/lit/popover';
+import { html, svg } from 'lit';
+import '@base-ui/lit/popover';
 import { LitTemplateHost } from './LitTemplateHost';
 
 export interface LitPopoverProps {
@@ -33,41 +33,28 @@ export function LitPopover(props: LitPopoverProps) {
 
   const template = React.useCallback(
     () =>
-      Popover.Root({
-        children: [
-          Popover.Trigger({
-            className: iconButtonClassName,
-            openOnHover,
-            children: bellIcon('Notifications', iconClassName),
-          }),
-          Popover.Portal({
-            children: Popover.Positioner({
-              sideOffset: 8,
-              children: Popover.Popup({
-                className: popupClassName,
-                children: [
-                  Popover.Arrow({
-                    className: arrowClassName,
-                    children: arrowSvg({
-                      arrowFillClassName,
-                      arrowInnerStrokeClassName,
-                      arrowOuterStrokeClassName,
-                    }),
-                  }),
-                  Popover.Title({
-                    className: titleClassName,
-                    children: 'Notifications',
-                  }),
-                  Popover.Description({
-                    className: descriptionClassName,
-                    children: 'You are all caught up. Good job!',
-                  }),
-                ],
-              }),
-            }),
-          }),
-        ],
-      }),
+      html`<popover-root>
+        <popover-trigger class=${iconButtonClassName} ?open-on-hover=${openOnHover ?? false}>
+          ${bellIcon('Notifications', iconClassName)}
+        </popover-trigger>
+        <popover-portal>
+          <popover-positioner .sideOffset=${8}>
+            <popover-popup class=${popupClassName}>
+              <popover-arrow class=${arrowClassName}>
+                ${arrowSvg({
+                  arrowFillClassName,
+                  arrowInnerStrokeClassName,
+                  arrowOuterStrokeClassName,
+                })}
+              </popover-arrow>
+              <popover-title class=${titleClassName}>Notifications</popover-title>
+              <popover-description class=${descriptionClassName}>
+                You are all caught up. Good job!
+              </popover-description>
+            </popover-popup>
+          </popover-positioner>
+        </popover-portal>
+      </popover-root>`,
     [
       arrowClassName,
       arrowFillClassName,

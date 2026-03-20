@@ -1,0 +1,33 @@
+# Menu
+
+<Subtitle>A list of actions in a dropdown, rendered from Lit templates.</Subtitle>
+<Meta name="description" content="A Base UI menu for Lit templates." />
+
+import HeroDemo from './demos/hero/css-modules';
+import OpenOnHoverDemo from './demos/open-on-hover/css-modules';
+
+<HeroDemo />
+
+## Open On Hover
+
+<OpenOnHoverDemo />
+
+## Anatomy
+
+```html title="Anatomy"
+<menu-root>
+  <menu-trigger>Open</menu-trigger>
+  <menu-popup>
+    <menu-item>Action</menu-item>
+  </menu-popup>
+</menu-root>
+```
+
+## Status
+
+The Lit docs cover the exported `menu` entrypoint with live examples and test fixtures.
+
+export const metadata = {
+  keywords: ['Lit Menu', 'Menu', 'Base UI Lit'],
+};
+

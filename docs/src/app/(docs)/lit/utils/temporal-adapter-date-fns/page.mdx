@@ -1,0 +1,47 @@
+# TemporalAdapterDateFns
+
+<Subtitle>Date-fns implementation of the TemporalAdapter interface.</Subtitle>
+<Meta
+  name="description"
+  content="A date-fns adapter for use with Base UI Lit temporal components like Calendar."
+/>
+
+## Usage
+
+```ts title="Creating the adapter"
+import { TemporalAdapterDateFns } from '@base-ui/lit/temporal-adapter-date-fns';
+
+const adapter = new TemporalAdapterDateFns();
+
+// With a custom locale:
+import { fr } from 'date-fns/locale/fr';
+
+const frenchAdapter = new TemporalAdapterDateFns({ locale: fr });
+```
+
+### With the provider
+
+```ts title="Providing to components"
+const provider = document.querySelector('temporal-adapter-provider');
+provider.adapter = new TemporalAdapterDateFns();
+```
+
+## API
+
+### `TemporalAdapterDateFns`
+
+Implements the full `TemporalAdapter` interface using date-fns.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `locale` | `DateFnsLocale` | `enUS` | The date-fns locale for formatting and parsing. |
+
+Supports timezone-aware dates via `@date-fns/tz`.
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
+
+export const metadata = {
+  keywords: ['Lit TemporalAdapterDateFns', 'date-fns', 'Date adapter', 'Base UI Lit'],
+};

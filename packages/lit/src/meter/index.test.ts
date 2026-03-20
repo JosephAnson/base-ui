@@ -1,14 +1,10 @@
-/* eslint-disable testing-library/render-result-naming-convention */
-import { html, nothing, render as renderTemplate, type TemplateResult } from 'lit';
+import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { Meter } from '@base-ui/lit/meter';
-import type { MeterLabelProps, MeterRootProps, MeterValueProps } from '@base-ui/lit/meter';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import './index.ts';
+import type { MeterRootElement, MeterValueElement } from './index.ts';
 
-const MeterContextError =
-  'Base UI: MeterRootContext is missing. Meter parts must be placed within <Meter.Root>.';
-
-describe('Meter', () => {
+describe('meter', () => {
   const containers = new Set<HTMLDivElement>();
 
   afterEach(() => {
@@ -19,247 +15,210 @@ describe('Meter', () => {
     containers.clear();
   });
 
-  function render(result: TemplateResult) {
+  function render(result: ReturnType<typeof html>) {
     const container = document.createElement('div');
     document.body.append(container);
     containers.add(container);
-
     renderTemplate(result, container);
     return container;
   }
 
-  async function flushMicrotasks() {
-    await Promise.resolve();
+  async function waitForUpdate() {
+    await new Promise((r) => setTimeout(r, 0));
   }
 
-  it('preserves the public type contracts', () => {
-    const root = Meter.Root({ value: 50 });
-    const indicator = Meter.Indicator({});
-    const label = Meter.Label({});
-    const track = Meter.Track({});
-    const value = Meter.Value({});
+  it('renders the expected root aria attributes', async () => {
+    const container = render(html`
+      <meter-root .value=${30}>
+        <meter-label>Battery Level</meter-label>
+        <meter-track>
+          <meter-indicator></meter-indicator>
+        </meter-track>
+      </meter-root>
+    `);
+    await waitForUpdate();
 
-    expectTypeOf(root).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(indicator).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(label).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(track).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(value).toEqualTypeOf<TemplateResult>();
-    expectTypeOf<MeterRootProps['value']>().toEqualTypeOf<number>();
-    expectTypeOf<MeterLabelProps['id']>().toEqualTypeOf<string | undefined>();
-    expectTypeOf<MeterValueProps['children']>().toEqualTypeOf<
-      (((formattedValue: string, value: number) => unknown) | null | undefined)
-    >();
+    const root = container.querySelector('meter-root')!;
+
+    expect(root).toHaveAttribute('role', 'meter');
+    expect(root).toHaveAttribute('aria-valuenow', '30');
+    expect(root).toHaveAttribute('aria-valuemin', '0');
+    expect(root).toHaveAttribute('aria-valuemax', '100');
+    expect(root).toHaveAttribute('aria-valuetext', '30%');
   });
 
-  it('renders the expected root aria attributes and label wiring', () => {
-    const container = render(
-      Meter.Root({
-        value: 30,
-        children: html`
-          ${Meter.Label({ children: 'Battery Level' })}
-          ${Meter.Track({
-            children: Meter.Indicator({}),
-          })}
-        `,
-      }),
-    );
+  it('wires up label via aria-labelledby', async () => {
+    const container = render(html`
+      <meter-root .value=${50}>
+        <meter-label>Battery Level</meter-label>
+      </meter-root>
+    `);
+    await waitForUpdate();
 
-    const meter = container.querySelector('[role="meter"]');
-    const label = Array.from(container.querySelectorAll('span[role="presentation"]')).find(
-      (element) => element.textContent === 'Battery Level',
-    );
+    const root = container.querySelector('meter-root')!;
+    const label = container.querySelector('meter-label')!;
 
-    expect(meter).toBeVisible();
-    expect(meter?.tagName).toBe('DIV');
-    expect(meter).toHaveAttribute('aria-valuenow', '30');
-    expect(meter).toHaveAttribute('aria-valuemin', '0');
-    expect(meter).toHaveAttribute('aria-valuemax', '100');
-    expect(meter).toHaveAttribute('aria-valuetext', '30%');
-    expect(meter).toHaveAttribute('aria-labelledby', label?.getAttribute('id') ?? '');
+    expect(root).toHaveAttribute('aria-labelledby', label.id);
+    expect(label).toHaveAttribute('role', 'presentation');
   });
 
-  it('updates the root aria value when the root rerenders', () => {
-    const container = render(
-      Meter.Root({
-        value: 50,
-        children: Meter.Track({ children: Meter.Indicator({}) }),
-      }),
-    );
+  it('displays formatted value in meter-value', async () => {
+    const container = render(html`
+      <meter-root .value=${30}>
+        <meter-value data-testid="value"></meter-value>
+      </meter-root>
+    `);
+    await waitForUpdate();
 
-    renderTemplate(
-      Meter.Root({
-        value: 77,
-        children: Meter.Track({ children: Meter.Indicator({}) }),
-      }),
-      container,
+    const value = container.querySelector('[data-testid="value"]')!;
+    expect(value.textContent).toBe(
+      (0.3).toLocaleString(undefined, { style: 'percent' }),
     );
-
-    expect(container.querySelector('[role="meter"]')).toHaveAttribute('aria-valuenow', '77');
+    expect(value).toHaveAttribute('aria-hidden', 'true');
   });
 
-  it('formats the value and aria-valuetext when format is provided', () => {
+  it('computes indicator width from meter range', async () => {
+    const container = render(html`
+      <meter-root .value=${33}>
+        <meter-track>
+          <meter-indicator data-testid="indicator"></meter-indicator>
+        </meter-track>
+      </meter-root>
+    `);
+    await waitForUpdate();
+
+    const indicator = container.querySelector('[data-testid="indicator"]')! as HTMLElement;
+    expect(indicator.style.width).toBe('33%');
+    expect(indicator.style.insetInlineStart).toBe('0');
+    expect(indicator.style.height).toBe('inherit');
+  });
+
+  it('updates root aria value on reactivity', async () => {
+    const container = render(html`
+      <meter-root .value=${50}>
+        <meter-track>
+          <meter-indicator></meter-indicator>
+        </meter-track>
+      </meter-root>
+    `);
+    await waitForUpdate();
+
+    const root = container.querySelector('meter-root')! as MeterRootElement;
+    expect(root).toHaveAttribute('aria-valuenow', '50');
+
+    root.value = 77;
+    await waitForUpdate();
+
+    expect(root).toHaveAttribute('aria-valuenow', '77');
+  });
+
+  it('formats value and aria-valuetext when format is provided', async () => {
     const format: Intl.NumberFormatOptions = {
       style: 'currency',
       currency: 'USD',
     };
     const expectedValue = new Intl.NumberFormat(undefined, format).format(30);
-    const container = render(
-      Meter.Root({
-        value: 30,
-        format,
-        children: html`
-          ${Meter.Value({ 'data-testid': 'value' })}
-          ${Meter.Track({
-            children: Meter.Indicator({}),
-          })}
-        `,
-      }),
-    );
 
-    expect(container.querySelector('[data-testid="value"]')).toHaveTextContent(expectedValue);
-    expect(container.querySelector('[role="meter"]')).toHaveAttribute('aria-valuetext', expectedValue);
+    const container = render(html`
+      <meter-root .value=${30} .format=${format}>
+        <meter-value data-testid="value"></meter-value>
+      </meter-root>
+    `);
+    await waitForUpdate();
+
+    expect(container.querySelector('[data-testid="value"]')!.textContent).toBe(expectedValue);
+    expect(container.querySelector('meter-root')).toHaveAttribute('aria-valuetext', expectedValue);
   });
 
-  it('uses the provided locale when formatting the value', () => {
-    const expectedValue = new Intl.NumberFormat('de-DE', {
+  it('uses the provided locale when formatting the value', async () => {
+    const format: Intl.NumberFormatOptions = {
       style: 'decimal',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(86.49);
-    const container = render(
-      Meter.Root({
-        value: 86.49,
-        locale: 'de-DE',
-        format: {
-          style: 'decimal',
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        },
-        children: Meter.Value({ 'data-testid': 'value' }),
-      }),
-    );
-
-    expect(container.querySelector('[data-testid="value"]')).toHaveTextContent(expectedValue);
-  });
-
-  it('renders the default formatted value when Meter.Value has no children', () => {
-    const container = render(
-      Meter.Root({
-        value: 30,
-        children: Meter.Value({ 'data-testid': 'value' }),
-      }),
-    );
-
-    expect(container.querySelector('[data-testid="value"]')).toHaveTextContent(
-      (0.3).toLocaleString(undefined, { style: 'percent' }),
-    );
-  });
-
-  it('passes formatted and raw values to Meter.Value render functions', () => {
-    const renderSpy = vi.fn((formattedValue: string) => formattedValue);
-    const format: Intl.NumberFormatOptions = {
-      style: 'currency',
-      currency: 'USD',
     };
-    const expectedValue = new Intl.NumberFormat(undefined, format).format(30);
+    const expectedValue = new Intl.NumberFormat('de-DE', format).format(86.49);
 
-    render(
-      Meter.Root({
-        value: 30,
-        format,
-        children: Meter.Value({ children: renderSpy }),
-      }),
-    );
+    const container = render(html`
+      <meter-root .value=${86.49} .locale=${'de-DE'} .format=${format}>
+        <meter-value data-testid="value"></meter-value>
+      </meter-root>
+    `);
+    await waitForUpdate();
 
-    expect(renderSpy).toHaveBeenCalledWith(expectedValue, 30);
+    expect(container.querySelector('[data-testid="value"]')!.textContent).toBe(expectedValue);
   });
 
-  it('computes the indicator width from the meter range', () => {
-    const container = render(
-      Meter.Root({
-        value: 33,
-        children: Meter.Track({
-          children: Meter.Indicator({ 'data-testid': 'indicator' }),
-        }),
-      }),
-    );
-    const indicator = container.querySelector('[data-testid="indicator"]') as HTMLElement;
-
-    expect(indicator.style.insetInlineStart).toBe('0px');
-    expect(indicator.style.height).toBe('inherit');
-    expect(indicator.style.width).toBe('33%');
-  });
-
-  it('lets explicit aria-labelledby override auto label registration', () => {
-    const container = render(
-      Meter.Root({
-        value: 42,
-        'aria-labelledby': 'external-label',
-        children: Meter.Label({ children: 'Battery Level' }),
-      }),
+  it('supports custom renderValue on meter-value', async () => {
+    const renderSpy = vi.fn(
+      (formattedValue: string, _value: number) => `Custom: ${formattedValue}`,
     );
 
-    expect(container.querySelector('[role="meter"]')).toHaveAttribute('aria-labelledby', 'external-label');
+    const container = render(html`
+      <meter-root .value=${30}>
+        <meter-value .renderValue=${renderSpy} data-testid="value"></meter-value>
+      </meter-root>
+    `);
+    await waitForUpdate();
+
+    expect(renderSpy).toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="value"]')!.textContent).toContain('Custom:');
   });
 
-  it('forwards refs to every default rendered element', async () => {
-    const rootRef = { current: null as HTMLDivElement | null };
-    const trackRef = { current: null as HTMLDivElement | null };
-    const indicatorRef = { current: null as HTMLDivElement | null };
-    const labelRef = { current: null as HTMLSpanElement | null };
-    const valueRef = { current: null as HTMLSpanElement | null };
-
-    const container = render(
-      Meter.Root({
-        ref: rootRef,
-        value: 24,
-        children: html`
-          ${Meter.Label({ ref: labelRef, children: 'Storage Used' })}
-          ${Meter.Value({ ref: valueRef })}
-          ${Meter.Track({
-            ref: trackRef,
-            children: Meter.Indicator({ ref: indicatorRef }),
-          })}
-        `,
-      }),
+  it('uses getAriaValueText when provided', async () => {
+    const getAriaValueText = vi.fn(
+      (_formatted: string, value: number) => `${value} items`,
     );
 
-    await flushMicrotasks();
+    const container = render(html`
+      <meter-root .value=${42} .getAriaValueText=${getAriaValueText}></meter-root>
+    `);
+    await waitForUpdate();
 
-    expect(rootRef.current).toBe(container.querySelector('[role="meter"]'));
-    expect(trackRef.current).toBe(container.querySelector('div[role="meter"] > div'));
-    expect(indicatorRef.current).toBe(container.querySelector('div[role="meter"] > div > div'));
-    expect(labelRef.current).toBe(container.querySelector('span[role="presentation"]'));
-    expect(valueRef.current).toBe(container.querySelector('span[aria-hidden]'));
+    expect(container.querySelector('meter-root')).toHaveAttribute('aria-valuetext', '42 items');
+    expect(getAriaValueText).toHaveBeenCalled();
   });
 
-  it('passes merged props to render callbacks', () => {
-    const renderSpy = vi.fn((props: Record<string, unknown>) => {
-      return html`<span class=${String(props.className)} role="presentation"></span>`;
-    });
-    const container = render(
-      Meter.Root({
-        value: 25,
-        children: Meter.Indicator({
-          className: 'meter-indicator',
-          render: renderSpy,
-        }),
-      }),
+  it('supports custom min/max range', async () => {
+    const container = render(html`
+      <meter-root .value=${15} .min=${10} .max=${20}>
+        <meter-indicator data-testid="indicator"></meter-indicator>
+      </meter-root>
+    `);
+    await waitForUpdate();
+
+    const root = container.querySelector('meter-root')!;
+    const indicator = container.querySelector('[data-testid="indicator"]')! as HTMLElement;
+
+    expect(root).toHaveAttribute('aria-valuemin', '10');
+    expect(root).toHaveAttribute('aria-valuemax', '20');
+    expect(root).toHaveAttribute('aria-valuenow', '15');
+    expect(indicator.style.width).toBe('50%');
+  });
+
+  it('logs error when parts render outside meter-root', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(html`<meter-track></meter-track>`);
+    render(html`<meter-indicator></meter-indicator>`);
+    render(html`<meter-label>Label</meter-label>`);
+    render(html`<meter-value></meter-value>`);
+
+    expect(errorSpy).toHaveBeenCalledTimes(4);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Meter parts must be placed within <meter-root>'),
     );
-    const indicator = container.querySelector('.meter-indicator') as HTMLElement;
-    const props = renderSpy.mock.lastCall?.[0] as { style?: Record<string, unknown> } | undefined;
 
-    expect(indicator.tagName).toBe('SPAN');
-    expect(props?.style).toMatchObject({
-      insetInlineStart: 0,
-      height: 'inherit',
-      width: '25%',
-    });
+    errorSpy.mockRestore();
   });
 
-  it('throws when context-dependent parts render outside Meter.Root', () => {
-    expect(() => render(Meter.Label({ children: 'Label' }))).toThrow(MeterContextError);
-    expect(() => render(Meter.Value({}))).toThrow(MeterContextError);
-    expect(() => render(Meter.Indicator({}))).toThrow(MeterContextError);
+  it('includes NVDA force-announcement span', async () => {
+    const container = render(html`
+      <meter-root .value=${50}></meter-root>
+    `);
+    await waitForUpdate();
+
+    const nvdaSpan = container.querySelector('meter-root span[role="presentation"]');
+    expect(nvdaSpan).toBeInTheDocument();
+    expect(nvdaSpan?.textContent).toBe('x');
   });
 });

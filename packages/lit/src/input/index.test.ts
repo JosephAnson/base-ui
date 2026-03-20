@@ -1,11 +1,10 @@
-/* eslint-disable testing-library/render-result-naming-convention */
-import { html, nothing, render as renderTemplate, type TemplateResult } from 'lit';
+import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { Input } from '@base-ui/lit/input';
-import type { BaseUIChangeEventDetails } from '@base-ui/lit/types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import './index.ts';
+import type { InputRootElement } from './index.ts';
 
-describe('Input', () => {
+describe('input', () => {
   const containers = new Set<HTMLDivElement>();
 
   afterEach(() => {
@@ -16,72 +15,57 @@ describe('Input', () => {
     containers.clear();
   });
 
-  function render(result: TemplateResult) {
+  function render(result: ReturnType<typeof html>) {
     const container = document.createElement('div');
     document.body.append(container);
     containers.add(container);
-
     renderTemplate(result, container);
     return container;
   }
 
-  async function flushMicrotasks() {
-    await Promise.resolve();
+  async function waitForUpdate() {
+    await new Promise((r) => setTimeout(r, 0));
   }
 
-  it('preserves the public type contracts', () => {
-    const input = Input({});
+  it('renders input-root with a native input child', () => {
+    const container = render(html`
+      <input-root>
+        <input placeholder="Enter your name" />
+      </input-root>
+    `);
+    const root = container.querySelector('input-root') as InputRootElement;
+    const input = container.querySelector('input') as HTMLInputElement;
 
-    expectTypeOf(input).toEqualTypeOf<TemplateResult>();
-    expectTypeOf<Input.Props['value']>().toEqualTypeOf<
-      string | number | readonly string[] | undefined
-    >();
-    expectTypeOf<Input.Props['defaultValue']>().toEqualTypeOf<
-      string | number | readonly string[] | undefined
-    >();
-    expectTypeOf<Input.Props['onValueChange']>().toEqualTypeOf<
-      ((value: string, eventDetails: BaseUIChangeEventDetails<'none'>) => void) | undefined
-    >();
-    expectTypeOf<Input.State['disabled']>().toEqualTypeOf<boolean>();
-    expectTypeOf<Input.State['valid']>().toEqualTypeOf<boolean | null>();
-    expectTypeOf<Input.ChangeEventReason>().toEqualTypeOf<'none'>();
-    expectTypeOf<Input.ChangeEventDetails>().toEqualTypeOf<BaseUIChangeEventDetails<'none'>>();
-  });
-
-  it('renders a native input by default', () => {
-    const container = render(Input({ placeholder: 'Enter your name' }));
-    const input = container.querySelector('input');
-
-    expect(input).toBeVisible();
+    expect(root).toBeInTheDocument();
+    expect(input).toBeInTheDocument();
     expect(input).toHaveAttribute('placeholder', 'Enter your name');
   });
 
-  it('applies disabled semantics and the data-disabled state hook', () => {
-    const container = render(Input({ disabled: true }));
-    const input = container.querySelector('input');
+  it('applies disabled state and data-disabled attribute', async () => {
+    const container = render(html`
+      <input-root .disabled=${true}>
+        <input />
+      </input-root>
+    `);
+    await waitForUpdate();
 
-    expect(input).toHaveAttribute('disabled');
-    expect(input).toHaveAttribute('data-disabled', '');
-    expect(input).not.toHaveAttribute('data-focused');
+    const input = container.querySelector('input') as HTMLInputElement;
+    expect(input).toHaveAttribute('data-disabled');
   });
 
-  it('calls onChange and onValueChange from the native input event', () => {
-    const handleChange = vi.fn();
+  it('calls onValueChange when input value changes', () => {
     const handleValueChange = vi.fn();
-    const container = render(
-      Input({
-        onChange: handleChange,
-        onValueChange: handleValueChange,
-      }),
-    );
+    const container = render(html`
+      <input-root .onValueChange=${handleValueChange}>
+        <input />
+      </input-root>
+    `);
     const input = container.querySelector('input') as HTMLInputElement;
 
     input.value = 'Alice';
     const event = new InputEvent('input', { bubbles: true });
     input.dispatchEvent(event);
 
-    expect(handleChange).toHaveBeenCalledOnce();
-    expect(handleChange.mock.calls[0]?.[0]).toBe(event);
     expect(handleValueChange).toHaveBeenCalledOnce();
     expect(handleValueChange).toHaveBeenCalledWith(
       'Alice',
@@ -93,75 +77,77 @@ describe('Input', () => {
     );
   });
 
-  it('prevents internal focus and blur state handling when preventBaseUIHandler() is called', async () => {
-    const container = render(
-      Input({
-        onBlur(event) {
-          event.preventBaseUIHandler();
-        },
-        onFocus(event) {
-          event.preventBaseUIHandler();
-        },
-      }),
-    );
+  it('tracks focus and blur state with data attributes', async () => {
+    const container = render(html`
+      <input-root>
+        <input />
+      </input-root>
+    `);
     const input = container.querySelector('input') as HTMLInputElement;
 
-    input.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
-    await flushMicrotasks();
-
     expect(input).not.toHaveAttribute('data-focused');
+    expect(input).not.toHaveAttribute('data-touched');
+
+    input.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+    await waitForUpdate();
+    expect(input).toHaveAttribute('data-focused');
 
     input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
-    await flushMicrotasks();
-
-    expect(input).not.toHaveAttribute('data-touched');
+    await waitForUpdate();
+    expect(input).not.toHaveAttribute('data-focused');
+    expect(input).toHaveAttribute('data-touched');
   });
 
-  it('updates state data attributes as the input state changes', async () => {
-    const container = render(
-      Input({
-        defaultValue: '',
-        required: true,
-      }),
-    );
+  it('tracks dirty and filled state', async () => {
+    const container = render(html`
+      <input-root>
+        <input />
+      </input-root>
+    `);
     const input = container.querySelector('input') as HTMLInputElement;
 
-    expect(input).not.toHaveAttribute('data-focused');
-    expect(input).not.toHaveAttribute('data-filled');
     expect(input).not.toHaveAttribute('data-dirty');
-    expect(input).not.toHaveAttribute('data-touched');
-
-    input.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
-    await flushMicrotasks();
-
-    expect(input).toHaveAttribute('data-focused', '');
-    expect(input).toHaveAttribute('data-invalid', '');
+    expect(input).not.toHaveAttribute('data-filled');
 
     input.value = 'Alice';
     input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    await flushMicrotasks();
+    await waitForUpdate();
 
-    expect(input).toHaveAttribute('data-focused', '');
-    expect(input).toHaveAttribute('data-filled', '');
-    expect(input).toHaveAttribute('data-dirty', '');
-    expect(input).toHaveAttribute('data-valid', '');
-    expect(input).not.toHaveAttribute('data-invalid');
-
-    input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
-    await flushMicrotasks();
-
-    expect(input).not.toHaveAttribute('data-focused');
-    expect(input).toHaveAttribute('data-touched', '');
+    expect(input).toHaveAttribute('data-dirty');
+    expect(input).toHaveAttribute('data-filled');
   });
 
-  it('preserves controlled value semantics until the parent rerenders', () => {
+  it('tracks validity state with data-valid and data-invalid', async () => {
+    const container = render(html`
+      <input-root>
+        <input required />
+      </input-root>
+    `);
+    await waitForUpdate();
+
+    const input = container.querySelector('input') as HTMLInputElement;
+
+    // Focus to trigger state update
+    input.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+    await waitForUpdate();
+
+    expect(input).toHaveAttribute('data-invalid');
+
+    input.value = 'Alice';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await waitForUpdate();
+
+    expect(input).toHaveAttribute('data-valid');
+    expect(input).not.toHaveAttribute('data-invalid');
+  });
+
+  it('preserves controlled value after input', () => {
     const handleValueChange = vi.fn();
-    const container = render(
-      Input({
-        value: 'Alice',
-        onValueChange: handleValueChange,
-      }),
-    );
+    const container = render(html`
+      <input-root .value=${'Alice'} .onValueChange=${handleValueChange}>
+        <input />
+      </input-root>
+    `);
     const input = container.querySelector('input') as HTMLInputElement;
 
     expect(input.value).toBe('Alice');
@@ -173,55 +159,25 @@ describe('Input', () => {
       'Alicia',
       expect.objectContaining({ reason: 'none' }),
     );
+    // Value should be restored to controlled value
     expect(input.value).toBe('Alice');
   });
 
-  it('prevents internal input handling when preventBaseUIHandler() is called', async () => {
+  it('works with textarea elements', async () => {
     const handleValueChange = vi.fn();
-    const container = render(
-      Input({
-        value: 'Alice',
-        onChange(event) {
-          event.preventBaseUIHandler();
-        },
-        onValueChange: handleValueChange,
-      }),
-    );
-    const input = container.querySelector('input') as HTMLInputElement;
-
-    await flushMicrotasks();
-
-    input.value = 'Alicia';
-    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    await flushMicrotasks();
-
-    expect(handleValueChange).not.toHaveBeenCalled();
-    expect(input.value).toBe('Alicia');
-    expect(input).not.toHaveAttribute('data-dirty');
-    expect(input).toHaveAttribute('data-filled', '');
-  });
-
-  it('supports replacing the element with a static textarea template', async () => {
-    const ref = { current: null as HTMLElement | null };
-    const handleValueChange = vi.fn();
-    const container = render(
-      Input({
-        ref,
-        render: html`<textarea></textarea>`,
-        onValueChange: handleValueChange,
-      }),
-    );
-
-    await flushMicrotasks();
+    const container = render(html`
+      <input-root .onValueChange=${handleValueChange}>
+        <textarea></textarea>
+      </input-root>
+    `);
+    await waitForUpdate();
 
     const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
 
     textarea.value = 'Notes';
     const event = new InputEvent('input', { bubbles: true });
     textarea.dispatchEvent(event);
-    await flushMicrotasks();
 
-    expect(ref.current).toBe(textarea);
     expect(handleValueChange).toHaveBeenCalledWith(
       'Notes',
       expect.objectContaining({
@@ -231,44 +187,50 @@ describe('Input', () => {
     );
   });
 
-  it('passes the merged props and state to render callbacks', () => {
-    const container = render(
-      Input({
-        className: 'custom-input',
-        defaultValue: 'Alice',
-        render(props, state) {
-          return html`<textarea
-            class=${String(props.className)}
-            ?disabled=${Boolean(props.disabled)}
-            data-disabled=${state.disabled ? '' : nothing}
-            data-filled=${state.filled ? '' : nothing}
-          ></textarea>`;
-        },
-      }),
-    );
-    const textarea = container.querySelector('textarea');
-
-    expect(textarea).toHaveClass('custom-input');
-    expect(textarea).not.toHaveAttribute('disabled');
-    expect(textarea).toHaveAttribute('data-filled', '');
+  it('uses display:contents on the root element', () => {
+    const container = render(html`
+      <input-root>
+        <input />
+      </input-root>
+    `);
+    const root = container.querySelector('input-root') as InputRootElement;
+    expect(root.style.display).toBe('contents');
   });
 
-  it('passes onChange through the render callback props', () => {
-    const handleChange = vi.fn();
-    const container = render(
-      Input({
-        onChange: handleChange,
-        render(props) {
-          return html`<textarea @input=${props.onChange}></textarea>`;
-        },
-      }),
-    );
-    const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+  it('cleans up event listeners on disconnect', async () => {
+    const handleValueChange = vi.fn();
+    const container = render(html`
+      <input-root .onValueChange=${handleValueChange}>
+        <input />
+      </input-root>
+    `);
+    const input = container.querySelector('input') as HTMLInputElement;
 
-    const event = new InputEvent('input', { bubbles: true });
-    textarea.dispatchEvent(event);
+    const root = container.querySelector('input-root') as InputRootElement;
+    root.remove();
 
-    expect(handleChange).toHaveBeenCalledOnce();
-    expect(handleChange.mock.calls[0]?.[0]).toBe(event);
+    input.value = 'test';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+
+    // Should not fire after disconnect
+    expect(handleValueChange).not.toHaveBeenCalled();
+  });
+
+  it('reports initial state via getState()', async () => {
+    const container = render(html`
+      <input-root>
+        <input />
+      </input-root>
+    `);
+    await waitForUpdate();
+
+    const root = container.querySelector('input-root') as InputRootElement;
+    const state = root.getState();
+
+    expect(state.disabled).toBe(false);
+    expect(state.touched).toBe(false);
+    expect(state.dirty).toBe(false);
+    expect(state.filled).toBe(false);
+    expect(state.focused).toBe(false);
   });
 });

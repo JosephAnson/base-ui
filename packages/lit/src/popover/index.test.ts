@@ -1,29 +1,6 @@
-/* eslint-disable testing-library/render-result-naming-convention */
-import { html, nothing, render as renderTemplate, type TemplateResult } from 'lit';
+import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import type { BaseUIChangeEventDetails } from '@base-ui/lit/types';
-
-import type {
-  PopoverArrowProps,
-  PopoverArrowState,
-  PopoverBackdropProps,
-  PopoverBackdropState,
-  PopoverCloseProps,
-  PopoverDescriptionProps,
-  PopoverPopupProps,
-  PopoverPopupState,
-  PopoverPositionerProps,
-  PopoverPositionerState,
-  PopoverRootChangeEventDetails,
-  PopoverRootProps,
-  PopoverTitleProps,
-  PopoverTriggerProps,
-  PopoverTriggerState,
-  PopoverViewportProps,
-  PopoverViewportState,
-} from '@base-ui/lit/popover';
-import { Popover } from '@base-ui/lit/popover';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const floatingUiMocks = vi.hoisted(() => ({
   arrow: vi.fn((options: unknown) => ({ name: 'arrow', options })),
@@ -59,503 +36,355 @@ const floatingUiMocks = vi.hoisted(() => ({
 
 vi.mock('@floating-ui/react-dom', () => floatingUiMocks);
 
-describe('Popover', () => {
+import './index.ts';
+import type {
+  PopoverRootElement,
+  PopoverChangeEventDetails,
+} from './index.ts';
+
+describe('popover', () => {
   const containers = new Set<HTMLDivElement>();
 
-  afterEach(async () => {
+  afterEach(() => {
     containers.forEach((container) => {
       renderTemplate(nothing, container);
       container.remove();
     });
     containers.clear();
-
-    document.body.querySelectorAll('[data-base-ui-popover-portal]').forEach((element) => {
-      element.parentElement?.remove();
-    });
-
-    await flush();
-    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
-  function render(result: TemplateResult) {
+  function render(result: ReturnType<typeof html>) {
     const container = document.createElement('div');
     document.body.append(container);
     containers.add(container);
-
     renderTemplate(result, container);
     return container;
   }
 
-  async function flush() {
-    await Promise.resolve();
-    await new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), 50);
-    });
-    await Promise.resolve();
+  async function waitForUpdate() {
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
   }
 
-  function click(element: Element) {
-    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  function getTrigger(container: HTMLElement) {
+    return container.querySelector('popover-trigger') as HTMLElement;
   }
 
-  function mouseEnter(element: Element) {
-    element.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
+  function getPopup(container: HTMLElement) {
+    return container.querySelector('popover-popup') as HTMLElement;
   }
 
-  function mouseLeave(element: Element) {
-    element.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
+  function getPositioner(container: HTMLElement) {
+    return container.querySelector('popover-positioner') as HTMLElement;
   }
 
-  function getPopup() {
-    return document.body.querySelector('[data-testid="popup"]') as HTMLElement | null;
+  function getBackdrop(container: HTMLElement) {
+    return container.querySelector('popover-backdrop') as HTMLElement;
   }
 
-  function renderPopover(props: PopoverRootProps = {}) {
-    return Popover.Root({
-      ...props,
-      children: [
-        Popover.Trigger({
-          'data-testid': 'trigger',
-          children: 'Trigger',
-        }),
-        Popover.Portal({
-          children: Popover.Positioner({
-            children: Popover.Popup({
-              'data-testid': 'popup',
-              children: 'Popup',
-            }),
-          }),
-        }),
-      ],
-    });
+  function getClose(container: HTMLElement) {
+    return container.querySelector('popover-close') as HTMLElement;
   }
 
-  it('preserves the public type contracts', () => {
-    const root = Popover.Root({});
-    const trigger = Popover.Trigger({});
-    const portal = Popover.Portal({});
-    const positioner = Popover.Positioner({});
-    const popup = Popover.Popup({});
-    const arrow = Popover.Arrow({});
-    const backdrop = Popover.Backdrop({});
-    const title = Popover.Title({});
-    const description = Popover.Description({});
-    const close = Popover.Close({});
-    const viewport = Popover.Viewport({});
+  function getArrow(container: HTMLElement) {
+    return container.querySelector('popover-arrow') as HTMLElement;
+  }
 
-    expectTypeOf(root).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(trigger).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(portal).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(positioner).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(popup).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(arrow).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(backdrop).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(title).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(description).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(close).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(viewport).toMatchTypeOf<TemplateResult>();
-    expectTypeOf<PopoverRootProps['open']>().toEqualTypeOf<boolean | undefined>();
-    expectTypeOf<PopoverTriggerProps['nativeButton']>().toEqualTypeOf<boolean | undefined>();
-    expectTypeOf<PopoverPositionerProps['sideOffset']>().toEqualTypeOf<number | undefined>();
-    expectTypeOf<PopoverPopupProps['initialFocus']>().not.toBeAny();
-    expectTypeOf<PopoverRootChangeEventDetails>().toEqualTypeOf<
-      BaseUIChangeEventDetails<
-        | 'trigger-hover'
-        | 'trigger-focus'
-        | 'trigger-press'
-        | 'outside-press'
-        | 'escape-key'
-        | 'close-press'
-        | 'focus-out'
-        | 'imperative-action'
-        | 'none',
-        { preventUnmountOnClose(): void }
+  function renderPopover(rootProps: Record<string, unknown> = {}) {
+    return html`
+      <popover-root
+        .defaultOpen=${rootProps.defaultOpen ?? false}
+        .open=${rootProps.open}
+        .onOpenChange=${rootProps.onOpenChange}
+        .modal=${rootProps.modal ?? false}
+        .disablePointerDismissal=${rootProps.disablePointerDismissal ?? false}
       >
-    >();
-    expectTypeOf<PopoverTriggerState['open']>().toEqualTypeOf<boolean>();
-    expectTypeOf<PopoverPositionerState['side']>().toEqualTypeOf<
-      'top' | 'right' | 'bottom' | 'left'
-    >();
-    expectTypeOf<PopoverPopupState['transitionStatus']>().toEqualTypeOf<
-      'starting' | 'ending' | undefined
-    >();
-    expectTypeOf<PopoverArrowState['uncentered']>().toEqualTypeOf<boolean>();
-    expectTypeOf<PopoverBackdropState['open']>().toEqualTypeOf<boolean>();
-    expectTypeOf<PopoverViewportState['transitioning']>().toEqualTypeOf<boolean>();
-    expectTypeOf<PopoverArrowProps>().not.toBeAny();
-    expectTypeOf<PopoverBackdropProps>().not.toBeAny();
-    expectTypeOf<PopoverCloseProps>().not.toBeAny();
-    expectTypeOf<PopoverDescriptionProps>().not.toBeAny();
-    expectTypeOf<PopoverTitleProps>().not.toBeAny();
-    expectTypeOf<PopoverViewportProps>().not.toBeAny();
+        <popover-trigger>Trigger</popover-trigger>
+        <popover-portal>
+          <popover-backdrop></popover-backdrop>
+          <popover-positioner
+            .side=${rootProps.side ?? 'bottom'}
+            .sideOffset=${rootProps.sideOffset ?? 0}
+            .align=${rootProps.align ?? 'center'}
+            .collisionAvoidance=${rootProps.collisionAvoidance}
+            .disableAnchorTracking=${rootProps.disableAnchorTracking ?? false}
+          >
+            <popover-popup>
+              <popover-title>Title</popover-title>
+              <popover-description>Description</popover-description>
+              <popover-close>Close</popover-close>
+            </popover-popup>
+          </popover-positioner>
+        </popover-portal>
+      </popover-root>
+    `;
+  }
+
+  it('renders popover-root as a custom element', async () => {
+    const container = render(renderPopover());
+    await waitForUpdate();
+
+    const root = container.querySelector(
+      'popover-root',
+    ) as PopoverRootElement;
+    expect(root).toBeInTheDocument();
+    expect(root).toHaveAttribute('data-base-ui-popover-root');
   });
 
-  it('opens and closes uncontrolled state through the trigger', async () => {
+  it('opens and closes through the trigger', async () => {
     const container = render(renderPopover());
-    await flush();
+    await waitForUpdate();
 
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
+    const trigger = getTrigger(container);
+    const popup = getPopup(container);
 
+    // Initially closed
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
-    expect(getPopup()).toBeNull();
+    expect(popup).toHaveAttribute('hidden');
 
-    click(trigger);
-    await flush();
-
-    const popup = getPopup();
+    // Click trigger to open
+    trigger.click();
+    await waitForUpdate();
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    expect(trigger).toHaveAttribute('aria-controls');
-    expect(popup).not.toBeNull();
+    expect(popup).not.toHaveAttribute('hidden');
     expect(popup).toHaveAttribute('role', 'dialog');
     expect(popup).toHaveAttribute('data-open');
 
-    click(trigger);
-    await flush();
+    // Click trigger again to close (toggle)
+    trigger.click();
+    await waitForUpdate();
 
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
-    expect(getPopup()).toBeNull();
+    expect(popup).toHaveAttribute('hidden');
   });
 
-  it('supports controlled state and cancelable onOpenChange', async () => {
-    let open = false;
+  it('calls onOpenChange with reason on trigger press', async () => {
+    const handleOpenChange = vi.fn();
+    const container = render(
+      renderPopover({ onOpenChange: handleOpenChange }),
+    );
+    await waitForUpdate();
+
+    getTrigger(container).click();
+    await waitForUpdate();
+
+    expect(handleOpenChange).toHaveBeenCalledTimes(1);
+    expect(handleOpenChange.mock.calls[0]?.[0]).toBe(true);
+    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe(
+      'trigger-press',
+    );
+  });
+
+  it('supports cancellation in onOpenChange', async () => {
     const handleOpenChange = vi.fn(
-      (nextOpen: boolean, eventDetails: PopoverRootChangeEventDetails) => {
-        if (nextOpen) {
-          eventDetails.cancel();
-        }
+      (_open: boolean, details: PopoverChangeEventDetails) => {
+        details.cancel();
       },
     );
+    const container = render(
+      renderPopover({ onOpenChange: handleOpenChange }),
+    );
+    await waitForUpdate();
+
+    getTrigger(container).click();
+    await waitForUpdate();
+
+    // Opening was cancelled
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('supports controlled open state', async () => {
     const container = render(html``);
 
-    function rerender() {
+    function rerender(open: boolean) {
       renderTemplate(
-        renderPopover({
-          open,
-          onOpenChange(nextOpen, details) {
-            handleOpenChange(nextOpen, details);
-            open = nextOpen;
-          },
-        }),
+        html`
+          <popover-root .open=${open}>
+            <popover-trigger>Open</popover-trigger>
+            <popover-portal>
+              <popover-positioner>
+                <popover-popup>Content</popover-popup>
+              </popover-positioner>
+            </popover-portal>
+          </popover-root>
+        `,
         container,
       );
     }
 
-    rerender();
-    await flush();
+    rerender(false);
+    await waitForUpdate();
+    expect(getPopup(container)).toHaveAttribute('hidden');
 
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
-    click(trigger);
-    await flush();
+    rerender(true);
+    await waitForUpdate();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
 
-    expect(handleOpenChange).toHaveBeenCalledTimes(1);
-    expect(handleOpenChange.mock.calls[0]?.[0]).toBe(true);
-    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe('trigger-press');
-    expect(getPopup()).toBeNull();
+    rerender(false);
+    await waitForUpdate();
+    expect(getPopup(container)).toHaveAttribute('hidden');
   });
 
-  it('supports finalFocus refs when the popup closes', async () => {
-    const finalFocusTarget = document.createElement('input');
-    document.body.append(finalFocusTarget);
-
-    const container = render(
-      Popover.Root({
-        children: [
-          Popover.Trigger({
-            'data-testid': 'trigger',
-            children: 'Trigger',
-          }),
-          Popover.Portal({
-            children: Popover.Positioner({
-              children: Popover.Popup({
-                finalFocus: { current: finalFocusTarget },
-                children: Popover.Close({
-                  'data-testid': 'close',
-                  children: 'Close',
-                }),
-              }),
-            }),
-          }),
-        ],
-      }),
-    );
-    await flush();
-
-    click(container.querySelector('[data-testid="trigger"]') as HTMLElement);
-    await flush();
-    click(document.body.querySelector('[data-testid="close"]') as HTMLElement);
-    await flush();
-
-    expect(finalFocusTarget).toHaveFocus();
-    finalFocusTarget.remove();
-  });
-
-  it('supports finalFocus={false} without restoring focus to the trigger', async () => {
-    const container = render(
-      Popover.Root({
-        children: [
-          Popover.Trigger({
-            'data-testid': 'trigger',
-            children: 'Trigger',
-          }),
-          Popover.Portal({
-            children: Popover.Positioner({
-              children: Popover.Popup({
-                finalFocus: false,
-                children: Popover.Close({
-                  'data-testid': 'close',
-                  children: 'Close',
-                }),
-              }),
-            }),
-          }),
-        ],
-      }),
-    );
-    await flush();
-
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
-    click(trigger);
-    await flush();
-    click(document.body.querySelector('[data-testid="close"]') as HTMLElement);
-    await flush();
-
-    expect(trigger).not.toHaveFocus();
-  });
-
-  it('supports detached triggers through a handle', async () => {
-    const handle = Popover.createHandle<{ label: string }>();
-    const container = render(html`
-      ${Popover.Trigger({
-        handle,
-        id: 'alpha',
-        payload: { label: 'Alpha' },
-        'data-testid': 'detached-trigger',
-        children: 'Detached trigger',
-      })}
-      ${Popover.Root<{ label: string }>({
-        handle,
-        children: ({ payload }: { payload: { label: string } | undefined }) =>
-          Popover.Portal({
-            children: Popover.Positioner({
-              children: Popover.Popup({
-                'data-testid': 'popup',
-                children: payload?.label ?? 'Empty',
-              }),
-            }),
-          }),
-      })}
-    `);
-    await flush();
-
-    const trigger = container.querySelector('[data-testid="detached-trigger"]') as HTMLElement;
-
-    click(trigger);
-    await flush();
-
-    expect(getPopup()).toHaveTextContent('Alpha');
-    expect(handle.isOpen).toBe(true);
-  });
-
-  it('closes through a user-rendered backdrop on click, not on mousedown', async () => {
-    const container = render(
-      Popover.Root({
-        children: [
-          Popover.Trigger({
-            'data-testid': 'trigger',
-            children: 'Trigger',
-          }),
-          Popover.Portal({
-            children: [
-              Popover.Backdrop({
-                'data-testid': 'backdrop',
-              }),
-              Popover.Positioner({
-                children: Popover.Popup({
-                  'data-testid': 'popup',
-                  children: 'Popup',
-                }),
-              }),
-            ],
-          }),
-        ],
-      }),
-    );
-    await flush();
-
-    click(container.querySelector('[data-testid="trigger"]') as HTMLElement);
-    await flush();
-
-    const backdrop = document.body.querySelector('[data-testid="backdrop"]') as HTMLElement;
-
-    backdrop.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-    await flush();
-    expect(getPopup()).not.toBeNull();
-
-    click(backdrop);
-    await flush();
-    expect(getPopup()).toBeNull();
-    expect(container.querySelector('[data-testid="trigger"]')).toHaveFocus();
-  });
-
-  it('renders an internal backdrop for modal popovers and closes on click', async () => {
-    const container = render(
-      Popover.Root({
-        modal: true,
-        children: [
-          Popover.Trigger({
-            'data-testid': 'trigger',
-            children: 'Trigger',
-          }),
-          Popover.Portal({
-            children: Popover.Positioner({
-              children: Popover.Popup({
-                'data-testid': 'popup',
-                children: 'Popup',
-              }),
-            }),
-          }),
-        ],
-      }),
-    );
-    await flush();
-
-    click(container.querySelector('[data-testid="trigger"]') as HTMLElement);
-    await flush();
-
-    const backdrop = document.body.querySelector(
-      '[data-base-ui-popover-internal-backdrop]',
-    ) as HTMLElement;
-
-    expect(backdrop).not.toBeNull();
-
-    backdrop.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-    await flush();
-    expect(getPopup()).not.toBeNull();
-
-    click(backdrop);
-    await flush();
-    expect(getPopup()).toBeNull();
-  });
-
-  it('keeps the portal content mounted during close transitions when keepMounted is set', async () => {
-    const container = render(
-      Popover.Root({
-        children: [
-          Popover.Trigger({
-            'data-testid': 'trigger',
-            children: 'Trigger',
-          }),
-          Popover.Portal({
-            keepMounted: true,
-            children: Popover.Positioner({
-              children: Popover.Popup({
-                'data-testid': 'popup',
-                children: 'Popup',
-              }),
-            }),
-          }),
-        ],
-      }),
-    );
-    await flush();
-
-    click(container.querySelector('[data-testid="trigger"]') as HTMLElement);
-    await flush();
-    click(container.querySelector('[data-testid="trigger"]') as HTMLElement);
-    await Promise.resolve();
-
-    expect(getPopup()).not.toBeNull();
-    expect(getPopup()).toHaveAttribute('data-closed');
-    expect(getPopup()).not.toHaveAttribute('hidden');
-
-    await flush();
-
-    expect(getPopup()).not.toBeNull();
-    expect(getPopup()).toHaveAttribute('hidden');
-  });
-
-  it('keeps the portal content mounted when preventUnmountOnClose is requested', async () => {
-    const actionsRef = { current: null as { close(): void; unmount(): void } | null };
-    let preventUnmountRequested = false;
+  it('closes on Escape key', async () => {
+    const handleOpenChange = vi.fn();
     const container = render(
       renderPopover({
         defaultOpen: true,
-        actionsRef,
-        onOpenChange(nextOpen, details) {
-          if (!nextOpen) {
-            preventUnmountRequested = true;
-            details.preventUnmountOnClose();
-          }
-        },
+        onOpenChange: handleOpenChange,
       }),
     );
-    await flush();
+    await waitForUpdate();
+    handleOpenChange.mockClear();
 
-    click(container.querySelector('[data-testid="trigger"]') as HTMLElement);
-    await Promise.resolve();
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    );
+    await waitForUpdate();
 
-    expect(preventUnmountRequested).toBe(true);
-    expect(getPopup()).not.toBeNull();
-    expect(getPopup()).toHaveAttribute('data-closed');
-    expect(getPopup()).not.toHaveAttribute('hidden');
-
-    await flush();
-
-    expect(getPopup()).not.toBeNull();
-    expect(getPopup()).not.toHaveAttribute('hidden');
-
-    actionsRef.current?.unmount();
-    await flush();
-
-    expect(getPopup()).toBeNull();
+    expect(getPopup(container)).toHaveAttribute('hidden');
+    expect(handleOpenChange).toHaveBeenCalledTimes(1);
+    expect(handleOpenChange.mock.calls[0]?.[0]).toBe(false);
+    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe('escape-key');
   });
 
-  it('uses the only trigger as the implicit active trigger for initially open popovers', async () => {
-    const container = render(renderPopover({ defaultOpen: true }));
-    await flush();
-
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
-
-    expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    expect(trigger).toHaveAttribute('aria-controls');
-
-    click(trigger);
-    await Promise.resolve();
-
-    expect(getPopup()).toHaveAttribute('data-closed');
-  });
-
-  it('respects collisionAvoidance="none" by omitting flip and shift middleware', async () => {
+  it('closes on outside mousedown', async () => {
+    const handleOpenChange = vi.fn();
     const container = render(
-      Popover.Root({
-        children: [
-          Popover.Trigger({
-            'data-testid': 'trigger',
-            children: 'Trigger',
-          }),
-          Popover.Portal({
-            children: Popover.Positioner({
-              collisionAvoidance: 'none',
-              children: Popover.Popup({
-                'data-testid': 'popup',
-                children: 'Popup',
-              }),
-            }),
-          }),
-        ],
+      renderPopover({
+        defaultOpen: true,
+        onOpenChange: handleOpenChange,
       }),
     );
-    await flush();
+    await waitForUpdate();
+    handleOpenChange.mockClear();
 
-    click(container.querySelector('[data-testid="trigger"]') as HTMLElement);
-    await flush();
+    // Clicking outside (on document.body) should close
+    document.body.dispatchEvent(
+      new MouseEvent('mousedown', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
 
-    const computePositionCall = floatingUiMocks.computePosition.mock.calls[0] as unknown as
+    expect(getPopup(container)).toHaveAttribute('hidden');
+    expect(handleOpenChange).toHaveBeenCalledTimes(1);
+    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe(
+      'outside-press',
+    );
+  });
+
+  it('closes through backdrop on click, not on mousedown', async () => {
+    const container = render(renderPopover({ defaultOpen: true }));
+    await waitForUpdate();
+
+    const backdrop = getBackdrop(container);
+
+    // Mousedown on backdrop should NOT close (excluded from outside-press)
+    backdrop.dispatchEvent(
+      new MouseEvent('mousedown', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+
+    // Click on backdrop SHOULD close
+    backdrop.click();
+    await waitForUpdate();
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('wires title, description, and close to the popup', async () => {
+    const container = render(renderPopover({ defaultOpen: true }));
+    await waitForUpdate();
+
+    const popup = getPopup(container);
+    const title = container.querySelector(
+      'popover-title',
+    ) as HTMLElement;
+    const description = container.querySelector(
+      'popover-description',
+    ) as HTMLElement;
+
+    expect(popup).toHaveAttribute('aria-labelledby', title.id);
+    expect(popup).toHaveAttribute('aria-describedby', description.id);
+
+    // Close button works
+    getClose(container).click();
+    await waitForUpdate();
+
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('onOpenChange reports close-press reason', async () => {
+    const handleOpenChange = vi.fn();
+    const container = render(
+      renderPopover({
+        defaultOpen: true,
+        onOpenChange: handleOpenChange,
+      }),
+    );
+    await waitForUpdate();
+    handleOpenChange.mockClear();
+
+    getClose(container).click();
+    await waitForUpdate();
+
+    expect(handleOpenChange).toHaveBeenCalledTimes(1);
+    expect(handleOpenChange.mock.calls[0]?.[0]).toBe(false);
+    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe(
+      'close-press',
+    );
+  });
+
+  it('sets aria-haspopup and aria-controls on trigger', async () => {
+    const container = render(renderPopover({ defaultOpen: true }));
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+    const popup = getPopup(container);
+
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(trigger).toHaveAttribute('aria-controls', popup.id);
+  });
+
+  it('calls floating-ui computePosition when open', async () => {
+    const container = render(renderPopover());
+    await waitForUpdate();
+
+    floatingUiMocks.computePosition.mockClear();
+
+    getTrigger(container).click();
+    await waitForUpdate();
+
+    expect(floatingUiMocks.computePosition).toHaveBeenCalled();
+  });
+
+  it('respects collisionAvoidance="none"', async () => {
+    const container = render(
+      renderPopover({ collisionAvoidance: 'none' }),
+    );
+    await waitForUpdate();
+
+    floatingUiMocks.computePosition.mockClear();
+    floatingUiMocks.flip.mockClear();
+    floatingUiMocks.shift.mockClear();
+
+    getTrigger(container).click();
+    await waitForUpdate();
+
+    expect(floatingUiMocks.computePosition).toHaveBeenCalled();
+
+    // Extract middleware from the computePosition call
+    const call = floatingUiMocks.computePosition.mock.calls[0] as
       | [Element, Element, { middleware?: Array<{ name?: string }> }]
       | undefined;
-    const middlewareNames = computePositionCall?.[2]?.middleware?.map((entry) => entry.name) ?? [];
+    const middlewareNames =
+      call?.[2]?.middleware?.map((m: { name?: string }) => m.name) ??
+      [];
 
     expect(middlewareNames).toContain('offset');
     expect(middlewareNames).toContain('hide');
@@ -565,31 +394,22 @@ describe('Popover', () => {
 
   it('passes disableAnchorTracking to autoUpdate', async () => {
     const container = render(
-      Popover.Root({
-        children: [
-          Popover.Trigger({
-            'data-testid': 'trigger',
-            children: 'Trigger',
-          }),
-          Popover.Portal({
-            children: Popover.Positioner({
-              disableAnchorTracking: true,
-              children: Popover.Popup({
-                'data-testid': 'popup',
-                children: 'Popup',
-              }),
-            }),
-          }),
-        ],
-      }),
+      renderPopover({ disableAnchorTracking: true }),
     );
-    await flush();
+    await waitForUpdate();
 
-    click(container.querySelector('[data-testid="trigger"]') as HTMLElement);
-    await flush();
+    floatingUiMocks.autoUpdate.mockClear();
+
+    getTrigger(container).click();
+    await waitForUpdate();
 
     const autoUpdateCall = floatingUiMocks.autoUpdate.mock.calls[0] as
-      | [Element, Element, () => void, { elementResize?: boolean; layoutShift?: boolean }]
+      | [
+          Element,
+          Element,
+          () => void,
+          { elementResize?: boolean; layoutShift?: boolean },
+        ]
       | undefined;
 
     expect(autoUpdateCall?.[3]).toMatchObject({
@@ -598,186 +418,210 @@ describe('Popover', () => {
     });
   });
 
-  it('renders viewport children inside the current container', async () => {
-    render(
-      Popover.Root({
+  it('sets data-side and data-align on the positioner', async () => {
+    const container = render(renderPopover({ defaultOpen: true }));
+    await waitForUpdate();
+
+    const positioner = getPositioner(container);
+    expect(positioner).toHaveAttribute('data-side', 'bottom');
+    expect(positioner).toHaveAttribute('data-align', 'center');
+  });
+
+  it('respects disablePointerDismissal for outside clicks', async () => {
+    const container = render(
+      renderPopover({
         defaultOpen: true,
-        children: [
-          Popover.Trigger({
-            'data-testid': 'trigger',
-            children: 'Trigger',
-          }),
-          Popover.Portal({
-            children: Popover.Positioner({
-              children: Popover.Popup({
-                children: Popover.Viewport({
-                  children: html`<div data-testid="viewport-content">Viewport content</div>`,
-                }),
-              }),
-            }),
-          }),
-        ],
+        disablePointerDismissal: true,
       }),
     );
-    await flush();
+    await waitForUpdate();
 
-    const content = document.body.querySelector('[data-testid="viewport-content"]') as HTMLElement;
-    const currentContainer = content.closest('[data-current]');
+    // Outside mousedown should NOT close
+    document.body.dispatchEvent(
+      new MouseEvent('mousedown', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
 
-    expect(currentContainer).not.toBeNull();
-    expect(currentContainer).toHaveTextContent('Viewport content');
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
   });
 
-  it('creates viewport transition containers and activation direction when the active trigger changes', async () => {
-    const container = render(
-      Popover.Root<string>({
-        children: ({ payload }: { payload: string | undefined }) => [
-          Popover.Trigger({
-            'data-testid': 'trigger-1',
-            payload: 'first',
-            children: 'Trigger 1',
-          }),
-          Popover.Trigger({
-            'data-testid': 'trigger-2',
-            payload: 'second',
-            children: 'Trigger 2',
-          }),
-          Popover.Portal({
-            children: Popover.Positioner({
-              children: Popover.Popup({
-                children: Popover.Viewport({
-                  'data-testid': 'viewport',
-                  children: html`<div data-testid="viewport-content">${payload ?? 'none'}</div>`,
-                }),
-              }),
-            }),
-          }),
-        ],
-      }),
-    );
-    await flush();
+  it('wires arrow element into positioning middleware', async () => {
+    const container = render(html`
+      <popover-root .defaultOpen=${true}>
+        <popover-trigger>Trigger</popover-trigger>
+        <popover-portal>
+          <popover-positioner>
+            <popover-popup>
+              <popover-arrow></popover-arrow>
+              Content
+            </popover-popup>
+          </popover-positioner>
+        </popover-portal>
+      </popover-root>
+    `);
+    await waitForUpdate();
 
-    const trigger1 = container.querySelector('[data-testid="trigger-1"]') as HTMLElement;
-    const trigger2 = container.querySelector('[data-testid="trigger-2"]') as HTMLElement;
+    const arrow = getArrow(container);
+    expect(arrow).toHaveAttribute('aria-hidden', 'true');
+    expect(arrow).toHaveAttribute('data-side', 'bottom');
+    expect(arrow).toHaveAttribute('data-align', 'center');
 
-    vi.spyOn(trigger1, 'getBoundingClientRect').mockImplementation(
-      () => new DOMRect(10, 10, 100, 50),
-    );
-    vi.spyOn(trigger2, 'getBoundingClientRect').mockImplementation(
-      () => new DOMRect(200, 100, 100, 50),
-    );
-
-    click(trigger1);
-    await flush();
-
-    const firstCurrent = document.body.querySelector('[data-current]');
-    expect(firstCurrent).toHaveTextContent('first');
-
-    click(trigger2);
-    await Promise.resolve();
-
-    const viewport = document.body.querySelector('[data-testid="viewport"]') as HTMLElement;
-    const previousContainer = viewport.querySelector('[data-previous]');
-    const currentContainer = viewport.querySelector('[data-current]');
-
-    expect(viewport).toHaveAttribute('data-transitioning');
-    expect(viewport.getAttribute('data-activation-direction')).toContain('right');
-    expect(viewport.getAttribute('data-activation-direction')).toContain('down');
-    expect(previousContainer).not.toBeNull();
-    expect(previousContainer).toHaveTextContent('first');
-    expect(currentContainer).not.toBe(firstCurrent);
-    expect(currentContainer).toHaveTextContent('second');
-
-    await flush();
-
-    expect(viewport.querySelector('[data-previous]')).toBeNull();
-  });
-
-  it('wires title, description, and close parts to the popup', async () => {
-    const container = render(
-      Popover.Root({
-        children: [
-          Popover.Trigger({
-            'data-testid': 'trigger',
-            children: 'Trigger',
-          }),
-          Popover.Portal({
-            children: Popover.Positioner({
-              children: Popover.Popup({
-                'data-testid': 'popup',
-                children: [
-                  Popover.Title({
-                    'data-testid': 'title',
-                    children: 'Title',
-                  }),
-                  Popover.Description({
-                    'data-testid': 'description',
-                    children: 'Description',
-                  }),
-                  Popover.Close({
-                    'data-testid': 'close',
-                    children: 'Close',
-                  }),
-                ],
-              }),
-            }),
-          }),
-        ],
-      }),
-    );
-    await flush();
-
-    click(container.querySelector('[data-testid="trigger"]') as HTMLElement);
-    await flush();
-
-    const popup = getPopup() as HTMLElement;
-    const title = document.body.querySelector('[data-testid="title"]') as HTMLElement;
-    const description = document.body.querySelector('[data-testid="description"]') as HTMLElement;
-    const close = document.body.querySelector('[data-testid="close"]') as HTMLElement;
-
-    expect(popup).toHaveAttribute('aria-labelledby', title.id);
-    expect(popup).toHaveAttribute('aria-describedby', description.id);
-
-    click(close);
-    await flush();
-
-    expect(getPopup()).toBeNull();
-    expect(container.querySelector('[data-testid="trigger"]')).toHaveFocus();
+    // Arrow middleware should have been included
+    expect(floatingUiMocks.arrow).toHaveBeenCalled();
   });
 
   it('supports hover opening and closing', async () => {
-    const container = render(
-      Popover.Root({
-        children: [
-          Popover.Trigger({
-            'data-testid': 'trigger',
-            openOnHover: true,
-            delay: 0,
-            closeDelay: 0,
-            children: 'Hover trigger',
-          }),
-          Popover.Portal({
-            children: Popover.Positioner({
-              children: Popover.Popup({
-                'data-testid': 'popup',
-                children: 'Hover popup',
-              }),
-            }),
-          }),
-        ],
+    const container = render(html`
+      <popover-root>
+        <popover-trigger
+          .openOnHover=${true}
+          .delay=${0}
+          .closeDelay=${0}
+        >
+          Hover trigger
+        </popover-trigger>
+        <popover-portal>
+          <popover-positioner>
+            <popover-popup>Hover popup</popover-popup>
+          </popover-positioner>
+        </popover-portal>
+      </popover-root>
+    `);
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+
+    trigger.dispatchEvent(
+      new MouseEvent('mouseenter', {
+        bubbles: true,
+        cancelable: true,
       }),
     );
-    await flush();
+    await waitForUpdate();
 
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
-    mouseEnter(trigger);
-    await flush();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
 
-    expect(getPopup()).not.toBeNull();
+    trigger.dispatchEvent(
+      new MouseEvent('mouseleave', {
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await waitForUpdate();
 
-    mouseLeave(trigger);
-    await flush();
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
 
-    expect(getPopup()).toBeNull();
+  it('supports keyboard activation on trigger', async () => {
+    const container = render(renderPopover());
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+
+    // Enter opens
+    trigger.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        key: 'Enter',
+      }),
+    );
+    await waitForUpdate();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+
+    // Space closes (toggle)
+    trigger.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        key: ' ',
+      }),
+    );
+    await waitForUpdate();
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('dismisses stacked popovers one by one on Escape', async () => {
+    const container = render(html`
+      <popover-root .defaultOpen=${true}>
+        <popover-positioner>
+          <popover-popup data-testid="popup-1">
+            Popover 1
+            <popover-root .defaultOpen=${true}>
+              <popover-positioner>
+                <popover-popup data-testid="popup-2">
+                  Popover 2
+                </popover-popup>
+              </popover-positioner>
+            </popover-root>
+          </popover-popup>
+        </popover-positioner>
+      </popover-root>
+    `);
+    await waitForUpdate();
+
+    expect(
+      container.querySelector('[data-testid="popup-2"]'),
+    ).not.toHaveAttribute('hidden');
+
+    // Escape closes topmost (popover 2)
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    );
+    await waitForUpdate();
+
+    expect(
+      container.querySelector('[data-testid="popup-2"]'),
+    ).toHaveAttribute('hidden');
+    expect(
+      container.querySelector('[data-testid="popup-1"]'),
+    ).not.toHaveAttribute('hidden');
+
+    // Escape closes next (popover 1)
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    );
+    await waitForUpdate();
+
+    expect(
+      container.querySelector('[data-testid="popup-1"]'),
+    ).toHaveAttribute('hidden');
+  });
+
+  it('backdrop has role=presentation', async () => {
+    const container = render(renderPopover({ defaultOpen: true }));
+    await waitForUpdate();
+
+    const backdrop = getBackdrop(container);
+    expect(backdrop).toHaveAttribute('role', 'presentation');
+    expect(backdrop).not.toHaveAttribute('hidden');
+    expect(backdrop).toHaveAttribute('data-open');
+  });
+
+  it('logs error when parts are used outside root', () => {
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    render(html`<popover-trigger>Orphan</popover-trigger>`);
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Popover parts must be placed within',
+      ),
+    );
+
+    errorSpy.mockRestore();
+  });
+
+  it('shows defaultOpen popover', async () => {
+    const container = render(renderPopover({ defaultOpen: true }));
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+    const popup = getPopup(container);
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(popup).not.toHaveAttribute('hidden');
   });
 });

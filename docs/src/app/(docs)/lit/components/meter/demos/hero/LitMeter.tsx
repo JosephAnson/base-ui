@@ -1,15 +1,15 @@
 'use client';
 import * as React from 'react';
 import { html, nothing, render as renderTemplate } from 'lit';
-import type { MeterRootProps } from '@base-ui/lit/meter';
-import { Meter } from '@base-ui/lit/meter';
+import '@base-ui/lit/meter';
 
-interface LitMeterProps extends Pick<MeterRootProps, 'value'> {
+interface LitMeterProps {
   className?: string | undefined;
   indicatorClassName?: string | undefined;
   label: string;
   labelClassName?: string | undefined;
   trackClassName?: string | undefined;
+  value?: number | undefined;
   valueClassName?: string | undefined;
 }
 
@@ -33,25 +33,13 @@ export function LitMeter(props: LitMeterProps) {
     }
 
     renderTemplate(
-      Meter.Root({
-        className,
-        value,
-        children: html`
-          ${Meter.Label({
-            className: labelClassName,
-            children: label,
-          })}
-          ${Meter.Value({
-            className: valueClassName,
-          })}
-          ${Meter.Track({
-            className: trackClassName,
-            children: Meter.Indicator({
-              className: indicatorClassName,
-            }),
-          })}
-        `,
-      }),
+      html`<meter-root class=${className ?? ''} .value=${value}>
+        <meter-label class=${labelClassName ?? ''}>${label}</meter-label>
+        <meter-value class=${valueClassName ?? ''}></meter-value>
+        <meter-track class=${trackClassName ?? ''}>
+          <meter-indicator class=${indicatorClassName ?? ''}></meter-indicator>
+        </meter-track>
+      </meter-root>`,
       host,
     );
 

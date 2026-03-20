@@ -1,373 +1,6 @@
-import { html, type TemplateResult } from 'lit';
-// eslint-disable-next-line import/extensions
-import { AsyncDirective, directive } from 'lit/async-directive.js';
-import { makeEventPreventable } from '../merge-props/index.ts';
-import type {
-  BaseUIChangeEventDetails,
-  BaseUIEvent,
-  ComponentRenderFn,
-  HTMLProps,
-} from '../types/index.ts';
-import { useRender } from '../use-render/index.ts';
+import { ReactiveElement } from 'lit';
 
-type InputValue = string | number | readonly string[];
-type InputLikeElement = Element & { value: string };
-type InputElement = HTMLInputElement | HTMLTextAreaElement;
-type InputEventHandler<EventType extends Event> = (event: BaseUIEvent<EventType>) => void;
-
-type InputRenderProps = Omit<
-  HTMLProps<HTMLElement>,
-  'defaultValue' | 'disabled' | 'onBlur' | 'onChange' | 'onFocus' | 'onInput' | 'value'
-> & {
-  defaultValue?: InputValue | undefined;
-  disabled?: boolean | undefined;
-  onBlur?: InputEventHandler<FocusEvent> | undefined;
-  onChange?: InputEventHandler<InputEvent | Event> | undefined;
-  onFocus?: InputEventHandler<FocusEvent> | undefined;
-  onInput?: InputEventHandler<InputEvent | Event> | undefined;
-  value?: InputValue | undefined;
-};
-
-type InputRenderProp = TemplateResult | ComponentRenderFn<InputRenderProps, InputState>;
-
-class InputDirective extends AsyncDirective {
-  private initialValue = '';
-  private initialized = false;
-  private latestProps: InputProps | null = null;
-  private root: HTMLElement | null = null;
-  private state: InputState = createInitialState(false, '');
-
-  render(_componentProps: InputProps) {
-    return html``;
-  }
-
-  override update(_part: Parameters<AsyncDirective['update']>[0], [componentProps]: [InputProps]) {
-    this.latestProps = componentProps;
-
-    const disabled = componentProps.disabled ?? false;
-    const propValue = getCurrentPropValue(componentProps);
-
-    if (!this.initialized) {
-      this.initialized = true;
-      this.initialValue = propValue;
-      this.state = createInitialState(disabled, propValue);
-    } else {
-      this.state = {
-        ...this.state,
-        disabled,
-        dirty: propValue !== this.initialValue,
-        filled: propValue !== '',
-      };
-    }
-
-    return this.renderCurrent();
-  }
-
-  override disconnected() {
-    this.root = null;
-  }
-
-  override reconnected() {}
-
-  private renderCurrent() {
-    if (this.latestProps == null) {
-      return html``;
-    }
-
-    const {
-      defaultValue: _defaultValue,
-      disabled = false,
-      onBlur: externalOnBlur,
-      onChange: externalOnChange,
-      onFocus: externalOnFocus,
-      onInput: externalOnInput,
-      onValueChange,
-      ref: _ref,
-      render,
-      value,
-      ...elementProps
-    } = this.latestProps;
-    const externalRef = this.latestProps.ref as HTMLProps<HTMLElement>['ref'] | undefined;
-    const isControlled = value !== undefined;
-    const state = { ...this.state, disabled };
-    const handleInputEvent = (event: InputEvent | Event) => {
-      const baseUIEvent = makeEventPreventable(event as BaseUIEvent<InputEvent | Event>);
-
-      externalOnInput?.(baseUIEvent);
-      externalOnChange?.(baseUIEvent);
-
-      if (baseUIEvent.baseUIHandlerPrevented) {
-        return;
-      }
-
-      const currentTarget = event.currentTarget;
-
-      if (hasInputValue(currentTarget) && currentTarget instanceof Element) {
-        onValueChange?.(currentTarget.value, createChangeEventDetails(event, currentTarget));
-      }
-
-      if (isControlled && hasInputValue(currentTarget)) {
-        currentTarget.value = stringifyInputValue(value);
-      }
-
-      if (hasInputElement(currentTarget)) {
-        this.updateStateFromElement(currentTarget);
-      } else {
-        this.updateState({
-          dirty:
-            currentTarget != null && hasInputValue(currentTarget)
-              ? currentTarget.value !== this.initialValue
-              : this.state.dirty,
-          filled:
-            currentTarget != null && hasInputValue(currentTarget)
-              ? currentTarget.value !== ''
-              : this.state.filled,
-        });
-      }
-    };
-    const eventProps =
-      typeof render === 'function'
-        ? {
-            onChange: handleInputEvent,
-            onInput: handleInputEvent,
-          }
-        : {
-            onInput: handleInputEvent,
-          };
-
-    return useRender<InputState, HTMLElement>({
-      defaultTagName: 'input',
-      render: this.resolveRenderProp(render, state),
-      state,
-      stateAttributesMapping: createInputStateAttributesMapping(),
-      props: {
-        disabled,
-        ref: this.createRootRef(externalRef),
-        ...(isControlled ? { value } : { defaultValue: this.initialValue }),
-        onBlur: (event: FocusEvent) => {
-          const baseUIEvent = makeEventPreventable(event as BaseUIEvent<FocusEvent>);
-
-          externalOnBlur?.(baseUIEvent);
-
-          if (baseUIEvent.baseUIHandlerPrevented) {
-            return;
-          }
-
-          if (hasInputElement(event.currentTarget)) {
-            this.updateStateFromElement(event.currentTarget, {
-              focused: false,
-              touched: true,
-            });
-          } else {
-            this.updateState({
-              focused: false,
-              touched: true,
-            });
-          }
-        },
-        onFocus: (event: FocusEvent) => {
-          const baseUIEvent = makeEventPreventable(event as BaseUIEvent<FocusEvent>);
-
-          externalOnFocus?.(baseUIEvent);
-
-          if (baseUIEvent.baseUIHandlerPrevented) {
-            return;
-          }
-
-          if (hasInputElement(event.currentTarget)) {
-            this.updateStateFromElement(event.currentTarget, { focused: true });
-          } else {
-            this.updateState({ focused: true });
-          }
-        },
-        ...eventProps,
-        ...elementProps,
-      },
-    });
-  }
-
-  private requestComponentUpdate() {
-    this.setValue(this.renderCurrent());
-  }
-
-  private resolveRenderProp(render: InputRenderProp | undefined, state: InputState) {
-    if (typeof render !== 'function') {
-      return render;
-    }
-
-    return (props: InputRenderProps) => render(props, state);
-  }
-
-  private createRootRef(externalRef: HTMLProps<HTMLElement>['ref'] | undefined) {
-    return (element: HTMLElement | null) => {
-      this.root = element;
-      assignRef(externalRef, element);
-
-      if (hasInputElement(element)) {
-        this.updateStateFromElement(element);
-      }
-    };
-  }
-
-  private updateStateFromElement(element: InputElement, partialState: Partial<InputState> = {}) {
-    this.updateState({
-      dirty: element.value !== this.initialValue,
-      filled: element.value !== '',
-      valid: readValidityState(element),
-      ...partialState,
-    });
-  }
-
-  private updateState(partialState: Partial<InputState>) {
-    const nextState: InputState = {
-      ...this.state,
-      ...partialState,
-    };
-
-    if (isEqualInputState(this.state, nextState)) {
-      return;
-    }
-
-    this.state = nextState;
-    this.requestComponentUpdate();
-  }
-}
-
-const inputDirective = directive(InputDirective);
-
-/**
- * A native input element.
- * Renders an `<input>` element.
- */
-export function Input(componentProps: Input.Props): TemplateResult {
-  return html`${inputDirective(componentProps)}`;
-}
-
-function assignRef<T>(ref: HTMLProps<T>['ref'], value: T | null) {
-  if (typeof ref === 'function') {
-    ref(value);
-    return;
-  }
-
-  if (ref != null && typeof ref === 'object') {
-    ref.current = value;
-  }
-}
-
-function createInitialState(disabled: boolean, value: string): InputState {
-  return {
-    disabled,
-    dirty: false,
-    filled: value !== '',
-    focused: false,
-    touched: false,
-    valid: null,
-  };
-}
-
-function getCurrentPropValue(componentProps: Pick<InputProps, 'defaultValue' | 'value'>) {
-  if (componentProps.value !== undefined) {
-    return stringifyInputValue(componentProps.value);
-  }
-
-  return stringifyInputValue(componentProps.defaultValue);
-}
-
-function hasInputElement(value: unknown): value is InputElement {
-  return value instanceof HTMLInputElement || value instanceof HTMLTextAreaElement;
-}
-
-function hasInputValue(value: unknown): value is InputLikeElement {
-  return value != null && typeof value === 'object' && 'value' in value;
-}
-
-function isEqualInputState(a: InputState, b: InputState) {
-  return (
-    a.disabled === b.disabled &&
-    a.touched === b.touched &&
-    a.dirty === b.dirty &&
-    a.valid === b.valid &&
-    a.filled === b.filled &&
-    a.focused === b.focused
-  );
-}
-
-function readValidityState(element: InputElement): boolean | null {
-  return typeof element.validity?.valid === 'boolean' ? element.validity.valid : null;
-}
-
-function stringifyInputValue(value: InputValue | undefined) {
-  if (value == null) {
-    return '';
-  }
-
-  if (Array.isArray(value)) {
-    return value.join(',');
-  }
-
-  return String(value);
-}
-
-function createChangeEventDetails(
-  event: Event,
-  trigger: Element | undefined,
-): BaseUIChangeEventDetails<'none'> {
-  let isCanceled = false;
-  let isPropagationAllowed = false;
-
-  return {
-    allowPropagation() {
-      isPropagationAllowed = true;
-    },
-    cancel() {
-      isCanceled = true;
-    },
-    event,
-    get isCanceled() {
-      return isCanceled;
-    },
-    get isPropagationAllowed() {
-      return isPropagationAllowed;
-    },
-    reason: 'none',
-    trigger,
-  };
-}
-
-function createDataAttribute(name: string): Record<string, string> {
-  return { [name]: '' };
-}
-
-function createInputStateAttributesMapping() {
-  return {
-    dirty(value: boolean) {
-      return value ? createDataAttribute('data-dirty') : null;
-    },
-    disabled(value: boolean) {
-      return value ? createDataAttribute('data-disabled') : null;
-    },
-    filled(value: boolean) {
-      return value ? createDataAttribute('data-filled') : null;
-    },
-    focused(value: boolean) {
-      return value ? createDataAttribute('data-focused') : null;
-    },
-    touched(value: boolean) {
-      return value ? createDataAttribute('data-touched') : null;
-    },
-    valid(value: boolean | null) {
-      if (value === true) {
-        return createDataAttribute('data-valid');
-      }
-
-      if (value === false) {
-        return createDataAttribute('data-invalid');
-      }
-
-      return null;
-    },
-  };
-}
+// ─── Types ──────────────────────────────────────────────────────────────────────
 
 export interface InputState {
   /**
@@ -396,53 +29,266 @@ export interface InputState {
   focused: boolean;
 }
 
-export interface InputProps extends Omit<
-  useRender.ComponentProps<'input', InputState, InputRenderProps>,
-  | 'defaultValue'
-  | 'disabled'
-  | 'onBlur'
-  | 'onChange'
-  | 'onFocus'
-  | 'onInput'
-  | 'ref'
-  | 'render'
-  | 'value'
-> {
-  /**
-   * The default value of the input. Use when uncontrolled.
-   */
-  defaultValue?: InputValue | undefined;
-  /**
-   * Whether the component should ignore user interaction.
-   * @default false
-   */
-  disabled?: boolean | undefined;
-  /**
-   * Callback fired when the input changes. Mirrors React's text-input `onChange`
-   * semantics by subscribing to the native `input` event.
-   */
-  onChange?: InputEventHandler<InputEvent | Event> | undefined;
-  onBlur?: InputEventHandler<FocusEvent> | undefined;
-  onFocus?: InputEventHandler<FocusEvent> | undefined;
-  onInput?: InputEventHandler<InputEvent | Event> | undefined;
-  /**
-   * Callback fired when the `value` changes. Use when controlled.
-   */
-  onValueChange?: ((value: string, eventDetails: Input.ChangeEventDetails) => void) | undefined;
-  ref?: HTMLProps<HTMLElement>['ref'] | undefined;
-  render?: InputRenderProp | undefined;
-  /**
-   * The value of the input. Use when controlled.
-   */
-  value?: InputValue | undefined;
+export interface InputChangeEventDetails {
+  event: Event;
+  cancel(): void;
+  readonly isCanceled: boolean;
+  reason: 'none';
+  trigger: Element | undefined;
 }
 
-export type InputChangeEventReason = 'none';
-export type InputChangeEventDetails = BaseUIChangeEventDetails<Input.ChangeEventReason>;
+// ─── InputRootElement ───────────────────────────────────────────────────────────
 
-export namespace Input {
-  export type Props = InputProps;
+/**
+ * Wraps a native `<input>` or `<textarea>` and tracks its interaction state
+ * via data attributes.
+ * Renders an `<input-root>` custom element with `display: contents`.
+ *
+ * Documentation: [Base UI Input](https://base-ui.com/react/components/input)
+ */
+export class InputRootElement extends ReactiveElement {
+  static properties = {
+    disabled: { type: Boolean },
+  };
+
+  declare disabled: boolean;
+
+  /** Callback fired when the value changes. Set via `.onValueChange=${fn}`. */
+  onValueChange:
+    | ((value: string, eventDetails: InputChangeEventDetails) => void)
+    | undefined;
+
+  private _state: InputState = {
+    disabled: false,
+    touched: false,
+    dirty: false,
+    valid: null,
+    filled: false,
+    focused: false,
+  };
+
+  private _initialValue = '';
+  private _initialized = false;
+  private _controlledValue: string | number | readonly string[] | undefined;
+  private _inputEl: HTMLInputElement | HTMLTextAreaElement | null = null;
+
+  /** Controlled value. Set via `.value=${val}`. */
+  get value(): string | number | readonly string[] | undefined {
+    return this._controlledValue;
+  }
+
+  set value(val: string | number | readonly string[] | undefined) {
+    this._controlledValue = val;
+    if (this._inputEl && val !== undefined) {
+      this._inputEl.value = stringifyInputValue(val);
+    }
+  }
+
+  constructor() {
+    super();
+    this.disabled = false;
+  }
+
+  override createRenderRoot() {
+    return this;
+  }
+
+  override connectedCallback() {
+    super.connectedCallback();
+    this.style.display = 'contents';
+    this._findInput();
+  }
+
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this._detachInput();
+  }
+
+  protected override updated() {
+    this._state = { ...this._state, disabled: this.disabled };
+    this._syncDataAttributes();
+  }
+
+  getState(): InputState {
+    return { ...this._state };
+  }
+
+  private _findInput() {
+    const el = this.querySelector('input, textarea') as
+      | HTMLInputElement
+      | HTMLTextAreaElement
+      | null;
+    if (el) {
+      this._attachInput(el);
+    }
+  }
+
+  private _attachInput(el: HTMLInputElement | HTMLTextAreaElement) {
+    this._inputEl = el;
+
+    // Apply controlled value if set before input was found
+    if (this._controlledValue !== undefined) {
+      el.value = stringifyInputValue(this._controlledValue);
+    }
+
+    if (!this._initialized) {
+      this._initialized = true;
+      this._initialValue = el.value;
+      this._state = {
+        disabled: this.disabled,
+        touched: false,
+        dirty: false,
+        valid: readValidityState(el),
+        filled: el.value !== '',
+        focused: false,
+      };
+    }
+
+    el.addEventListener('input', this._handleInput);
+    el.addEventListener('focus', this._handleFocus);
+    el.addEventListener('blur', this._handleBlur);
+    this._syncDataAttributes();
+  }
+
+  private _detachInput() {
+    if (this._inputEl) {
+      this._inputEl.removeEventListener('input', this._handleInput);
+      this._inputEl.removeEventListener('focus', this._handleFocus);
+      this._inputEl.removeEventListener('blur', this._handleBlur);
+      this._inputEl = null;
+    }
+  }
+
+  private _handleInput = (event: Event) => {
+    const el = event.currentTarget as HTMLInputElement | HTMLTextAreaElement;
+    const newValue = el.value;
+
+    this.onValueChange?.(
+      newValue,
+      createChangeEventDetails(event, el),
+    );
+
+    // Restore controlled value
+    if (this._controlledValue !== undefined) {
+      el.value = stringifyInputValue(this._controlledValue);
+    }
+
+    this._updateState({
+      dirty: (this._controlledValue !== undefined
+        ? stringifyInputValue(this._controlledValue)
+        : newValue) !== this._initialValue,
+      filled: (this._controlledValue !== undefined
+        ? stringifyInputValue(this._controlledValue)
+        : newValue) !== '',
+      valid: readValidityState(el),
+    });
+  };
+
+  private _handleFocus = () => {
+    this._updateState({ focused: true, valid: readValidityState(this._inputEl) });
+  };
+
+  private _handleBlur = () => {
+    this._updateState({
+      focused: false,
+      touched: true,
+      valid: readValidityState(this._inputEl),
+    });
+  };
+
+  private _updateState(partial: Partial<InputState>) {
+    const next: InputState = { ...this._state, ...partial };
+
+    if (isEqualInputState(this._state, next)) return;
+
+    this._state = next;
+    this._syncDataAttributes();
+  }
+
+  private _syncDataAttributes() {
+    const el = this._inputEl;
+    if (!el) return;
+
+    const s = this._state;
+    el.toggleAttribute('data-disabled', s.disabled);
+    el.toggleAttribute('data-touched', s.touched);
+    el.toggleAttribute('data-dirty', s.dirty);
+    el.toggleAttribute('data-filled', s.filled);
+    el.toggleAttribute('data-focused', s.focused);
+
+    if (s.valid === true) {
+      el.setAttribute('data-valid', '');
+      el.removeAttribute('data-invalid');
+    } else if (s.valid === false) {
+      el.removeAttribute('data-valid');
+      el.setAttribute('data-invalid', '');
+    } else {
+      el.removeAttribute('data-valid');
+      el.removeAttribute('data-invalid');
+    }
+  }
+}
+
+if (!customElements.get('input-root')) {
+  customElements.define('input-root', InputRootElement);
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+
+function stringifyInputValue(value: string | number | readonly string[] | undefined): string {
+  if (value == null) return '';
+  if (Array.isArray(value)) return value.join(',');
+  return String(value);
+}
+
+function readValidityState(
+  element: HTMLInputElement | HTMLTextAreaElement | null,
+): boolean | null {
+  if (!element) return null;
+  return typeof element.validity?.valid === 'boolean' ? element.validity.valid : null;
+}
+
+function isEqualInputState(a: InputState, b: InputState): boolean {
+  return (
+    a.disabled === b.disabled &&
+    a.touched === b.touched &&
+    a.dirty === b.dirty &&
+    a.valid === b.valid &&
+    a.filled === b.filled &&
+    a.focused === b.focused
+  );
+}
+
+function createChangeEventDetails(
+  event: Event,
+  trigger: Element | undefined,
+): InputChangeEventDetails {
+  let isCanceled = false;
+
+  return {
+    cancel() {
+      isCanceled = true;
+    },
+    event,
+    get isCanceled() {
+      return isCanceled;
+    },
+    reason: 'none',
+    trigger,
+  };
+}
+
+// ─── Namespace exports ──────────────────────────────────────────────────────────
+
+export namespace InputRoot {
   export type State = InputState;
-  export type ChangeEventReason = InputChangeEventReason;
   export type ChangeEventDetails = InputChangeEventDetails;
+}
+
+// ─── Global type declarations ───────────────────────────────────────────────────
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'input-root': InputRootElement;
+  }
 }

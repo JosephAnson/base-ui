@@ -1,8 +1,8 @@
 'use client';
 import * as React from 'react';
 import { html, nothing, render as renderTemplate } from 'lit';
-import { Field } from '@base-ui/lit/field';
-import { Form } from '@base-ui/lit/form';
+import '@base-ui/lit/field';
+import '@base-ui/lit/form';
 
 export interface LitFormProps {
   buttonClassName?: string | undefined;
@@ -34,12 +34,12 @@ export function LitForm(props: LitFormProps) {
     }
 
     renderTemplate(
-      Form({
-        className: rootClassName,
-        errors,
-        onSubmit: async (event) => {
+      html`<form-root
+        class=${rootClassName ?? ''}
+        .errors=${errors}
+        .onSubmit=${async (event: SubmitEvent) => {
           event.preventDefault();
-          const formData = new FormData(event.currentTarget);
+          const formData = new FormData(event.currentTarget as HTMLFormElement);
           const value = String(formData.get('url') ?? '');
 
           setLoading(true);
@@ -48,34 +48,24 @@ export function LitForm(props: LitFormProps) {
             ...(response.error ? { url: response.error } : {}),
           });
           setLoading(false);
-        },
-        children: [
-          Field.Root({
-            name: 'url',
-            className: fieldClassName,
-            children: [
-              Field.Label({
-                className: labelClassName,
-                children: 'Homepage',
-              }),
-              Field.Control({
-                className: inputClassName,
-                defaultValue: 'https://example.com',
-                pattern: 'https?://.*',
-                placeholder: 'https://example.com',
-                required: true,
-                type: 'url',
-              }),
-              Field.Error({
-                className: errorClassName,
-              }),
-            ],
-          }),
-          html`<button class=${buttonClassName ?? ''} ?disabled=${loading} type="submit">
-            ${loading ? 'Submitting...' : 'Submit'}
-          </button>`,
-        ],
-      }),
+        }}
+      >
+        <field-root name="url" class=${fieldClassName ?? ''}>
+          <field-label class=${labelClassName ?? ''}>Homepage</field-label>
+          <field-control
+            class=${inputClassName ?? ''}
+            .defaultValue=${'https://example.com'}
+            pattern="https?://.*"
+            placeholder="https://example.com"
+            required
+            type="url"
+          ></field-control>
+          <field-error class=${errorClassName ?? ''}></field-error>
+        </field-root>
+        <button class=${buttonClassName ?? ''} ?disabled=${loading} type="submit">
+          ${loading ? 'Submitting...' : 'Submit'}
+        </button>
+      </form-root>`,
       host,
     );
 

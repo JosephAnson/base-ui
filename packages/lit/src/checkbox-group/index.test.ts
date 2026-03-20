@@ -1,17 +1,12 @@
-/* eslint-disable testing-library/render-result-naming-convention */
-import { html, nothing, render as renderTemplate, type TemplateResult } from 'lit';
+import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import type { BaseUIChangeEventDetails } from '@base-ui/lit/types';
-import type {
-  CheckboxGroupChangeEventDetails,
-  CheckboxGroupProps,
-  CheckboxGroupState,
-} from '@base-ui/lit/checkbox-group';
-import { CheckboxGroup } from '@base-ui/lit/checkbox-group';
-import { Checkbox } from '@base-ui/lit/checkbox';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import '../checkbox/index.ts';
+import './index.ts';
+import type { CheckboxGroupElement, CheckboxGroupChangeEventDetails } from './index.ts';
+import type { CheckboxRootElement } from '../checkbox/index.ts';
 
-describe('CheckboxGroup', () => {
+describe('checkbox-group', () => {
   const containers = new Set<HTMLDivElement>();
 
   afterEach(() => {
@@ -23,430 +18,404 @@ describe('CheckboxGroup', () => {
     vi.restoreAllMocks();
   });
 
-  function render(result: TemplateResult) {
+  function render(result: ReturnType<typeof html>) {
     const container = document.createElement('div');
     document.body.append(container);
     containers.add(container);
-
     renderTemplate(result, container);
     return container;
   }
 
-  async function flushMicrotasks(iterations = 4) {
-    await Array.from({ length: iterations }).reduce<Promise<void>>((promise) => {
-      return promise.then(() => Promise.resolve());
-    }, Promise.resolve());
-  }
-
-  async function flushUpdates(iterations = 4) {
-    await flushMicrotasks(iterations);
-  }
-
-  function click(element: Element) {
-    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-  }
-
-  function getCheckbox(container: HTMLElement, testId: string) {
-    return container.querySelector(`[data-testid="${testId}"]`) as HTMLElement;
-  }
-
-  it('preserves the public type contracts', () => {
-    const checkboxGroup = CheckboxGroup({});
-
-    expectTypeOf(checkboxGroup).toEqualTypeOf<TemplateResult>();
-    expectTypeOf<CheckboxGroupProps['value']>().toEqualTypeOf<string[] | undefined>();
-    expectTypeOf<CheckboxGroupProps['defaultValue']>().toEqualTypeOf<string[] | undefined>();
-    expectTypeOf<CheckboxGroupProps['allValues']>().toEqualTypeOf<string[] | undefined>();
-    expectTypeOf<CheckboxGroupProps['disabled']>().toEqualTypeOf<boolean | undefined>();
-    expectTypeOf<CheckboxGroupChangeEventDetails>().toEqualTypeOf<BaseUIChangeEventDetails<'none'>>();
-    expectTypeOf<CheckboxGroupState['disabled']>().toEqualTypeOf<boolean>();
-  });
-
-  it('controls child checkboxes with value and onValueChange', async () => {
-    let value = ['red'];
-    const handleValueChange = vi.fn(
-      (nextValue: string[], eventDetails: CheckboxGroupChangeEventDetails) => {
-        value = nextValue;
-        rerender();
-        return { eventDetails, nextValue };
-      },
-    );
-    const container = render(html``);
-
-    function rerender() {
-      renderTemplate(
-        CheckboxGroup({
-          value,
-          onValueChange: handleValueChange,
-          children: [
-            Checkbox.Root({ value: 'red', 'data-testid': 'red' }),
-            Checkbox.Root({ value: 'green', 'data-testid': 'green' }),
-            Checkbox.Root({ value: 'blue', 'data-testid': 'blue' }),
-          ],
-        }),
-        container,
-      );
+  async function waitForUpdate() {
+    for (let i = 0; i < 4; i++) {
+      await new Promise((r) => setTimeout(r, 0));
     }
+  }
 
-    rerender();
-    await flushUpdates();
+  function getGroup(container: HTMLElement) {
+    return container.querySelector('checkbox-group') as CheckboxGroupElement;
+  }
 
-    let red = getCheckbox(container, 'red');
-    let green = getCheckbox(container, 'green');
-    let blue = getCheckbox(container, 'blue');
+  function getCheckbox(container: HTMLElement, value: string) {
+    const checkboxes = container.querySelectorAll('checkbox-root') as NodeListOf<CheckboxRootElement>;
+    for (const cb of checkboxes) {
+      if (cb.value === value) return cb;
+    }
+    return null;
+  }
 
-    expect(red).toHaveAttribute('aria-checked', 'true');
-    expect(green).toHaveAttribute('aria-checked', 'false');
-    expect(blue).toHaveAttribute('aria-checked', 'false');
+  function getParentCheckbox(container: HTMLElement) {
+    const checkboxes = container.querySelectorAll('checkbox-root') as NodeListOf<CheckboxRootElement>;
+    for (const cb of checkboxes) {
+      if (cb.parent) return cb;
+    }
+    return null;
+  }
 
-    click(green);
-    await flushUpdates();
+  it('renders checkbox-group as a custom element with role=group', async () => {
+    const container = render(html`<checkbox-group></checkbox-group>`);
+    await waitForUpdate();
 
-    red = getCheckbox(container, 'red');
-    green = getCheckbox(container, 'green');
-    blue = getCheckbox(container, 'blue');
-
-    expect(handleValueChange).toHaveBeenCalledTimes(1);
-    expect(handleValueChange.mock.calls[0]?.[0]).toEqual(['red', 'green']);
-    expect(handleValueChange.mock.results[0]?.value.eventDetails.reason).toBe('none');
-    expect(red).toHaveAttribute('aria-checked', 'true');
-    expect(green).toHaveAttribute('aria-checked', 'true');
-    expect(blue).toHaveAttribute('aria-checked', 'false');
-
-    click(blue);
-    await flushUpdates();
-
-    blue = getCheckbox(container, 'blue');
-
-    expect(handleValueChange).toHaveBeenCalledTimes(2);
-    expect(handleValueChange.mock.calls[1]?.[0]).toEqual(['red', 'green', 'blue']);
-    expect(blue).toHaveAttribute('aria-checked', 'true');
+    const group = getGroup(container);
+    expect(group).toBeInTheDocument();
+    expect(group).toHaveAttribute('role', 'group');
   });
 
-  it('uses defaultValue for uncontrolled groups', async () => {
-    const container = render(
-      CheckboxGroup({
-        defaultValue: ['red'],
-        children: [
-          Checkbox.Root({ value: 'red', 'data-testid': 'red' }),
-          Checkbox.Root({ value: 'green', 'data-testid': 'green' }),
-          Checkbox.Root({ value: 'blue', 'data-testid': 'blue' }),
-        ],
-      }),
-    );
-    await flushUpdates();
+  it('controls child checkboxes with defaultValue', async () => {
+    const container = render(html`
+      <checkbox-group .defaultValue=${['red']}>
+        <checkbox-root .value=${'red'}></checkbox-root>
+        <checkbox-root .value=${'green'}></checkbox-root>
+        <checkbox-root .value=${'blue'}></checkbox-root>
+      </checkbox-group>
+    `);
+    await waitForUpdate();
 
-    let red = getCheckbox(container, 'red');
-    let green = getCheckbox(container, 'green');
-    let blue = getCheckbox(container, 'blue');
+    expect(getCheckbox(container, 'red')).toHaveAttribute('aria-checked', 'true');
+    expect(getCheckbox(container, 'green')).toHaveAttribute('aria-checked', 'false');
+    expect(getCheckbox(container, 'blue')).toHaveAttribute('aria-checked', 'false');
+  });
 
-    expect(red).toHaveAttribute('aria-checked', 'true');
-    expect(green).toHaveAttribute('aria-checked', 'false');
-    expect(blue).toHaveAttribute('aria-checked', 'false');
+  it('toggles child checkboxes in uncontrolled mode', async () => {
+    const container = render(html`
+      <checkbox-group .defaultValue=${['red']}>
+        <checkbox-root .value=${'red'}></checkbox-root>
+        <checkbox-root .value=${'green'}></checkbox-root>
+      </checkbox-group>
+    `);
+    await waitForUpdate();
 
-    click(green);
-    await flushUpdates();
+    const green = getCheckbox(container, 'green')!;
+    green.click();
+    await waitForUpdate();
 
-    red = getCheckbox(container, 'red');
-    green = getCheckbox(container, 'green');
-    blue = getCheckbox(container, 'blue');
+    expect(getCheckbox(container, 'red')).toHaveAttribute('aria-checked', 'true');
+    expect(getCheckbox(container, 'green')).toHaveAttribute('aria-checked', 'true');
+  });
 
-    expect(red).toHaveAttribute('aria-checked', 'true');
-    expect(green).toHaveAttribute('aria-checked', 'true');
-    expect(blue).toHaveAttribute('aria-checked', 'false');
+  it('calls onValueChange with the new value array', async () => {
+    const handleChange = vi.fn();
+    const container = render(html`
+      <checkbox-group .defaultValue=${['red']} .onValueChange=${handleChange}>
+        <checkbox-root .value=${'red'}></checkbox-root>
+        <checkbox-root .value=${'green'}></checkbox-root>
+      </checkbox-group>
+    `);
+    await waitForUpdate();
+
+    const green = getCheckbox(container, 'green')!;
+    green.click();
+    await waitForUpdate();
+
+    expect(handleChange).toHaveBeenCalledTimes(1);
+    expect(handleChange.mock.calls[0]?.[0]).toEqual(['red', 'green']);
+    expect(handleChange.mock.calls[0]?.[1]).toHaveProperty('reason', 'none');
+  });
+
+  it('supports controlled mode', async () => {
+    const handleChange = vi.fn();
+    const container = render(html`
+      <checkbox-group .onValueChange=${handleChange}>
+        <checkbox-root .value=${'red'}></checkbox-root>
+        <checkbox-root .value=${'green'}></checkbox-root>
+      </checkbox-group>
+    `);
+    const group = getGroup(container);
+    group.value = ['red'];
+    await waitForUpdate();
+
+    expect(getCheckbox(container, 'red')).toHaveAttribute('aria-checked', 'true');
+    expect(getCheckbox(container, 'green')).toHaveAttribute('aria-checked', 'false');
+
+    // Click green — controlled mode, value won't change without external update
+    const green = getCheckbox(container, 'green')!;
+    green.click();
+    await waitForUpdate();
+
+    expect(handleChange).toHaveBeenCalledTimes(1);
+    expect(handleChange.mock.calls[0]?.[0]).toEqual(['red', 'green']);
   });
 
   it('disables all checkboxes in the group', async () => {
-    const container = render(
-      CheckboxGroup({
-        disabled: true,
-        children: [
-          Checkbox.Root({ value: 'red', 'data-testid': 'red' }),
-          Checkbox.Root({ value: 'green', 'data-testid': 'green', disabled: false }),
-          Checkbox.Root({ value: 'blue', 'data-testid': 'blue' }),
-        ],
-      }),
-    );
-    await flushUpdates();
+    const container = render(html`
+      <checkbox-group .disabled=${true}>
+        <checkbox-root .value=${'red'}></checkbox-root>
+        <checkbox-root .value=${'green'}></checkbox-root>
+      </checkbox-group>
+    `);
+    await waitForUpdate();
 
     expect(getCheckbox(container, 'red')).toHaveAttribute('aria-disabled', 'true');
     expect(getCheckbox(container, 'green')).toHaveAttribute('aria-disabled', 'true');
-    expect(getCheckbox(container, 'blue')).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('lets a parent checkbox control the children', async () => {
-    let value: string[] = [];
-    const allValues = ['a', 'b', 'c'];
-    const container = render(html``);
+  it('unchecks a child checkbox when clicked again', async () => {
+    const container = render(html`
+      <checkbox-group .defaultValue=${['red']}>
+        <checkbox-root .value=${'red'}></checkbox-root>
+        <checkbox-root .value=${'green'}></checkbox-root>
+      </checkbox-group>
+    `);
+    await waitForUpdate();
 
-    function rerender() {
-      renderTemplate(
-        CheckboxGroup({
-          value,
-          allValues,
-          onValueChange(nextValue) {
-            value = nextValue;
-            rerender();
-          },
-          children: [
-            Checkbox.Root({ parent: true, 'data-testid': 'parent' }),
-            Checkbox.Root({ value: 'a', 'data-testid': 'a' }),
-            Checkbox.Root({ value: 'b', 'data-testid': 'b' }),
-            Checkbox.Root({ value: 'c', 'data-testid': 'c' }),
-          ],
-        }),
-        container,
-      );
-    }
+    const red = getCheckbox(container, 'red')!;
+    red.click();
+    await waitForUpdate();
 
-    rerender();
-    await flushUpdates();
-
-    let parent = getCheckbox(container, 'parent');
-    expect(parent).toHaveAttribute('aria-controls', `${parent.id}-a ${parent.id}-b ${parent.id}-c`);
-
-    click(parent);
-    await flushUpdates();
-
-    parent = getCheckbox(container, 'parent');
-    expect(parent).toHaveAttribute('aria-checked', 'true');
-    expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'true');
-    expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'true');
-    expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'true');
-
-    click(parent);
-    await flushUpdates();
-
-    parent = getCheckbox(container, 'parent');
-    expect(parent).toHaveAttribute('aria-checked', 'false');
-    expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'false');
-    expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'false');
-    expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'false');
+    expect(getCheckbox(container, 'red')).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('preserves the mixed selection cycle for parent checkboxes', async () => {
-    let value: string[] = [];
-    const allValues = ['a', 'b', 'c'];
-    const container = render(html``);
+  describe('parent checkbox', () => {
+    it('lets a parent checkbox select all children', async () => {
+      const handleChange = vi.fn();
+      const container = render(html``);
 
-    function rerender() {
-      renderTemplate(
-        CheckboxGroup({
-          value,
-          allValues,
-          onValueChange(nextValue) {
-            value = nextValue;
-            rerender();
-          },
-          children: [
-            Checkbox.Root({ parent: true, 'data-testid': 'parent' }),
-            Checkbox.Root({ value: 'a', 'data-testid': 'a' }),
-            Checkbox.Root({ value: 'b', 'data-testid': 'b' }),
-            Checkbox.Root({ value: 'c', 'data-testid': 'c' }),
-          ],
-        }),
-        container,
+      function rerender(value: string[]) {
+        renderTemplate(html`
+          <checkbox-group
+            .value=${value}
+            .allValues=${['a', 'b', 'c']}
+            .onValueChange=${(nextValue: string[]) => {
+              handleChange(nextValue);
+              rerender(nextValue);
+            }}
+          >
+            <checkbox-root .parent=${true}></checkbox-root>
+            <checkbox-root .value=${'a'}></checkbox-root>
+            <checkbox-root .value=${'b'}></checkbox-root>
+            <checkbox-root .value=${'c'}></checkbox-root>
+          </checkbox-group>
+        `, container);
+      }
+
+      rerender([]);
+      await waitForUpdate();
+
+      const parent = getParentCheckbox(container)!;
+      expect(parent).toHaveAttribute('aria-checked', 'false');
+
+      // Click parent → select all
+      parent.click();
+      await waitForUpdate();
+
+      expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'true');
+      expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'true');
+      expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'true');
+
+      // Click parent again → deselect all
+      getParentCheckbox(container)!.click();
+      await waitForUpdate();
+
+      expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'false');
+      expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'false');
+      expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('shows mixed state when some children are checked', async () => {
+      const container = render(html``);
+
+      function rerender(value: string[]) {
+        renderTemplate(html`
+          <checkbox-group
+            .value=${value}
+            .allValues=${['a', 'b', 'c']}
+            .onValueChange=${(nextValue: string[]) => {
+              rerender(nextValue);
+            }}
+          >
+            <checkbox-root .parent=${true}></checkbox-root>
+            <checkbox-root .value=${'a'}></checkbox-root>
+            <checkbox-root .value=${'b'}></checkbox-root>
+            <checkbox-root .value=${'c'}></checkbox-root>
+          </checkbox-group>
+        `, container);
+      }
+
+      rerender([]);
+      await waitForUpdate();
+
+      // Check child 'a'
+      getCheckbox(container, 'a')!.click();
+      await waitForUpdate();
+
+      const parent = getParentCheckbox(container)!;
+      expect(parent).toHaveAttribute('aria-checked', 'mixed');
+    });
+
+    it('preserves the mixed selection cycle', async () => {
+      const container = render(html``);
+
+      function rerender(value: string[]) {
+        renderTemplate(html`
+          <checkbox-group
+            .value=${value}
+            .allValues=${['a', 'b', 'c']}
+            .onValueChange=${(nextValue: string[]) => {
+              rerender(nextValue);
+            }}
+          >
+            <checkbox-root .parent=${true}></checkbox-root>
+            <checkbox-root .value=${'a'}></checkbox-root>
+            <checkbox-root .value=${'b'}></checkbox-root>
+            <checkbox-root .value=${'c'}></checkbox-root>
+          </checkbox-group>
+        `, container);
+      }
+
+      rerender([]);
+      await waitForUpdate();
+
+      // Check child 'a' → mixed
+      getCheckbox(container, 'a')!.click();
+      await waitForUpdate();
+      expect(getParentCheckbox(container)!).toHaveAttribute('aria-checked', 'mixed');
+
+      // Click parent → all on
+      getParentCheckbox(container)!.click();
+      await waitForUpdate();
+      expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'true');
+      expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'true');
+      expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'true');
+
+      // Click parent → all off
+      getParentCheckbox(container)!.click();
+      await waitForUpdate();
+      expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'false');
+      expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'false');
+      expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'false');
+
+      // Click parent → back to mixed (original selection of just 'a')
+      getParentCheckbox(container)!.click();
+      await waitForUpdate();
+      expect(getParentCheckbox(container)!).toHaveAttribute('aria-checked', 'mixed');
+      expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'true');
+      expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'false');
+      expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('sets aria-controls on the parent checkbox', async () => {
+      const container = render(html`
+        <checkbox-group .allValues=${['a', 'b', 'c']} .defaultValue=${[]}>
+          <checkbox-root .parent=${true}></checkbox-root>
+          <checkbox-root .value=${'a'}></checkbox-root>
+          <checkbox-root .value=${'b'}></checkbox-root>
+          <checkbox-root .value=${'c'}></checkbox-root>
+        </checkbox-group>
+      `);
+      await waitForUpdate();
+
+      const parent = getParentCheckbox(container)!;
+      const parentId = parent.id;
+      expect(parent).toHaveAttribute(
+        'aria-controls',
+        `${parentId}-a ${parentId}-b ${parentId}-c`,
       );
-    }
+    });
 
-    rerender();
-    await flushUpdates();
+    it('excludes parent checkboxes from form submission', async () => {
+      const container = render(html``);
 
-    let parent = getCheckbox(container, 'parent');
-    const checkboxA = getCheckbox(container, 'a');
+      function rerender(value: string[]) {
+        renderTemplate(html`
+          <form>
+            <checkbox-group
+              .value=${value}
+              .allValues=${['a', 'b']}
+              .onValueChange=${(nextValue: string[]) => {
+                rerender(nextValue);
+              }}
+            >
+              <checkbox-root .parent=${true} name="item"></checkbox-root>
+              <checkbox-root .value=${'a'} name="item"></checkbox-root>
+              <checkbox-root .value=${'b'} name="item"></checkbox-root>
+            </checkbox-group>
+          </form>
+        `, container);
+      }
 
-    click(checkboxA);
-    await flushUpdates();
-    parent = getCheckbox(container, 'parent');
-    expect(parent).toHaveAttribute('aria-checked', 'mixed');
+      rerender(['a', 'b']);
+      await waitForUpdate();
 
-    click(parent);
-    await flushUpdates();
-    parent = getCheckbox(container, 'parent');
-    expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'true');
-    expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'true');
-    expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'true');
+      const form = container.querySelector('form') as HTMLFormElement;
+      const formData = new FormData(form);
 
-    click(parent);
-    await flushUpdates();
-    parent = getCheckbox(container, 'parent');
-    expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'false');
-    expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'false');
-    expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'false');
+      // Parent checkbox should NOT be in form data, only children
+      expect(formData.getAll('item')).toEqual(['a', 'b']);
+    });
 
-    click(parent);
-    await flushUpdates();
-    parent = getCheckbox(container, 'parent');
-    expect(parent).toHaveAttribute('aria-checked', 'mixed');
-    expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'true');
-    expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'false');
-    expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'false');
-  });
+    it('keeps disabled children out of parent toggles unless already checked', async () => {
+      const container = render(html``);
 
-  it('supports parent mixed state, wrapping label clicks, and keyboard activation', async () => {
-    let value: string[] = [];
-    const allValues = ['fuji-apple', 'gala-apple', 'granny-smith-apple'];
-    const container = render(html``);
+      function rerender(value: string[]) {
+        renderTemplate(html`
+          <checkbox-group
+            .value=${value}
+            .allValues=${['a', 'b', 'c']}
+            .onValueChange=${(nextValue: string[]) => {
+              rerender(nextValue);
+            }}
+          >
+            <checkbox-root .parent=${true}></checkbox-root>
+            <checkbox-root .value=${'a'} .disabled=${true}></checkbox-root>
+            <checkbox-root .value=${'b'}></checkbox-root>
+            <checkbox-root .value=${'c'}></checkbox-root>
+          </checkbox-group>
+        `, container);
+      }
 
-    function rerender() {
-      renderTemplate(
-        html`<div>
-          ${CheckboxGroup({
-            value,
-            allValues,
-            onValueChange(nextValue) {
-              value = nextValue;
-              rerender();
-            },
-            children: html`
-              <label data-testid="parent-label">
-                ${Checkbox.Root({ parent: true, 'data-testid': 'parent' })}
-                Apples
-              </label>
-              <label>
-                ${Checkbox.Root({ value: 'fuji-apple', 'data-testid': 'fuji' })}
-                Fuji
-              </label>
-              <label data-testid="gala-label">
-                ${Checkbox.Root({ value: 'gala-apple', 'data-testid': 'gala' })}
-                Gala
-              </label>
-              <label>
-                ${Checkbox.Root({ value: 'granny-smith-apple', 'data-testid': 'granny' })}
-                Granny Smith
-              </label>
-            `,
-          })}
-          <output data-testid="status">${value.length === 0 ? 'none' : value.join(', ')}</output>
-        </div>`,
-        container,
+      rerender(['a']);
+      await waitForUpdate();
+
+      // Click parent → all on (including disabled 'a' that was already checked)
+      getParentCheckbox(container)!.click();
+      await waitForUpdate();
+
+      expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'true');
+      expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'true');
+      expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'true');
+
+      // Click parent → all off (but disabled 'a' stays checked because it was in the initial selection)
+      getParentCheckbox(container)!.click();
+      await waitForUpdate();
+
+      expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'true');
+      expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'false');
+      expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('supports keyboard activation on parent checkbox', async () => {
+      const container = render(html``);
+
+      function rerender(value: string[]) {
+        renderTemplate(html`
+          <checkbox-group
+            .value=${value}
+            .allValues=${['a', 'b']}
+            .onValueChange=${(nextValue: string[]) => {
+              rerender(nextValue);
+            }}
+          >
+            <checkbox-root .parent=${true}></checkbox-root>
+            <checkbox-root .value=${'a'}></checkbox-root>
+            <checkbox-root .value=${'b'}></checkbox-root>
+          </checkbox-group>
+        `, container);
+      }
+
+      rerender([]);
+      await waitForUpdate();
+
+      const parent = getParentCheckbox(container)!;
+      parent.focus();
+
+      // Space key activates parent
+      parent.dispatchEvent(
+        new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: ' ' }),
       );
-    }
+      await waitForUpdate();
 
-    rerender();
-    await flushUpdates();
-
-    const getStatus = () => container.querySelector('[data-testid="status"]') as HTMLOutputElement;
-    let parent = getCheckbox(container, 'parent');
-    const galaLabel = container.querySelector('[data-testid="gala-label"]') as HTMLLabelElement;
-
-    expect(getStatus()).toHaveTextContent('none');
-
-    galaLabel.click();
-    await flushUpdates();
-
-    parent = getCheckbox(container, 'parent');
-    expect(getStatus()).toHaveTextContent('gala-apple');
-    expect(parent).toHaveAttribute('aria-checked', 'mixed');
-
-    parent.focus();
-    expect(parent).toHaveFocus();
-
-    parent.dispatchEvent(
-      new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: ' ' }),
-    );
-    await flushUpdates();
-
-    parent = getCheckbox(container, 'parent');
-    expect(getStatus()).toHaveTextContent('fuji-apple, gala-apple, granny-smith-apple');
-    expect(parent).toHaveAttribute('aria-checked', 'true');
-    expect(parent).toHaveFocus();
-
-    (document.activeElement as HTMLElement).dispatchEvent(
-      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }),
-    );
-    await flushUpdates();
-
-    parent = getCheckbox(container, 'parent');
-    expect(getStatus()).toHaveTextContent('none');
-    expect(parent).toHaveAttribute('aria-checked', 'false');
-  });
-
-  it('keeps disabled children out of parent toggles unless they were already checked', async () => {
-    let value: string[] = ['a'];
-    const allValues = ['a', 'b', 'c'];
-    const container = render(html``);
-
-    function rerender() {
-      renderTemplate(
-        CheckboxGroup({
-          value,
-          allValues,
-          onValueChange(nextValue) {
-            value = nextValue;
-            rerender();
-          },
-          children: [
-            Checkbox.Root({ parent: true, 'data-testid': 'parent' }),
-            Checkbox.Root({ value: 'a', 'data-testid': 'a', disabled: true }),
-            Checkbox.Root({ value: 'b', 'data-testid': 'b' }),
-            Checkbox.Root({ value: 'c', 'data-testid': 'c' }),
-          ],
-        }),
-        container,
-      );
-    }
-
-    rerender();
-    await flushUpdates();
-
-    const parent = getCheckbox(container, 'parent');
-
-    click(parent);
-    await flushUpdates();
-
-    expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'true');
-    expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'true');
-    expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'true');
-
-    click(parent);
-    await flushUpdates();
-
-    expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'true');
-    expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'false');
-    expect(getCheckbox(container, 'c')).toHaveAttribute('aria-checked', 'false');
-  });
-
-  it('excludes parent checkboxes from form submission', async () => {
-    let value = ['fuji-apple', 'gala-apple'];
-    const allValues = ['fuji-apple', 'gala-apple', 'granny-smith-apple'];
-    const container = render(html``);
-
-    function rerender() {
-      renderTemplate(
-        html`<form>
-          ${CheckboxGroup({
-            value,
-            allValues,
-            onValueChange(nextValue) {
-              value = nextValue;
-              rerender();
-            },
-            children: [
-              Checkbox.Root({ parent: true, 'data-testid': 'parent' }),
-              Checkbox.Root({ name: 'apple', value: 'fuji-apple' }),
-              Checkbox.Root({ name: 'apple', value: 'gala-apple' }),
-              Checkbox.Root({ name: 'apple', value: 'granny-smith-apple', 'data-testid': 'third' }),
-            ],
-          })}
-        </form>`,
-        container,
-      );
-    }
-
-    rerender();
-    await flushUpdates();
-
-    click(getCheckbox(container, 'third'));
-    await flushUpdates();
-
-    const form = container.querySelector('form') as HTMLFormElement;
-    const formData = new FormData(form);
-
-    expect(formData.getAll('apple')).toEqual([
-      'fuji-apple',
-      'gala-apple',
-      'granny-smith-apple',
-    ]);
+      expect(getCheckbox(container, 'a')).toHaveAttribute('aria-checked', 'true');
+      expect(getCheckbox(container, 'b')).toHaveAttribute('aria-checked', 'true');
+    });
   });
 });

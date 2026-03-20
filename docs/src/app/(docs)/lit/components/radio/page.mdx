@@ -9,17 +9,10 @@ import { DemoRadioHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { html, render } from 'lit';
-import { Radio } from '@base-ui/lit/radio';
-import { RadioGroup } from '@base-ui/lit/radio-group';
-
-render(
-  RadioGroup({
-    children: html`${Radio.Root({ value: 'system', children: Radio.Indicator() })}`,
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<radio-root value="system">
+  <radio-indicator></radio-indicator>
+</radio-root>
 ```
 
 ## Status

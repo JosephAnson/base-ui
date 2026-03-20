@@ -2,10 +2,8 @@
 import * as React from 'react';
 import { useIsoLayoutEffect } from '@base-ui/utils/useIsoLayoutEffect';
 import { html, nothing, render as renderTemplate } from 'lit';
-import type { RadioIndicatorProps, RadioRootProps } from '@base-ui/lit/radio';
-import { Radio } from '@base-ui/lit/radio';
-import type { RadioGroupProps } from '@base-ui/lit/radio-group';
-import { RadioGroup } from '@base-ui/lit/radio-group';
+import '@base-ui/lit/radio';
+import '@base-ui/lit/radio-group';
 
 export interface LitRadioGroupItem {
   label: string;
@@ -17,11 +15,19 @@ export interface LitRadioGroupProps {
   caption: string;
   captionClassName?: string | undefined;
   groupClassName?: string | undefined;
-  groupProps?: Omit<RadioGroupProps<string>, 'children' | 'render'> | undefined;
-  indicatorProps?: RadioIndicatorProps | undefined;
+  groupProps?: {
+    className?: string;
+    defaultValue?: string;
+    'aria-labelledby'?: string;
+  } | undefined;
+  indicatorProps?: {
+    className?: string;
+  } | undefined;
   itemClassName?: string | undefined;
   items: LitRadioGroupItem[];
-  rootProps?: Omit<RadioRootProps<string>, 'children' | 'value'> | undefined;
+  rootProps?: {
+    className?: string;
+  } | undefined;
 }
 
 export function LitRadioGroup(props: LitRadioGroupProps) {
@@ -47,26 +53,25 @@ export function LitRadioGroup(props: LitRadioGroupProps) {
     }
 
     renderTemplate(
-      RadioGroup({
-        ...groupProps,
-        'aria-labelledby': captionId,
-        className: mergeClassNames(groupClassName, groupProps?.className as string | undefined),
-        children: [
-          html`<div class=${captionClassName ?? nothing} id=${captionId}>${caption}</div>`,
-          ...items.map((item) => {
-            return html`<label class=${itemClassName ?? nothing}>
-              ${Radio.Root({
-                ...rootProps,
-                'data-testid': item.testId,
-                className: rootProps?.className,
-                value: item.value,
-                children: Radio.Indicator(indicatorProps ?? {}),
-              })}
-              ${item.label}
-            </label>`;
-          }),
-        ],
-      }),
+      html`<radio-group
+        class=${mergeClassNames(groupClassName, groupProps?.className) ?? ''}
+        aria-labelledby=${captionId}
+        .defaultValue=${groupProps?.defaultValue}
+      >
+        <div class=${captionClassName ?? nothing} id=${captionId}>${caption}</div>
+        ${items.map(
+          (item) => html`<label class=${itemClassName ?? nothing}>
+            <radio-root
+              class=${rootProps?.className ?? ''}
+              .value=${item.value}
+              data-testid=${item.testId ?? nothing}
+            >
+              <radio-indicator class=${indicatorProps?.className ?? ''}></radio-indicator>
+            </radio-root>
+            ${item.label}
+          </label>`,
+        )}
+      </radio-group>`,
       host,
     );
 

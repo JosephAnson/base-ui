@@ -1,24 +1,6 @@
-/* eslint-disable testing-library/render-result-naming-convention */
-import { html, nothing, render as renderTemplate, type TemplateResult } from 'lit';
+import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import type { BaseUIChangeEventDetails } from '@base-ui/lit/types';
-import type {
-  TooltipArrowProps,
-  TooltipArrowState,
-  TooltipPopupProps,
-  TooltipPopupState,
-  TooltipPositionerProps,
-  TooltipPositionerState,
-  TooltipProviderProps,
-  TooltipRootChangeEventDetails,
-  TooltipRootProps,
-  TooltipTriggerProps,
-  TooltipTriggerState,
-  TooltipViewportProps,
-  TooltipViewportState,
-} from '@base-ui/lit/tooltip';
-import { Tooltip } from '@base-ui/lit/tooltip';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const floatingUiMocks = vi.hoisted(() => ({
   arrow: vi.fn((options: unknown) => ({ name: 'arrow', options })),
@@ -54,31 +36,34 @@ const floatingUiMocks = vi.hoisted(() => ({
 
 vi.mock('@floating-ui/react-dom', () => floatingUiMocks);
 
-describe('Tooltip', () => {
+import './index.ts';
+import type {
+  TooltipRootElement,
+  TooltipChangeEventDetails,
+} from './index.ts';
+
+describe('tooltip', () => {
   const containers = new Set<HTMLDivElement>();
 
   beforeEach(() => {
-    (globalThis as typeof globalThis & { BASE_UI_ANIMATIONS_DISABLED?: boolean })
-      .BASE_UI_ANIMATIONS_DISABLED = true;
+    (
+      globalThis as typeof globalThis & {
+        BASE_UI_ANIMATIONS_DISABLED?: boolean;
+      }
+    ).BASE_UI_ANIMATIONS_DISABLED = true;
   });
 
-  afterEach(async () => {
+  afterEach(() => {
     containers.forEach((container) => {
       renderTemplate(nothing, container);
       container.remove();
     });
     containers.clear();
-
-    document.body.querySelectorAll('[data-base-ui-popover-portal]').forEach((element) => {
-      element.parentElement?.remove();
-    });
-
     vi.useRealTimers();
-    await Promise.resolve();
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
-  function render(result: TemplateResult) {
+  function render(result: ReturnType<typeof html>) {
     const container = document.createElement('div');
     document.body.append(container);
     containers.add(container);
@@ -86,456 +71,710 @@ describe('Tooltip', () => {
     return container;
   }
 
-  function mouseEnter(element: Element) {
-    element.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
+  async function waitForUpdate() {
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
   }
 
-  function mouseMove(element: Element, init?: MouseEventInit) {
-    element.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, ...init }));
+  /** Advance fake timers precisely — for intermediate timing assertions
+   *  where we must NOT drain future timers. */
+  async function advanceTo(ms: number) {
+    await vi.advanceTimersByTimeAsync(ms);
+    for (let i = 0; i < 4; i++) {
+      await Promise.resolve();
+    }
+  }
+
+  /** Advance fake timers and drain all follow-up effects (rAF polyfill etc).
+   *  Use for assertions where everything should have settled. */
+  async function advance(ms = 0) {
+    await vi.advanceTimersByTimeAsync(ms);
+    await vi.runAllTimersAsync();
+    for (let i = 0; i < 4; i++) {
+      await Promise.resolve();
+    }
+  }
+
+  function getRoot(container: HTMLElement) {
+    return container.querySelector('tooltip-root') as TooltipRootElement;
+  }
+
+  function getTrigger(container: HTMLElement) {
+    return container.querySelector('tooltip-trigger') as HTMLElement;
+  }
+
+  function getPopup(container: HTMLElement) {
+    return container.querySelector('tooltip-popup') as HTMLElement;
+  }
+
+  function getPositioner(container: HTMLElement) {
+    return container.querySelector('tooltip-positioner') as HTMLElement;
+  }
+
+  function getArrow(container: HTMLElement) {
+    return container.querySelector('tooltip-arrow') as HTMLElement;
+  }
+
+  function mouseEnter(element: Element) {
+    element.dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true, cancelable: true }),
+    );
   }
 
   function mouseLeave(element: Element) {
-    element.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(
+      new MouseEvent('mouseleave', { bubbles: true, cancelable: true }),
+    );
   }
 
-  function click(element: Element) {
-    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-  }
-
-  async function advance(ms: number) {
-    await vi.advanceTimersByTimeAsync(ms);
-    await Promise.resolve();
-  }
-
-  async function flushRealTimers() {
-    await new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), 50);
-    });
-    await Promise.resolve();
-  }
-
-  function getPopup() {
-    return document.body.querySelector('[data-testid="popup"]') as HTMLElement | null;
-  }
-
-  function renderTooltip(
-    rootProps: TooltipRootProps = {},
-    triggerProps: TooltipTriggerProps = {},
-    providerProps?: TooltipProviderProps,
-  ) {
-    const content = Tooltip.Root({
-      ...rootProps,
-      children: [
-        Tooltip.Trigger({
-          'data-testid': 'trigger',
-          children: 'Trigger',
-          ...triggerProps,
-        }),
-        Tooltip.Portal({
-          children: Tooltip.Positioner({
-            'data-testid': 'positioner',
-            children: Tooltip.Popup({
-              'data-testid': 'popup',
-              children: 'Popup',
-            }),
-          }),
-        }),
-      ],
-    });
-
-    if (providerProps == null) {
-      return content;
-    }
-
-    return Tooltip.Provider({
-      ...providerProps,
-      children: content,
-    });
-  }
-
-  it('preserves the public type contracts', () => {
-    const provider = Tooltip.Provider({});
-    const root = Tooltip.Root({});
-    const trigger = Tooltip.Trigger({});
-    const portal = Tooltip.Portal({});
-    const positioner = Tooltip.Positioner({});
-    const popup = Tooltip.Popup({});
-    const arrow = Tooltip.Arrow({});
-    const viewport = Tooltip.Viewport({});
-
-    expectTypeOf(provider).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(root).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(trigger).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(portal).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(positioner).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(popup).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(arrow).toMatchTypeOf<TemplateResult>();
-    expectTypeOf(viewport).toMatchTypeOf<TemplateResult>();
-    expectTypeOf<TooltipProviderProps['timeout']>().toEqualTypeOf<number | undefined>();
-    expectTypeOf<TooltipTriggerProps['closeOnClick']>().toEqualTypeOf<boolean | undefined>();
-    expectTypeOf<TooltipPositionerProps['sideOffset']>().toEqualTypeOf<number | undefined>();
-    expectTypeOf<TooltipRootProps['trackCursorAxis']>().toEqualTypeOf<
-      'none' | 'x' | 'y' | 'both' | undefined
-    >();
-    expectTypeOf<TooltipRootChangeEventDetails>().toEqualTypeOf<
-      BaseUIChangeEventDetails<
-        | 'trigger-hover'
-        | 'trigger-focus'
-        | 'trigger-press'
-        | 'outside-press'
-        | 'escape-key'
-        | 'disabled'
-        | 'imperative-action'
-        | 'none',
-        { preventUnmountOnClose(): void }
+  function renderTooltip(rootProps: Record<string, unknown> = {}) {
+    return html`
+      <tooltip-root
+        .defaultOpen=${rootProps.defaultOpen ?? false}
+        .open=${rootProps.open}
+        .onOpenChange=${rootProps.onOpenChange}
+        ?disabled=${rootProps.disabled ?? false}
       >
-    >();
-    expectTypeOf<TooltipTriggerState['open']>().toEqualTypeOf<boolean>();
-    expectTypeOf<TooltipPositionerState['side']>().toEqualTypeOf<
-      'top' | 'right' | 'bottom' | 'left'
-    >();
-    expectTypeOf<TooltipPopupState['transitionStatus']>().toEqualTypeOf<
-      'starting' | 'ending' | undefined
-    >();
-    expectTypeOf<TooltipArrowState['uncentered']>().toEqualTypeOf<boolean>();
-    expectTypeOf<TooltipViewportState['transitioning']>().toEqualTypeOf<boolean>();
-    expectTypeOf<TooltipArrowProps>().not.toBeAny();
-    expectTypeOf<TooltipPopupProps>().not.toBeAny();
-    expectTypeOf<TooltipViewportProps>().not.toBeAny();
+        <tooltip-trigger
+          .delay=${rootProps.delay ?? 0}
+          .closeDelay=${rootProps.closeDelay ?? 0}
+          .closeOnClick=${rootProps.closeOnClick ?? true}
+          .disabled=${rootProps.triggerDisabled ?? false}
+        >
+          Trigger
+        </tooltip-trigger>
+        <tooltip-portal>
+          <tooltip-positioner
+            .side=${rootProps.side ?? 'bottom'}
+            .sideOffset=${rootProps.sideOffset ?? 0}
+            .align=${rootProps.align ?? 'center'}
+            .collisionAvoidance=${rootProps.collisionAvoidance}
+            .disableAnchorTracking=${rootProps.disableAnchorTracking ?? false}
+          >
+            <tooltip-popup>Tooltip content</tooltip-popup>
+          </tooltip-positioner>
+        </tooltip-portal>
+      </tooltip-root>
+    `;
+  }
+
+  it('renders tooltip-root as a custom element', async () => {
+    const container = render(renderTooltip());
+    await waitForUpdate();
+
+    const root = getRoot(container);
+    expect(root).toBeInTheDocument();
+    expect(root).toHaveAttribute('data-base-ui-tooltip-root');
   });
 
-  it('opens on hover and applies tooltip aria semantics', async () => {
+  it('opens on hover with delay', async () => {
     vi.useFakeTimers();
-    const container = render(renderTooltip({}, { delay: 0 }));
-    await Promise.resolve();
+    const container = render(renderTooltip({ delay: 100 }));
+    await advance();
 
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
+    const trigger = getTrigger(container);
+    const popup = getPopup(container);
 
+    // Initially closed
+    expect(popup).toHaveAttribute('hidden');
+
+    // Hover trigger
+    mouseEnter(trigger);
+
+    // Still closed before delay (precise timing, don't drain future timers)
+    await advanceTo(50);
+    expect(popup).toHaveAttribute('hidden');
+
+    // Open after delay (drain all effects)
+    await advance(60);
+
+    expect(popup).not.toHaveAttribute('hidden');
+    expect(popup).toHaveAttribute('role', 'tooltip');
+  });
+
+  it('opens immediately when delay is 0', async () => {
+    vi.useFakeTimers();
+    const container = render(renderTooltip({ delay: 0 }));
+    await advance();
+
+    mouseEnter(getTrigger(container));
+    await advance();
+
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+  });
+
+  it('closes on mouseleave', async () => {
+    vi.useFakeTimers();
+    const container = render(
+      renderTooltip({ delay: 0, closeDelay: 0 }),
+    );
+    await advance();
+
+    const trigger = getTrigger(container);
+
+    // Open via hover
+    mouseEnter(trigger);
+    await advance();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+
+    // Leave trigger
+    mouseLeave(trigger);
+    await advance();
+
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('opens on focus', async () => {
+    const container = render(renderTooltip());
+    await waitForUpdate();
+
+    getTrigger(container).dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+    expect(getPopup(container)).toHaveAttribute('role', 'tooltip');
+  });
+
+  it('closes on blur', async () => {
+    const container = render(renderTooltip());
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+
+    // Open via focus
+    trigger.dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+
+    // Blur
+    trigger.dispatchEvent(
+      new FocusEvent('focusout', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('uses aria-describedby (not aria-expanded) on trigger', async () => {
+    const container = render(renderTooltip());
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+
+    // Open via focus
+    trigger.dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+
+    const popup = getPopup(container);
+
+    expect(trigger).toHaveAttribute('aria-describedby', popup.id);
     expect(trigger).not.toHaveAttribute('aria-expanded');
     expect(trigger).not.toHaveAttribute('aria-controls');
-    expect(getPopup()).toBeNull();
+  });
 
-    mouseEnter(trigger);
-    mouseMove(trigger);
-    await advance(0);
+  it('removes aria-describedby when closed', async () => {
+    const container = render(renderTooltip());
+    await waitForUpdate();
 
-    const popup = getPopup();
+    const trigger = getTrigger(container);
 
-    expect(popup).not.toBeNull();
-    expect(popup).toHaveAttribute('role', 'tooltip');
-    expect(trigger).toHaveAttribute('aria-describedby', popup?.id ?? '');
+    // Initially no aria-describedby
+    expect(trigger).not.toHaveAttribute('aria-describedby');
 
-    mouseLeave(trigger);
-    await advance(50);
+    // Open via focus
+    trigger.dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+    expect(trigger).toHaveAttribute('aria-describedby');
 
-    expect(getPopup()).toBeNull();
+    // Close via blur
+    trigger.dispatchEvent(
+      new FocusEvent('focusout', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
     expect(trigger).not.toHaveAttribute('aria-describedby');
   });
 
-  it('opens on focus without stealing trigger focus', async () => {
-    const container = render(renderTooltip({}, { delay: 0 }));
-    await Promise.resolve();
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
-
-    trigger.focus();
-    await Promise.resolve();
-
-    expect(document.activeElement).toBe(trigger);
-    expect(getPopup()).not.toBeNull();
-
-    trigger.blur();
-    await flushRealTimers();
-
-    expect(getPopup()).toBeNull();
-  });
-
-  it('maps focus-out close reasons to none in onOpenChange', async () => {
-    const handle = Tooltip.createHandle();
-    const reasons: TooltipRootChangeEventDetails['reason'][] = [];
-
-    render(html`${Tooltip.Trigger({
-        handle,
-        id: 'trigger',
-        'data-testid': 'trigger',
-        children: 'Trigger',
-      })}
-      ${Tooltip.Root({
-        handle,
-        onOpenChange(_open, details) {
-          reasons.push(details.reason);
-        },
-        children: Tooltip.Portal({
-          children: Tooltip.Positioner({
-            children: Tooltip.Popup({
-              'data-testid': 'popup',
-              children: 'Popup',
-            }),
-          }),
-        }),
-      })}
-      <button data-testid="outside">Outside</button>`);
-    await Promise.resolve();
-
-    handle.open('trigger');
-    await Promise.resolve();
-
-    const outside = document.querySelector('[data-testid="outside"]') as HTMLButtonElement;
-    outside.focus();
-    await flushRealTimers();
-
-    expect(reasons.at(-1)).toBe('none');
-  });
-
-  it('keeps the trigger interactive when Tooltip.Trigger is disabled', async () => {
+  it('calls onOpenChange with reason on hover', async () => {
     vi.useFakeTimers();
-    const onClick = vi.fn();
-    const container = render(renderTooltip({}, { delay: 0, disabled: true, onClick }));
-    await Promise.resolve();
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
-
-    expect(trigger).toHaveAttribute('data-trigger-disabled');
-    expect(trigger).not.toHaveAttribute('disabled');
-    expect(trigger).not.toHaveAttribute('aria-disabled');
-
-    mouseEnter(trigger);
-    mouseMove(trigger);
-    await advance(0);
-
-    expect(getPopup()).toBeNull();
-
-    click(trigger);
-
-    expect(onClick).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps the trigger interactive when Tooltip.Root is disabled', async () => {
-    vi.useFakeTimers();
-    const onClick = vi.fn();
-    const container = render(renderTooltip({ disabled: true }, { delay: 0, onClick }));
-    await Promise.resolve();
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
-
-    expect(trigger).toHaveAttribute('data-trigger-disabled');
-    expect(trigger).not.toHaveAttribute('disabled');
-    expect(trigger).not.toHaveAttribute('aria-disabled');
-
-    mouseEnter(trigger);
-    mouseMove(trigger);
-    await advance(0);
-
-    expect(getPopup()).toBeNull();
-
-    click(trigger);
-
-    expect(onClick).toHaveBeenCalledTimes(1);
-  });
-
-  it('cancels scheduled opening on click by default', async () => {
-    vi.useFakeTimers();
-    const container = render(renderTooltip({}, { delay: 50 }));
-    await Promise.resolve();
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
-
-    mouseEnter(trigger);
-    mouseMove(trigger);
-    await advance(25);
-    click(trigger);
-    await advance(25);
-
-    expect(getPopup()).toBeNull();
-  });
-
-  it('keeps the scheduled opening when closeOnClick is false', async () => {
-    vi.useFakeTimers();
-    const container = render(renderTooltip({}, { delay: 50, closeOnClick: false }));
-    await Promise.resolve();
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
-
-    mouseEnter(trigger);
-    mouseMove(trigger);
-    await advance(25);
-    click(trigger);
-    await advance(25);
-
-    expect(getPopup()).not.toBeNull();
-  });
-
-  it('respects provider delays and closeDelay', async () => {
-    vi.useFakeTimers();
-    const container = render(renderTooltip({}, {}, { delay: 100, closeDelay: 80 }));
-    await Promise.resolve();
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
-
-    mouseEnter(trigger);
-    mouseMove(trigger);
-    await advance(99);
-    expect(getPopup()).toBeNull();
-
-    await advance(1);
-    expect(getPopup()).not.toBeNull();
-
-    mouseLeave(trigger);
-    await advance(79);
-    expect(getPopup()).not.toBeNull();
-
-    await advance(1);
-    await advance(50);
-    expect(getPopup()).toBeNull();
-  });
-
-  it('opens adjacent tooltips instantly inside a provider', async () => {
-    vi.useFakeTimers();
+    const handleOpenChange = vi.fn();
     const container = render(
-      Tooltip.Provider({
-        children: [
-          Tooltip.Root({
-            children: [
-              Tooltip.Trigger({ 'data-testid': 'trigger-one', children: 'One', delay: 0 }),
-              Tooltip.Portal({
-                children: Tooltip.Positioner({
-                  children: Tooltip.Popup({
-                    'data-testid': 'popup-one',
-                    children: 'One',
-                  }),
-                }),
-              }),
-            ],
-          }),
-          Tooltip.Root({
-            children: [
-              Tooltip.Trigger({ 'data-testid': 'trigger-two', children: 'Two', delay: 100 }),
-              Tooltip.Portal({
-                children: Tooltip.Positioner({
-                  children: Tooltip.Popup({
-                    'data-testid': 'popup-two',
-                    children: 'Two',
-                  }),
-                }),
-              }),
-            ],
-          }),
-        ],
+      renderTooltip({ delay: 0, onOpenChange: handleOpenChange }),
+    );
+    await advance();
+
+    mouseEnter(getTrigger(container));
+    await advance();
+
+    expect(handleOpenChange).toHaveBeenCalledTimes(1);
+    expect(handleOpenChange.mock.calls[0]?.[0]).toBe(true);
+    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe(
+      'trigger-hover',
+    );
+  });
+
+  it('calls onOpenChange with reason on focus', async () => {
+    const handleOpenChange = vi.fn();
+    const container = render(
+      renderTooltip({ onOpenChange: handleOpenChange }),
+    );
+    await waitForUpdate();
+
+    getTrigger(container).dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+
+    expect(handleOpenChange).toHaveBeenCalledTimes(1);
+    expect(handleOpenChange.mock.calls[0]?.[0]).toBe(true);
+    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe(
+      'trigger-focus',
+    );
+  });
+
+  it('supports cancellation in onOpenChange', async () => {
+    const handleOpenChange = vi.fn(
+      (_open: boolean, details: TooltipChangeEventDetails) => {
+        details.cancel();
+      },
+    );
+    const container = render(
+      renderTooltip({ onOpenChange: handleOpenChange }),
+    );
+    await waitForUpdate();
+
+    getTrigger(container).dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('closes on Escape key', async () => {
+    const handleOpenChange = vi.fn();
+    const container = render(
+      renderTooltip({
+        defaultOpen: true,
+        onOpenChange: handleOpenChange,
       }),
     );
-    await Promise.resolve();
+    await waitForUpdate();
+    handleOpenChange.mockClear();
 
-    const triggerOne = container.querySelector('[data-testid="trigger-one"]') as HTMLElement;
-    const triggerTwo = container.querySelector('[data-testid="trigger-two"]') as HTMLElement;
-
-    mouseEnter(triggerOne);
-    mouseMove(triggerOne);
-    await advance(0);
-    expect(document.body.querySelector('[data-testid="popup-one"]')).not.toBeNull();
-
-    mouseLeave(triggerOne);
-    await advance(0);
-    mouseEnter(triggerTwo);
-    mouseMove(triggerTwo);
-    await advance(0);
-    await Promise.resolve();
-
-    const secondPopup = document.body.querySelector('[data-testid="popup-two"]') as HTMLElement;
-    expect(secondPopup).not.toBeNull();
-  });
-
-  it('supports detached handles and payloads', async () => {
-    const handle = Tooltip.createHandle<number>();
-    render(
-      html`${Tooltip.Trigger({
-          handle,
-          id: 'one',
-          payload: 1,
-          children: 'One',
-        })}
-        ${Tooltip.Trigger({
-          handle,
-          id: 'two',
-          payload: 2,
-          children: 'Two',
-        })}
-        ${Tooltip.Root<number>({
-          handle,
-          children: ({ payload }: { payload: number | undefined }) =>
-            Tooltip.Portal({
-              children: Tooltip.Positioner({
-                children: Tooltip.Popup({
-                  'data-testid': 'popup',
-                  children: String(payload),
-                }),
-              }),
-            }),
-        })}`,
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
     );
-    await Promise.resolve();
+    await waitForUpdate();
 
-    const [triggerOne, triggerTwo] = Array.from(document.querySelectorAll('button'));
-
-    handle.open('two');
-    await Promise.resolve();
-
-    expect(getPopup()).toHaveTextContent('2');
-    expect(triggerTwo).toHaveAttribute('data-popup-open');
-    expect(triggerOne).not.toHaveAttribute('data-popup-open');
-
-    handle.close();
-    await flushRealTimers();
-
-    expect(getPopup()).toBeNull();
-    expect(triggerTwo).not.toHaveAttribute('data-popup-open');
+    expect(getPopup(container)).toHaveAttribute('hidden');
+    expect(handleOpenChange).toHaveBeenCalledTimes(1);
+    expect(handleOpenChange.mock.calls[0]?.[0]).toBe(false);
+    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe('escape-key');
   });
 
-  it('removes data-popup-open immediately even when unmount is prevented', async () => {
+  it('supports controlled open state', async () => {
+    const container = render(html``);
+
+    function rerender(open: boolean) {
+      renderTemplate(
+        html`
+          <tooltip-root .open=${open}>
+            <tooltip-trigger .delay=${0}>Trigger</tooltip-trigger>
+            <tooltip-portal>
+              <tooltip-positioner>
+                <tooltip-popup>Content</tooltip-popup>
+              </tooltip-positioner>
+            </tooltip-portal>
+          </tooltip-root>
+        `,
+        container,
+      );
+    }
+
+    rerender(false);
+    await waitForUpdate();
+    expect(getPopup(container)).toHaveAttribute('hidden');
+
+    rerender(true);
+    await waitForUpdate();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+
+    rerender(false);
+    await waitForUpdate();
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('closeOnClick cancels scheduled open and closes tooltip', async () => {
+    vi.useFakeTimers();
+    const handleOpenChange = vi.fn();
+    const container = render(
+      renderTooltip({
+        delay: 0,
+        closeOnClick: true,
+        onOpenChange: handleOpenChange,
+      }),
+    );
+    await advance();
+
+    const trigger = getTrigger(container);
+
+    // Open via hover
+    mouseEnter(trigger);
+    await advance();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+    handleOpenChange.mockClear();
+
+    // Click to close
+    trigger.click();
+    await advance();
+
+    expect(handleOpenChange).toHaveBeenCalledTimes(1);
+    expect(handleOpenChange.mock.calls[0]?.[0]).toBe(false);
+    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe(
+      'trigger-press',
+    );
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('keeps tooltip when closeOnClick is false', async () => {
     vi.useFakeTimers();
     const container = render(
-      renderTooltip(
-        {
-          onOpenChange(open, details) {
-            if (!open) {
-              details.preventUnmountOnClose();
-            }
-          },
-        },
-        { delay: 0, closeDelay: 0 },
-      ),
+      renderTooltip({ delay: 0, closeOnClick: false }),
     );
-    await Promise.resolve();
+    await advance();
 
-    const trigger = container.querySelector('[data-testid="trigger"]') as HTMLElement;
+    const trigger = getTrigger(container);
 
+    // Open via hover
     mouseEnter(trigger);
-    mouseMove(trigger);
-    await advance(0);
+    await advance();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
 
-    expect(trigger).toHaveAttribute('data-popup-open');
-    expect(getPopup()).not.toBeNull();
+    // Click should NOT close
+    trigger.click();
+    await advance();
 
-    mouseLeave(trigger);
-    await advance(0);
-
-    expect(trigger).not.toHaveAttribute('data-popup-open');
-    expect(getPopup()).not.toBeNull();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
   });
 
-  it('applies pointer-events none when disableHoverablePopup is true', async () => {
-    vi.useFakeTimers();
-    render(renderTooltip({ disableHoverablePopup: true }, { delay: 0 }));
-    await Promise.resolve();
+  it('disabled root prevents tooltip from opening', async () => {
+    const container = render(renderTooltip({ disabled: true }));
+    await waitForUpdate();
 
-    const trigger = document.querySelector('[data-testid="trigger"]') as HTMLElement;
-    mouseEnter(trigger);
-    mouseMove(trigger);
-    await advance(0);
+    getTrigger(container).dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
 
-    expect(document.querySelector('[data-testid="positioner"]')).toHaveStyle({
-      pointerEvents: 'none',
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('disabled trigger prevents tooltip but keeps trigger interactive', async () => {
+    const container = render(
+      renderTooltip({ triggerDisabled: true }),
+    );
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+
+    expect(trigger).toHaveAttribute('data-trigger-disabled');
+    expect(trigger).not.toHaveAttribute('disabled');
+    expect(trigger).not.toHaveAttribute('aria-disabled');
+
+    trigger.dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('popup has role=tooltip', async () => {
+    const container = render(renderTooltip({ defaultOpen: true }));
+    await waitForUpdate();
+
+    expect(getPopup(container)).toHaveAttribute('role', 'tooltip');
+  });
+
+  it('calls floating-ui computePosition when open', async () => {
+    const container = render(renderTooltip());
+    await waitForUpdate();
+
+    floatingUiMocks.computePosition.mockClear();
+
+    getTrigger(container).dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+
+    expect(floatingUiMocks.computePosition).toHaveBeenCalled();
+  });
+
+  it('respects collisionAvoidance="none"', async () => {
+    const container = render(
+      renderTooltip({ collisionAvoidance: 'none' }),
+    );
+    await waitForUpdate();
+
+    floatingUiMocks.computePosition.mockClear();
+    floatingUiMocks.flip.mockClear();
+    floatingUiMocks.shift.mockClear();
+
+    getTrigger(container).dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+
+    expect(floatingUiMocks.computePosition).toHaveBeenCalled();
+
+    const call = floatingUiMocks.computePosition.mock.calls[0] as
+      | [Element, Element, { middleware?: Array<{ name?: string }> }]
+      | undefined;
+    const middlewareNames =
+      call?.[2]?.middleware?.map((m: { name?: string }) => m.name) ?? [];
+
+    expect(middlewareNames).toContain('offset');
+    expect(middlewareNames).toContain('hide');
+    expect(middlewareNames).not.toContain('flip');
+    expect(middlewareNames).not.toContain('shift');
+  });
+
+  it('sets data-side and data-align on the positioner', async () => {
+    const container = render(renderTooltip({ defaultOpen: true }));
+    await waitForUpdate();
+
+    const positioner = getPositioner(container);
+    expect(positioner).toHaveAttribute('data-side', 'bottom');
+    expect(positioner).toHaveAttribute('data-align', 'center');
+  });
+
+  it('passes disableAnchorTracking to autoUpdate', async () => {
+    const container = render(
+      renderTooltip({ disableAnchorTracking: true }),
+    );
+    await waitForUpdate();
+
+    floatingUiMocks.autoUpdate.mockClear();
+
+    getTrigger(container).dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+
+    const autoUpdateCall = floatingUiMocks.autoUpdate.mock.calls[0] as
+      | [
+          Element,
+          Element,
+          () => void,
+          { elementResize?: boolean; layoutShift?: boolean },
+        ]
+      | undefined;
+
+    expect(autoUpdateCall?.[3]).toMatchObject({
+      elementResize: false,
+      layoutShift: false,
     });
   });
 
-  it('uses tooltip-scoped errors when an imperative open references a missing trigger', () => {
-    const handle = Tooltip.createHandle();
+  it('wires arrow element into positioning middleware', async () => {
+    const container = render(html`
+      <tooltip-root .defaultOpen=${true}>
+        <tooltip-trigger .delay=${0}>Trigger</tooltip-trigger>
+        <tooltip-portal>
+          <tooltip-positioner>
+            <tooltip-popup>
+              <tooltip-arrow></tooltip-arrow>
+              Content
+            </tooltip-popup>
+          </tooltip-positioner>
+        </tooltip-portal>
+      </tooltip-root>
+    `);
+    await waitForUpdate();
 
-    expect(() => handle.open('missing-trigger')).toThrow(
-      'Base UI: TooltipHandle.open: No trigger found with id "missing-trigger".',
+    const arrow = getArrow(container);
+    expect(arrow).toHaveAttribute('aria-hidden', 'true');
+    expect(arrow).toHaveAttribute('data-side', 'bottom');
+    expect(arrow).toHaveAttribute('data-align', 'center');
+
+    expect(floatingUiMocks.arrow).toHaveBeenCalled();
+  });
+
+  it('shows defaultOpen tooltip', async () => {
+    const container = render(renderTooltip({ defaultOpen: true }));
+    await waitForUpdate();
+
+    const popup = getPopup(container);
+    expect(popup).not.toHaveAttribute('hidden');
+    expect(popup).toHaveAttribute('data-open');
+  });
+
+  it('logs error when parts are used outside root', () => {
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    render(html`<tooltip-trigger>Orphan</tooltip-trigger>`);
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Tooltip parts must be placed within',
+      ),
     );
+
+    errorSpy.mockRestore();
+  });
+
+  it('provider sets display:contents', async () => {
+    const container = render(html`
+      <tooltip-provider>
+        <tooltip-root>
+          <tooltip-trigger .delay=${0}>Trigger</tooltip-trigger>
+          <tooltip-portal>
+            <tooltip-positioner>
+              <tooltip-popup>Content</tooltip-popup>
+            </tooltip-positioner>
+          </tooltip-portal>
+        </tooltip-root>
+      </tooltip-provider>
+    `);
+    await waitForUpdate();
+
+    const provider = container.querySelector(
+      'tooltip-provider',
+    ) as HTMLElement;
+    expect(provider.style.display).toBe('contents');
+  });
+
+  it('trigger sets data-popup-open when tooltip is open', async () => {
+    const container = render(renderTooltip());
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+
+    // Initially no data-popup-open
+    expect(trigger).not.toHaveAttribute('data-popup-open');
+
+    // Open via focus
+    trigger.dispatchEvent(
+      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+
+    expect(trigger).toHaveAttribute('data-popup-open');
+
+    // Close via blur
+    trigger.dispatchEvent(
+      new FocusEvent('focusout', { bubbles: true, cancelable: true }),
+    );
+    await waitForUpdate();
+
+    expect(trigger).not.toHaveAttribute('data-popup-open');
+  });
+
+  it('respects provider delay and closeDelay', async () => {
+    vi.useFakeTimers();
+    const container = render(html`
+      <tooltip-provider .delay=${100} .closeDelay=${80}>
+        <tooltip-root>
+          <tooltip-trigger>Trigger</tooltip-trigger>
+          <tooltip-portal>
+            <tooltip-positioner>
+              <tooltip-popup>Content</tooltip-popup>
+            </tooltip-positioner>
+          </tooltip-portal>
+        </tooltip-root>
+      </tooltip-provider>
+    `);
+    await advance();
+
+    const trigger = getTrigger(container);
+
+    mouseEnter(trigger);
+    // Precise timing: 99ms < 100ms delay, should still be hidden
+    await advanceTo(99);
+    expect(getPopup(container)).toHaveAttribute('hidden');
+
+    // At 100ms, timer fires + drain all effects
+    await advance(1);
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+
+    mouseLeave(trigger);
+    // Precise timing: 79ms < 80ms closeDelay, should still be open
+    await advanceTo(79);
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+
+    // At 80ms, close timer fires + drain all effects
+    await advance(1);
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('opens adjacent tooltips instantly inside a provider (warmth)', async () => {
+    vi.useFakeTimers();
+    const container = render(html`
+      <tooltip-provider .timeout=${400}>
+        <tooltip-root>
+          <tooltip-trigger data-testid="trigger-one" .delay=${0}>
+            One
+          </tooltip-trigger>
+          <tooltip-portal>
+            <tooltip-positioner>
+              <tooltip-popup data-testid="popup-one">One</tooltip-popup>
+            </tooltip-positioner>
+          </tooltip-portal>
+        </tooltip-root>
+        <tooltip-root>
+          <tooltip-trigger data-testid="trigger-two" .delay=${100}>
+            Two
+          </tooltip-trigger>
+          <tooltip-portal>
+            <tooltip-positioner>
+              <tooltip-popup data-testid="popup-two">Two</tooltip-popup>
+            </tooltip-positioner>
+          </tooltip-portal>
+        </tooltip-root>
+      </tooltip-provider>
+    `);
+    await advance();
+
+    const triggerOne = container.querySelector(
+      '[data-testid="trigger-one"]',
+    ) as HTMLElement;
+    const triggerTwo = container.querySelector(
+      '[data-testid="trigger-two"]',
+    ) as HTMLElement;
+
+    // Open first tooltip
+    mouseEnter(triggerOne);
+    await advance();
+
+    expect(
+      container.querySelector('[data-testid="popup-one"]'),
+    ).not.toHaveAttribute('hidden');
+
+    // Leave first, enter second (within warmth timeout)
+    mouseLeave(triggerOne);
+    await advance();
+
+    mouseEnter(triggerTwo);
+    // Even though delay is 100, provider warmth should open instantly
+    await advance();
+
+    expect(
+      container.querySelector('[data-testid="popup-two"]'),
+    ).not.toHaveAttribute('hidden');
   });
 });

@@ -24,25 +24,13 @@ import DetachedControlledDemo from './demos/detached-triggers-controlled/css-mod
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { PreviewCard } from '@base-ui/lit/preview-card';
-
-render(
-  PreviewCard.Root({
-    children: [
-      PreviewCard.Trigger({ href: '#', children: 'Typography' }),
-      PreviewCard.Portal({
-        children: PreviewCard.Positioner({
-          children: PreviewCard.Popup({
-            children: PreviewCard.Arrow(),
-          }),
-        }),
-      }),
-    ],
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<preview-card-root>
+  <preview-card-trigger href="#">Typography</preview-card-trigger>
+  <preview-card-popup>
+    <preview-card-arrow></preview-card-arrow>
+  </preview-card-popup>
+</preview-card-root>
 ```
 
 export const metadata = {

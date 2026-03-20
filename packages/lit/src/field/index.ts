@@ -1,6 +1,4 @@
-import { html, noChange, nothing, type TemplateResult } from 'lit';
-// eslint-disable-next-line import/extensions
-import { AsyncDirective, directive } from 'lit/async-directive.js';
+import { BaseHTMLElement, ensureId } from '../utils/index.ts';
 import {
   FIELDSET_STATE_CHANGE_EVENT,
   getClosestFieldsetRoot,
@@ -12,21 +10,14 @@ import {
   type FormFieldEntry,
   type FormRuntime,
 } from '../form/shared.ts';
-import { makeEventPreventable, mergeProps } from '../merge-props/index.ts';
-import type {
-  BaseUIChangeEventDetails,
-  BaseUIEvent,
-  ComponentRenderFn,
-  HTMLProps,
-} from '../types/index.ts';
-import { useRender } from '../use-render/index.ts';
+
+// ─── Constants ──────────────────────────────────────────────────────────────────
 
 const FIELD_ROOT_ATTRIBUTE = 'data-base-ui-field-root';
-const FIELD_ITEM_ATTRIBUTE = 'data-base-ui-field-item';
 const FIELD_STATE_CHANGE_EVENT = 'base-ui-field-state-change';
 const FIELD_RUNTIME = Symbol('base-ui-field-runtime');
 
-const DEFAULT_VALIDITY_STATE = {
+const DEFAULT_VALIDITY_STATE: ValidityStateObject = {
   badInput: false,
   customError: false,
   patternMismatch: false,
@@ -40,21 +31,11 @@ const DEFAULT_VALIDITY_STATE = {
   valueMissing: false,
 };
 
-const DEFAULT_FIELD_ROOT_STATE = {
-  disabled: false,
-  touched: false,
-  dirty: false,
-  valid: null,
-  filled: false,
-  focused: false,
-};
+// ─── Types ──────────────────────────────────────────────────────────────────────
 
-let generatedElementId = 0;
-
-type FieldEventHandler<EventType extends Event> = (event: BaseUIEvent<EventType>) => void;
 type TransitionStatus = 'starting' | 'ending' | undefined;
 type InputLikeElement = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
-type LabelableElement = InputLikeElement | HTMLButtonElement | HTMLElement;
+
 type ValidityStateObject = {
   badInput: boolean;
   customError: boolean;
@@ -68,98 +49,59 @@ type ValidityStateObject = {
   valid: boolean | null;
   valueMissing: boolean;
 };
-type FieldControlValue = string | number | readonly string[];
 
-type ComponentPropsWithChildren<
-  ElementType extends keyof HTMLElementTagNameMap,
-  State,
-  Children = unknown,
-  RenderFunctionProps = HTMLProps,
-> = Omit<useRender.ComponentProps<ElementType, State, RenderFunctionProps>, 'children'> & {
-  children?: Children | undefined;
-};
-
-type FieldRootRenderProps = HTMLProps<HTMLDivElement> & {
-  children?: unknown;
-};
-
-type FieldLabelRenderProps = Omit<HTMLProps<HTMLElement>, 'children' | 'onClick'> & {
-  children?: unknown;
-  onClick?: FieldEventHandler<MouseEvent> | undefined;
-};
-
-type FieldDescriptionRenderProps = HTMLProps<HTMLParagraphElement> & {
-  children?: unknown;
-};
-
-type FieldErrorRenderProps = HTMLProps<HTMLDivElement> & {
-  children?: unknown;
-};
-
-type FieldItemRenderProps = HTMLProps<HTMLDivElement> & {
-  children?: unknown;
-};
-
-type FieldControlRenderProps = Omit<
-  HTMLProps<HTMLElement>,
-  'defaultValue' | 'disabled' | 'onBlur' | 'onChange' | 'onFocus' | 'onInput' | 'value'
-> & {
-  defaultValue?: FieldControlValue | undefined;
-  disabled?: boolean | undefined;
-  onBlur?: FieldEventHandler<FocusEvent> | undefined;
-  onChange?: FieldEventHandler<InputEvent | Event> | undefined;
-  onFocus?: FieldEventHandler<FocusEvent> | undefined;
-  onInput?: FieldEventHandler<InputEvent | Event> | undefined;
-  value?: FieldControlValue | undefined;
-};
-
-type FieldRootRenderProp = TemplateResult | ComponentRenderFn<FieldRootRenderProps, FieldRootState>;
-type FieldLabelRenderProp =
-  | TemplateResult
-  | ComponentRenderFn<FieldLabelRenderProps, FieldLabelState>;
-type FieldDescriptionRenderProp =
-  | TemplateResult
-  | ComponentRenderFn<FieldDescriptionRenderProps, FieldDescriptionState>;
-type FieldErrorRenderProp =
-  | TemplateResult
-  | ComponentRenderFn<FieldErrorRenderProps, FieldErrorState>;
-type FieldItemRenderProp = TemplateResult | ComponentRenderFn<FieldItemRenderProps, FieldItemState>;
-type FieldControlRenderProp =
-  | TemplateResult
-  | ComponentRenderFn<FieldControlRenderProps, FieldControlState>;
-
-interface FieldControlTargets {
-  focusTarget: HTMLElement | null;
-  labelTarget: LabelableElement | null;
-  validityTarget: InputLikeElement | null;
+export interface FieldValidityData {
+  state: ValidityStateObject;
+  error: string;
+  errors: string[];
+  value: unknown;
+  initialValue: unknown;
 }
 
-interface FieldLabelEntry {
-  element: HTMLElement | null;
-  nativeLabel: boolean;
+export interface FieldRootState {
+  disabled: boolean;
+  touched: boolean;
+  dirty: boolean;
+  valid: boolean | null;
+  filled: boolean;
+  focused: boolean;
 }
+
+export interface FieldValidityState extends Omit<FieldValidityData, 'state'> {
+  validity: FieldValidityData['state'];
+  transitionStatus: TransitionStatus;
+}
+
+export interface FieldLabelState extends FieldRootState {}
+export interface FieldDescriptionState extends FieldRootState {}
+export interface FieldErrorState extends FieldRootState {
+  transitionStatus: TransitionStatus;
+}
+export interface FieldControlState extends FieldRootState {}
+export interface FieldItemState extends FieldRootState {}
 
 interface FieldRuntime {
-  clearLabel(element: HTMLElement | null): void;
-  getControlTargets(): FieldControlTargets;
   getFieldState(): FieldRootState;
-  getFormError(): string | string[] | null;
-  getValidationData(): FieldValidityData;
   getValidityState(): FieldValidityState;
-  handleControlBlur(element: InputLikeElement): void;
-  handleControlFocus(): void;
-  handleControlInput(element: InputLikeElement, currentValue: unknown, nativeEvent: Event): void;
-  handleControlKeyDown(element: InputLikeElement, key: string): void;
+  getValidationData(): FieldValidityData;
+  getFormError(): string | string[] | null;
+  getControlTargets(): { focusTarget: HTMLElement | null; validityTarget: InputLikeElement | null };
   registerControl(element: HTMLElement | null): void;
-  registerDescription(id: string): void;
-  registerError(id: string, rendered: boolean): void;
-  registerLabel(element: HTMLElement | null, nativeLabel: boolean): void;
-  setErrorRendered(id: string, rendered: boolean): void;
-  syncAssociations(): void;
   unregisterControl(element: HTMLElement | null): void;
+  registerLabel(id: string): void;
+  unregisterLabel(id: string): void;
+  registerDescription(id: string): void;
   unregisterDescription(id: string): void;
+  registerError(id: string, rendered: boolean): void;
   unregisterError(id: string): void;
+  setErrorRendered(id: string, rendered: boolean): void;
+  handleControlFocus(): void;
+  handleControlBlur(element: InputLikeElement): void;
+  handleControlInput(element: InputLikeElement, currentValue: unknown, nativeEvent: Event): void;
+  syncAssociations(): void;
 }
+
+// ─── Helpers ────────────────────────────────────────────────────────────────────
 
 function isInputLikeElement(element: Element | null): element is InputLikeElement {
   return (
@@ -169,956 +111,683 @@ function isInputLikeElement(element: Element | null): element is InputLikeElemen
   );
 }
 
-function isLabelableElement(element: Element | null): element is LabelableElement {
-  return (
-    isInputLikeElement(element) ||
-    element instanceof HTMLButtonElement ||
-    element instanceof HTMLElement
-  );
-}
-
-function createGeneratedId(prefix: string) {
-  generatedElementId += 1;
-  return `${prefix}-${generatedElementId}`;
-}
-
-function ensureElementId(element: Element | null, prefix: string) {
-  if (!(element instanceof HTMLElement)) {
-    return undefined;
-  }
-
-  if (element.id) {
-    return element.id;
-  }
-
-  element.id = createGeneratedId(prefix);
-  return element.id;
-}
-
-function assignRef<T>(ref: HTMLProps<T>['ref'], value: T | null) {
-  if (typeof ref === 'function') {
-    ref(value);
-    return;
-  }
-
-  if (ref != null && typeof ref === 'object') {
-    ref.current = value;
-  }
-}
-
-function stringifyInputValue(value: FieldControlValue | undefined) {
-  if (value == null) {
-    return '';
-  }
-
-  if (Array.isArray(value)) {
-    return value.join(',');
-  }
-
-  return String(value);
-}
-
-function cloneValidityState(validity: ValidityState): ValidityStateObject {
+function readValidityState(element: InputLikeElement | null): ValidityStateObject {
+  if (element == null) return { ...DEFAULT_VALIDITY_STATE };
   return {
-    badInput: validity.badInput,
-    customError: validity.customError,
-    patternMismatch: validity.patternMismatch,
-    rangeOverflow: validity.rangeOverflow,
-    rangeUnderflow: validity.rangeUnderflow,
-    stepMismatch: validity.stepMismatch,
-    tooLong: validity.tooLong,
-    tooShort: validity.tooShort,
-    typeMismatch: validity.typeMismatch,
-    valid: validity.valid,
-    valueMissing: validity.valueMissing,
+    badInput: element.validity.badInput,
+    customError: element.validity.customError,
+    patternMismatch: element.validity.patternMismatch,
+    rangeOverflow: element.validity.rangeOverflow,
+    rangeUnderflow: element.validity.rangeUnderflow,
+    stepMismatch: element.validity.stepMismatch,
+    tooLong: element.validity.tooLong,
+    tooShort: element.validity.tooShort,
+    typeMismatch: element.validity.typeMismatch,
+    valid: element.validity.valid,
+    valueMissing: element.validity.valueMissing,
   };
 }
 
-function readValidityState(element: InputLikeElement | null): ValidityStateObject {
-  if (element == null) {
-    return { ...DEFAULT_VALIDITY_STATE };
-  }
-
-  return cloneValidityState(element.validity);
-}
-
-function hasOnlyValueMissing(state: ValidityStateObject) {
-  if (state.valid || !state.valueMissing) {
-    return false;
-  }
-
-  const keys = Object.keys(DEFAULT_VALIDITY_STATE) as Array<keyof ValidityStateObject>;
-
-  for (const key of keys) {
-    if (key === 'valid' || key === 'valueMissing') {
-      continue;
-    }
-
-    if (state[key]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 function getElementValue(element: InputLikeElement | null): unknown {
-  if (element == null) {
-    return null;
-  }
-
+  if (element == null) return null;
   if (element instanceof HTMLSelectElement && element.multiple) {
     return Array.from(element.selectedOptions).map((option) => option.value);
   }
-
   if (element instanceof HTMLInputElement) {
     if (element.type === 'checkbox' || element.type === 'radio') {
       return element.checked ? element.value || 'on' : '';
     }
   }
-
   return element.value;
 }
 
 function isElementFilled(element: InputLikeElement | null) {
-  if (element == null) {
-    return false;
-  }
-
+  if (element == null) return false;
   if (element instanceof HTMLSelectElement && element.multiple) {
     return element.selectedOptions.length > 0;
   }
-
   if (element instanceof HTMLInputElement) {
     if (element.type === 'checkbox' || element.type === 'radio') {
       return element.checked;
     }
   }
-
   return element.value !== '';
 }
 
-function createChangeEventDetails(
-  event: Event,
-  trigger: Element | undefined,
-): BaseUIChangeEventDetails<'none'> {
-  let isCanceled = false;
-  let isPropagationAllowed = false;
-
-  return {
-    allowPropagation() {
-      isPropagationAllowed = true;
-    },
-    cancel() {
-      isCanceled = true;
-    },
-    event,
-    get isCanceled() {
-      return isCanceled;
-    },
-    get isPropagationAllowed() {
-      return isPropagationAllowed;
-    },
-    reason: 'none',
-    trigger,
-  };
-}
-
-function isDetachedChildPartError(error: unknown) {
-  return (
-    error instanceof Error &&
-    error.message.includes('ChildPart') &&
-    error.message.includes('no `parentNode`')
-  );
-}
-
-function getClosestFieldRoot(node: Node | null) {
-  let current: Node | null = node;
-
-  while (current != null) {
-    if (current instanceof HTMLElement && current.hasAttribute(FIELD_ROOT_ATTRIBUTE)) {
-      return current;
-    }
-
-    current = current.parentNode;
+function hasOnlyValueMissing(state: ValidityStateObject) {
+  if (state.valid || !state.valueMissing) return false;
+  const keys = Object.keys(DEFAULT_VALIDITY_STATE) as Array<keyof ValidityStateObject>;
+  for (const key of keys) {
+    if (key === 'valid' || key === 'valueMissing') continue;
+    if (state[key]) return false;
   }
-
-  return null;
-}
-
-function getFallbackFieldRoot() {
-  return document.querySelector(`[${FIELD_ROOT_ATTRIBUTE}]`) as HTMLElement | null;
-}
-
-function getFieldRuntime(root: Element | null): FieldRuntime | null {
-  if (!(root instanceof HTMLElement)) {
-    return null;
-  }
-
-  return ((root as HTMLElement & { [FIELD_RUNTIME]?: FieldRuntime })[FIELD_RUNTIME] ??
-    null) as FieldRuntime | null;
+  return true;
 }
 
 function setFieldRuntime(root: HTMLElement | null, runtime: FieldRuntime | null) {
-  if (root == null) {
-    return;
-  }
-
+  if (root == null) return;
   const rootWithRuntime = root as HTMLElement & { [FIELD_RUNTIME]?: FieldRuntime };
-
   if (runtime == null) {
     delete rootWithRuntime[FIELD_RUNTIME];
     return;
   }
-
   rootWithRuntime[FIELD_RUNTIME] = runtime;
 }
 
-function getCombinedFieldValidityData(
-  validityData: FieldValidityData,
-  invalid: boolean | undefined,
-): FieldValidityData {
-  return {
-    ...validityData,
-    state: {
-      ...validityData.state,
-      valid: !invalid && validityData.state.valid,
-    },
-  };
+function getFieldRuntime(root: Element | null): FieldRuntime | null {
+  if (!(root instanceof HTMLElement)) return null;
+  return ((root as HTMLElement & { [FIELD_RUNTIME]?: FieldRuntime })[FIELD_RUNTIME] ?? null);
 }
 
-function createFieldStateAttributesMapping() {
-  return {
-    valid(value: boolean | null) {
-      if (value === true) {
-        const props: Record<string, string> = { 'data-valid': '' };
-        return props;
-      }
+// ─── FieldRootElement ────────────────────────────────────────────────────────────
 
-      if (value === false) {
-        const props: Record<string, string> = { 'data-invalid': '' };
-        return props;
-      }
-
-      return null;
-    },
-  };
-}
-
-function getNearestLabelableControl(root: HTMLElement): FieldControlTargets {
-  const registeredControl = root.querySelector(
-    '[data-base-ui-field-control]',
-  ) as HTMLElement | null;
-
-  if (registeredControl != null) {
-    const validityTarget = isInputLikeElement(registeredControl)
-      ? registeredControl
-      : (registeredControl.querySelector('input, textarea, select') as InputLikeElement | null);
-
-    return {
-      focusTarget: registeredControl,
-      labelTarget: isLabelableElement(registeredControl) ? registeredControl : validityTarget,
-      validityTarget,
-    };
+/**
+ * Groups all parts of the field.
+ * Renders a `<field-root>` custom element.
+ *
+ * Documentation: [Base UI Field](https://base-ui.com/react/components/field)
+ */
+export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
+  static get observedAttributes() {
+    return ['disabled', 'validation-mode'];
   }
 
-  const toggleRoot = root.querySelector(
-    '[data-base-ui-checkbox-root], [data-base-ui-radio-root], [data-base-ui-switch-root]',
-  ) as HTMLElement | null;
+  /** Whether the field is disabled. */
+  disabled = false;
 
-  if (toggleRoot != null) {
-    const hiddenInput =
-      toggleRoot.nextElementSibling instanceof HTMLInputElement
-        ? toggleRoot.nextElementSibling
-        : null;
+  /** Validation mode: 'onSubmit' (default), 'onBlur', 'onChange'. */
+  validationMode: 'onSubmit' | 'onBlur' | 'onChange' | undefined;
 
-    if (toggleRoot instanceof HTMLButtonElement) {
-      return {
-        focusTarget: toggleRoot,
-        labelTarget: toggleRoot,
-        validityTarget: hiddenInput,
-      };
-    }
+  /** Validation function. Set via `.validate=${fn}`. */
+  validate:
+    | ((
+        value: unknown,
+        formValues: Record<string, unknown>,
+      ) => string | string[] | null | Promise<string | string[] | null>)
+    | undefined;
 
-    return {
-      focusTarget: toggleRoot,
-      labelTarget: hiddenInput ?? toggleRoot,
-      validityTarget: hiddenInput,
-    };
-  }
+  /** Field name for form integration. */
+  name: string | undefined;
 
-  const nativeControl = root.querySelector(
-    'input:not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]), textarea, select, button',
-  ) as HTMLElement | null;
-
-  if (nativeControl != null) {
-    return {
-      focusTarget: nativeControl,
-      labelTarget: isLabelableElement(nativeControl) ? nativeControl : null,
-      validityTarget: isInputLikeElement(nativeControl) ? nativeControl : null,
-    };
-  }
-
-  return {
-    focusTarget: null,
-    labelTarget: null,
-    validityTarget: null,
-  };
-}
-
-class FieldRootDirective extends AsyncDirective implements FieldRuntime {
-  private latestProps: FieldRootProps | null = null;
-  private root: HTMLDivElement | null = null;
-  private fieldsetRoot: Element | null = null;
-  private initialized = false;
-  private descriptionIds = new Set<string>();
-  private errorIds = new Map<string, boolean>();
-  private labelEntry: FieldLabelEntry | null = null;
-  private controlElement: HTMLElement | null = null;
-  private validityData: FieldValidityData = {
+  private _controlElement: HTMLElement | null = null;
+  private _labelIds = new Set<string>();
+  private _descriptionIds = new Set<string>();
+  private _errorIds = new Map<string, boolean>();
+  private _fieldsetRoot: Element | null = null;
+  private _validityData: FieldValidityData = {
     state: { ...DEFAULT_VALIDITY_STATE },
     error: '',
     errors: [],
     value: null,
     initialValue: null,
   };
-  private touchedState = false;
-  private dirtyState = false;
-  private filled = false;
-  private focused = false;
-  private submitAttempted = false;
-  private markedDirty = false;
-  private lastPublishedStateKey: string | null = null;
-  private domSyncQueued = false;
-  private validationTimer: number | null = null;
-  private observer: MutationObserver | null = null;
-  private form: HTMLFormElement | null = null;
-  private formRuntime: FormRuntime | null = null;
-  private disabledCaptureCleanup: (() => void) | null = null;
+  private _touched = false;
+  private _dirty = false;
+  private _filled = false;
+  private _focused = false;
+  private _submitAttempted = false;
+  private _markedDirty = false;
+  private _lastPublishedStateKey: string | null = null;
+  private _domSyncQueued = false;
+  private _form: HTMLFormElement | null = null;
+  private _formRuntime: FormRuntime | null = null;
+  private _disabledCaptureCleanup: (() => void) | null = null;
 
-  render(_componentProps: FieldRootProps) {
-    return noChange;
+  connectedCallback() {
+    this.setAttribute(FIELD_ROOT_ATTRIBUTE, '');
+    setFieldRuntime(this, this);
+
+    // Fieldset integration
+    const fieldsetRoot = getClosestFieldsetRoot(this);
+    this._syncFieldsetRoot(fieldsetRoot);
+
+    // Form integration
+    this._syncFormOwner();
+
+    // Disabled capture
+    this._syncDisabledCapture();
+
+    // Event delegation for auto-detected controls
+    this.addEventListener('focusin', this._handleFocusIn);
+    this.addEventListener('focusout', this._handleFocusOut);
+    this.addEventListener('input', this._handleInput);
+    this.addEventListener('change', this._handleChange);
+    this.addEventListener('keydown', this._handleKeyDown);
+
+    this._scheduleDomSync();
   }
 
-  override update(
-    _part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [FieldRootProps],
-  ) {
-    this.latestProps = componentProps;
+  disconnectedCallback() {
+    this.removeEventListener('focusin', this._handleFocusIn);
+    this.removeEventListener('focusout', this._handleFocusOut);
+    this.removeEventListener('input', this._handleInput);
+    this.removeEventListener('change', this._handleChange);
+    this.removeEventListener('keydown', this._handleKeyDown);
 
-    if (!this.initialized) {
-      this.initialized = true;
-      if (componentProps.actionsRef != null) {
-        componentProps.actionsRef.current = { validate: () => this.validateCurrentControl() };
-      }
-    } else if (componentProps.actionsRef != null) {
-      componentProps.actionsRef.current = { validate: () => this.validateCurrentControl() };
+    this._detachForm();
+    this._syncFieldsetRoot(null);
+    this._disabledCaptureCleanup?.();
+    this._disabledCaptureCleanup = null;
+    setFieldRuntime(this, null);
+    this._controlElement = null;
+    this._labelIds.clear();
+    this._descriptionIds.clear();
+    this._errorIds.clear();
+    this._lastPublishedStateKey = null;
+  }
+
+  attributeChangedCallback(name: string) {
+    if (name === 'disabled') {
+      this.disabled = this.hasAttribute('disabled');
+      this._syncDisabledCapture();
+      this._syncStateAttributes();
+      this._publishStateChange();
     }
-
-    this.scheduleDomSync();
-
-    return this.renderCurrent();
-  }
-
-  override disconnected() {
-    this.clearValidationTimer();
-    this.teardownObserver();
-    this.detachForm();
-    this.syncFieldsetRoot(null);
-    this.disabledCaptureCleanup?.();
-    this.disabledCaptureCleanup = null;
-    setFieldRuntime(this.root, null);
-    if (this.latestProps?.actionsRef != null) {
-      this.latestProps.actionsRef.current = null;
-    }
-    this.root = null;
-    this.controlElement = null;
-    this.labelEntry = null;
-    this.descriptionIds.clear();
-    this.errorIds.clear();
-    this.lastPublishedStateKey = null;
-  }
-
-  override reconnected() {}
-
-  registerControl(element: HTMLElement | null) {
-    if (element == null) {
-      return;
-    }
-
-    this.controlElement = element;
-    this.captureInitialValue();
-    this.scheduleDomSync();
-  }
-
-  unregisterControl(element: HTMLElement | null) {
-    if (this.controlElement === element) {
-      this.controlElement = null;
-      this.scheduleDomSync();
+    if (name === 'validation-mode') {
+      this.validationMode = this.getAttribute('validation-mode') as 'onSubmit' | 'onBlur' | 'onChange' | undefined ?? undefined;
     }
   }
 
-  registerDescription(id: string) {
-    this.descriptionIds.add(id);
-    this.scheduleDomSync();
-  }
-
-  unregisterDescription(id: string) {
-    if (this.descriptionIds.delete(id)) {
-      this.scheduleDomSync();
-    }
-  }
-
-  registerError(id: string, rendered: boolean) {
-    this.errorIds.set(id, rendered);
-    this.scheduleDomSync();
-  }
-
-  unregisterError(id: string) {
-    if (this.errorIds.delete(id)) {
-      this.scheduleDomSync();
-    }
-  }
-
-  setErrorRendered(id: string, rendered: boolean) {
-    if (this.errorIds.get(id) === rendered) {
-      return;
-    }
-
-    this.errorIds.set(id, rendered);
-    this.scheduleDomSync();
-  }
-
-  registerLabel(element: HTMLElement | null, nativeLabel: boolean) {
-    this.labelEntry = {
-      element,
-      nativeLabel,
-    };
-    this.scheduleDomSync();
-  }
-
-  clearLabel(element: HTMLElement | null) {
-    if (this.labelEntry?.element === element) {
-      this.labelEntry = null;
-      this.scheduleDomSync();
-    }
-  }
-
-  getControlTargets() {
-    if (this.root == null) {
-      return {
-        focusTarget: null,
-        labelTarget: null,
-        validityTarget: null,
-      };
-    }
-
-    if (this.controlElement != null && this.root.contains(this.controlElement)) {
-      return {
-        focusTarget: this.controlElement,
-        labelTarget: isLabelableElement(this.controlElement) ? this.controlElement : null,
-        validityTarget: isInputLikeElement(this.controlElement) ? this.controlElement : null,
-      };
-    }
-
-    return getNearestLabelableControl(this.root);
-  }
+  // ─── FieldRuntime implementation ───────────────────────────────────────────
 
   getFieldState(): FieldRootState {
-    const invalid = this.getInvalid();
-    const disabled = this.getDisabled();
-    const dirty = this.latestProps?.dirty ?? this.dirtyState;
-    const touched = this.latestProps?.touched ?? this.touchedState;
-    const combined = getCombinedFieldValidityData(this.validityData, invalid);
-
+    const disabled = this.disabled || this._getFieldsetContext()?.disabled === true;
     return {
       disabled,
-      dirty,
-      filled: this.filled,
-      focused: this.focused,
-      touched,
-      valid: combined.state.valid,
+      dirty: this._dirty,
+      filled: this._filled,
+      focused: this._focused,
+      touched: this._touched,
+      valid: this._validityData.state.valid,
     };
   }
 
   getValidityState(): FieldValidityState {
-    const combined = getCombinedFieldValidityData(this.validityData, this.getInvalid());
-
     return {
-      ...combined,
-      validity: combined.state,
+      ...this._validityData,
+      validity: this._validityData.state,
       transitionStatus: undefined,
     };
   }
 
-  getValidationData() {
-    return this.validityData;
+  getValidationData(): FieldValidityData {
+    return this._validityData;
   }
 
-  handleControlFocus() {
-    if (this.focused) {
-      return;
-    }
-
-    this.focused = true;
-    this.publishStateChange();
-  }
-
-  handleControlBlur(element: InputLikeElement) {
-    const touchedChanged = !(this.latestProps?.touched ?? false) || !this.touchedState;
-    this.focused = false;
-
-    if (this.latestProps?.touched === undefined) {
-      this.touchedState = true;
-    }
-
-    if (touchedChanged) {
-      this.publishStateChange();
-    }
-
-    if (this.getValidationMode() === 'onBlur') {
-      void this.commit(getElementValue(element));
-    }
-  }
-
-  handleControlInput(element: InputLikeElement, currentValue: unknown, nativeEvent: Event) {
-    this.captureInitialValue();
-    this.updateFieldValueState(element, currentValue);
-    this.formRuntime?.clearErrors(this.getFieldName());
-
-    const shouldValidateOnChange = this.shouldValidateOnChange();
-
-    if (!shouldValidateOnChange) {
-      if (this.getFieldState().valid === false) {
-        void this.commit(currentValue, true);
-      }
-      return;
-    }
-
-    if (this.validationDebounceTime() > 0 && currentValue !== '') {
-      this.clearValidationTimer();
-      this.validationTimer = window.setTimeout(() => {
-        this.validationTimer = null;
-        void this.commit(currentValue);
-      }, this.validationDebounceTime());
-      return;
-    }
-
-    void this.commit(currentValue);
-    void nativeEvent;
-  }
-
-  handleControlKeyDown(element: InputLikeElement, key: string) {
-    if (element instanceof HTMLInputElement && key === 'Enter') {
-      if (this.latestProps?.touched === undefined) {
-        this.touchedState = true;
-      }
-      this.publishStateChange();
-      void this.commit(getElementValue(element));
-    }
-  }
-
-  syncAssociations() {
-    if (this.root == null) {
-      return;
-    }
-
-    this.syncDisabledCapture();
-    this.captureInitialValue();
-
-    const { focusTarget, labelTarget } = this.getControlTargets();
-    const messageIds = this.getMessageIds();
-
-    if (focusTarget != null) {
-      if (messageIds.length > 0) {
-        focusTarget.setAttribute('aria-describedby', messageIds.join(' '));
-      } else {
-        focusTarget.removeAttribute('aria-describedby');
-      }
-    }
-
-    if (this.labelEntry?.element != null && focusTarget != null) {
-      const labelId = ensureElementId(this.labelEntry.element, 'base-ui-field-label');
-
-      if (this.labelEntry.nativeLabel && this.labelEntry.element instanceof HTMLLabelElement) {
-        const controlId = ensureElementId(labelTarget, 'base-ui-field-control');
-
-        if (controlId != null) {
-          this.labelEntry.element.htmlFor = controlId;
-        }
-
-        focusTarget.removeAttribute('aria-labelledby');
-      } else {
-        if (this.labelEntry.element instanceof HTMLLabelElement) {
-          this.labelEntry.element.htmlFor = '';
-        }
-
-        if (labelId != null) {
-          focusTarget.setAttribute('aria-labelledby', labelId);
-        } else {
-          focusTarget.removeAttribute('aria-labelledby');
-        }
-      }
-
-      return;
-    }
-
-    if (this.labelEntry?.element instanceof HTMLLabelElement) {
-      this.labelEntry.element.htmlFor = '';
-    }
-  }
-
-  private renderCurrent() {
-    if (this.latestProps == null) {
-      return nothing;
-    }
-
-    const {
-      actionsRef: _actionsRef,
-      children,
-      className,
-      defaultValue: _defaultValue,
-      dirty: _dirty,
-      disabled: _disabled,
-      invalid: _invalid,
-      name: _name,
-      touched: _touched,
-      validate: _validate,
-      validationDebounceTime: _validationDebounceTime,
-      validationMode: _validationMode,
-      render,
-      ...elementProps
-    } = this.latestProps;
-    void className;
-    void _defaultValue;
-    void _dirty;
-    void _disabled;
-    void _invalid;
-    void _name;
-    void _touched;
-    void _validate;
-    void _validationDebounceTime;
-    void _validationMode;
-
-    const state = this.getFieldState();
-    const rootProps = mergeProps<HTMLDivElement>(
-      {
-        [FIELD_ROOT_ATTRIBUTE]: '',
-        onFocusIn: (event: FocusEvent) => {
-          if (this.controlElement != null) {
-            return;
-          }
-
-          const targets = this.getControlTargets();
-          if (event.target === targets.focusTarget && !this.focused) {
-            this.focused = true;
-            this.publishStateChange();
-          }
-        },
-        onFocusOut: (event: FocusEvent) => {
-          if (this.controlElement != null) {
-            return;
-          }
-
-          if (this.root?.contains(event.relatedTarget as Node | null)) {
-            return;
-          }
-
-          const targets = this.getControlTargets();
-          if (event.target === targets.focusTarget) {
-            this.focused = false;
-            if (this.latestProps?.touched === undefined) {
-              this.touchedState = true;
-            }
-            this.publishStateChange();
-
-            if (targets.validityTarget != null && this.latestProps?.validationMode === 'onBlur') {
-              void this.commit(getElementValue(targets.validityTarget));
-            }
-          }
-        },
-        onInput: (event: InputEvent | Event) => {
-          if (this.controlElement != null) {
-            return;
-          }
-
-          const targets = this.getControlTargets();
-          if (event.target === targets.validityTarget && targets.validityTarget != null) {
-            this.handleControlInput(
-              targets.validityTarget,
-              getElementValue(targets.validityTarget),
-              event,
-            );
-          }
-        },
-        onChange: (event: Event) => {
-          if (this.controlElement != null) {
-            return;
-          }
-
-          const targets = this.getControlTargets();
-          if (event.target === targets.validityTarget && targets.validityTarget != null) {
-            this.handleControlInput(
-              targets.validityTarget,
-              getElementValue(targets.validityTarget),
-              event,
-            );
-          }
-        },
-        onKeyDown: (event: KeyboardEvent) => {
-          if (this.controlElement != null) {
-            return;
-          }
-
-          const targets = this.getControlTargets();
-          if (event.target === targets.validityTarget && targets.validityTarget != null) {
-            this.handleControlKeyDown(targets.validityTarget, event.key);
-          }
-        },
-      },
-      (children === undefined ? elementProps : { ...elementProps, children }) as Parameters<
-        typeof mergeProps<HTMLDivElement>
-      >[0],
-    );
-
-    return useRender<FieldRootState, HTMLDivElement>({
-      defaultTagName: 'div',
-      render,
-      ref: this.handleRootRef,
-      state,
-      stateAttributesMapping: createFieldStateAttributesMapping(),
-      props: rootProps,
-    });
-  }
-
-  private handleRootRef = (element: HTMLDivElement | null) => {
-    if (this.root === element) {
-      return;
-    }
-
-    setFieldRuntime(this.root, null);
-    this.teardownObserver();
-    this.detachForm();
-    this.syncFieldsetRoot(null);
-    this.disabledCaptureCleanup?.();
-    this.disabledCaptureCleanup = null;
-
-    this.root = element;
-
-    if (element == null) {
-      return;
-    }
-
-    setFieldRuntime(element, this);
-    this.setupObserver(element);
-    const fieldsetRoot = getClosestFieldsetRoot(element);
-    this.syncFieldsetRoot(fieldsetRoot);
-    if (fieldsetRoot != null) {
-      queueMicrotask(() => {
-        this.requestComponentUpdate();
-      });
-    }
-    this.syncFormOwner();
-    this.syncDisabledCapture();
-    this.scheduleDomSync();
-  };
-
-  private setupObserver(element: HTMLElement) {
-    this.observer = new MutationObserver(() => {
-      this.scheduleDomSync();
-    });
-
-    this.observer.observe(element, {
-      attributes: true,
-      childList: true,
-      subtree: true,
-      attributeFilter: ['id', 'aria-hidden'],
-    });
-  }
-
-  private teardownObserver() {
-    this.observer?.disconnect();
-    this.observer = null;
-  }
-
-  private shouldValidateOnChange() {
-    const validationMode = this.getValidationMode();
-    return validationMode === 'onChange' || (validationMode === 'onSubmit' && this.submitAttempted);
-  }
-
-  private validationDebounceTime() {
-    return this.latestProps?.validationDebounceTime ?? 0;
-  }
-
-  private clearValidationTimer() {
-    if (this.validationTimer != null) {
-      window.clearTimeout(this.validationTimer);
-      this.validationTimer = null;
-    }
-  }
-
-  private getDisabled() {
-    return Boolean(this.latestProps?.disabled) || this.getFieldsetContext()?.disabled === true;
-  }
-
-  private getValidationMode() {
-    return this.latestProps?.validationMode ?? this.formRuntime?.getValidationMode() ?? 'onSubmit';
-  }
-
-  private getFieldName() {
-    const { validityTarget } = this.getControlTargets();
-    return this.latestProps?.name ?? validityTarget?.name ?? undefined;
-  }
-
-  getFormError() {
-    const name = this.getFieldName();
-
-    if (name == null) {
-      return null;
-    }
-
-    const errors = this.formRuntime?.getErrors();
+  getFormError(): string | string[] | null {
+    const name = this.name ?? this.getControlTargets().validityTarget?.name ?? undefined;
+    if (name == null) return null;
+    const errors = this._formRuntime?.getErrors();
     return errors != null && Object.hasOwn(errors, name) ? errors[name] : null;
   }
 
-  private getInvalid() {
-    return this.latestProps?.invalid === true || this.getFormError() != null;
-  }
-
-  private getFieldsetContext() {
-    if (this.fieldsetRoot == null) {
-      return null;
+  getControlTargets() {
+    if (this._controlElement != null && this.contains(this._controlElement)) {
+      return {
+        focusTarget: this._controlElement,
+        validityTarget: isInputLikeElement(this._controlElement)
+          ? this._controlElement
+          : this._controlElement.querySelector('input, textarea, select') as InputLikeElement | null,
+      };
     }
 
-    return getFieldsetContextFromElement(this.fieldsetRoot);
+    // Auto-detect the first input-like element inside the root
+    const input = this.querySelector(
+      'input:not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([aria-hidden="true"]), textarea, select',
+    ) as InputLikeElement | null;
+
+    return {
+      focusTarget: input as HTMLElement | null,
+      validityTarget: input,
+    };
   }
 
-  private syncFieldsetRoot(element: Element | null) {
-    if (this.fieldsetRoot === element) {
+  registerControl(element: HTMLElement | null) {
+    if (element == null) return;
+    this._controlElement = element;
+    this._captureInitialValue();
+    this._scheduleDomSync();
+  }
+
+  unregisterControl(element: HTMLElement | null) {
+    if (this._controlElement === element) {
+      this._controlElement = null;
+      this._scheduleDomSync();
+    }
+  }
+
+  registerLabel(id: string) {
+    this._labelIds.add(id);
+    this._scheduleDomSync();
+  }
+
+  unregisterLabel(id: string) {
+    if (this._labelIds.delete(id)) {
+      this._scheduleDomSync();
+    }
+  }
+
+  registerDescription(id: string) {
+    this._descriptionIds.add(id);
+    this._scheduleDomSync();
+  }
+
+  unregisterDescription(id: string) {
+    if (this._descriptionIds.delete(id)) {
+      this._scheduleDomSync();
+    }
+  }
+
+  registerError(id: string, rendered: boolean) {
+    this._errorIds.set(id, rendered);
+    this._scheduleDomSync();
+  }
+
+  unregisterError(id: string) {
+    if (this._errorIds.delete(id)) {
+      this._scheduleDomSync();
+    }
+  }
+
+  setErrorRendered(id: string, rendered: boolean) {
+    if (this._errorIds.get(id) === rendered) return;
+    this._errorIds.set(id, rendered);
+    this._scheduleDomSync();
+  }
+
+  handleControlFocus() {
+    if (this._focused) return;
+    this._focused = true;
+    this._publishStateChange();
+  }
+
+  handleControlBlur(element: InputLikeElement) {
+    this._focused = false;
+    this._touched = true;
+    this._publishStateChange();
+
+    if (this._getValidationMode() === 'onBlur') {
+      void this._commit(getElementValue(element));
+    }
+  }
+
+  handleControlInput(element: InputLikeElement, currentValue: unknown, _nativeEvent: Event) {
+    this._captureInitialValue();
+    this._updateFieldValueState(element, currentValue);
+    this._formRuntime?.clearErrors(this.name);
+
+    const shouldValidateOnChange = this._shouldValidateOnChange();
+
+    if (!shouldValidateOnChange) {
+      if (this.getFieldState().valid === false) {
+        void this._commit(currentValue, true);
+      }
       return;
     }
 
-    this.fieldsetRoot?.removeEventListener(
-      FIELDSET_STATE_CHANGE_EVENT,
-      this.handleFieldsetStateChange,
-    );
-    this.fieldsetRoot = element;
-    this.fieldsetRoot?.addEventListener(
-      FIELDSET_STATE_CHANGE_EVENT,
-      this.handleFieldsetStateChange,
-    );
+    void this._commit(currentValue);
   }
 
-  private handleFieldsetStateChange = () => {
-    this.syncDisabledCapture();
-    this.requestComponentUpdate();
-    this.scheduleDomSync();
-  };
+  syncAssociations() {
+    const { focusTarget } = this.getControlTargets();
+    if (focusTarget == null) return;
 
-  private requestComponentUpdate() {
-    try {
-      this.setValue(this.renderCurrent());
-    } catch (error) {
-      if (isDetachedChildPartError(error)) {
-        return;
+    const messageIds = this._getMessageIds();
+    if (messageIds.length > 0) {
+      focusTarget.setAttribute('aria-describedby', messageIds.join(' '));
+    } else {
+      focusTarget.removeAttribute('aria-describedby');
+    }
+
+    // Ensure control has an ID for label association
+    ensureId(focusTarget, 'base-ui-field-control');
+
+    // Wire up label association
+    for (const labelId of this._labelIds) {
+      const labelEl = this.querySelector(`#${CSS.escape(labelId)}`);
+      if (labelEl instanceof HTMLLabelElement) {
+        labelEl.htmlFor = focusTarget.id;
       }
-
-      throw error;
     }
   }
 
-  private getMessageIds() {
-    return Array.from(this.descriptionIds).concat(
-      Array.from(this.errorIds.entries())
+  // ─── Private methods ──────────────────────────────────────────────────────
+
+  private _handleFocusIn = (event: FocusEvent) => {
+    const { focusTarget } = this.getControlTargets();
+    if (event.target === focusTarget && !this._focused) {
+      this._focused = true;
+      this._publishStateChange();
+    }
+  };
+
+  private _handleFocusOut = (event: FocusEvent) => {
+    if (this.contains(event.relatedTarget as Node | null)) return;
+
+    const { focusTarget, validityTarget } = this.getControlTargets();
+    if (event.target === focusTarget) {
+      this._focused = false;
+      this._touched = true;
+      this._publishStateChange();
+
+      if (validityTarget != null && this._getValidationMode() === 'onBlur') {
+        void this._commit(getElementValue(validityTarget));
+      }
+    }
+  };
+
+  private _handleInput = (event: Event) => {
+    const { validityTarget } = this.getControlTargets();
+    if (event.target === validityTarget && validityTarget != null) {
+      this.handleControlInput(validityTarget, getElementValue(validityTarget), event);
+    }
+  };
+
+  private _handleChange = (event: Event) => {
+    const { validityTarget } = this.getControlTargets();
+    if (event.target === validityTarget && validityTarget != null) {
+      this.handleControlInput(validityTarget, getElementValue(validityTarget), event);
+    }
+  };
+
+  private _handleKeyDown = (event: KeyboardEvent) => {
+    const { validityTarget } = this.getControlTargets();
+    if (
+      event.target === validityTarget &&
+      validityTarget instanceof HTMLInputElement &&
+      event.key === 'Enter'
+    ) {
+      this._touched = true;
+      this._publishStateChange();
+      void this._commit(getElementValue(validityTarget));
+    }
+  };
+
+  private _getMessageIds() {
+    return Array.from(this._descriptionIds).concat(
+      Array.from(this._errorIds.entries())
         .filter(([, rendered]) => rendered)
         .map(([id]) => id),
     );
   }
 
-  private publishStateChange() {
-    if (this.root == null) {
-      return;
+  private _syncStateAttributes() {
+    const state = this.getFieldState();
+    this.toggleAttribute('data-disabled', state.disabled);
+    this.toggleAttribute('data-touched', state.touched);
+    this.toggleAttribute('data-dirty', state.dirty);
+    this.toggleAttribute('data-focused', state.focused);
+    this.toggleAttribute('data-filled', state.filled);
+
+    if (state.valid === true) {
+      this.setAttribute('data-valid', '');
+      this.removeAttribute('data-invalid');
+    } else if (state.valid === false) {
+      this.removeAttribute('data-valid');
+      this.setAttribute('data-invalid', '');
+    } else {
+      this.removeAttribute('data-valid');
+      this.removeAttribute('data-invalid');
     }
+  }
+
+  private _publishStateChange() {
+    this._syncStateAttributes();
 
     const nextStateKey = JSON.stringify({
-      descriptions: Array.from(this.descriptionIds),
-      errors: Array.from(this.errorIds.entries()),
+      descriptions: Array.from(this._descriptionIds),
+      errors: Array.from(this._errorIds.entries()),
       fieldState: this.getFieldState(),
-      label: this.labelEntry?.element?.id ?? null,
       validity: this.getValidityState(),
     });
 
-    if (nextStateKey === this.lastPublishedStateKey) {
-      return;
-    }
+    if (nextStateKey === this._lastPublishedStateKey) return;
 
-    this.lastPublishedStateKey = nextStateKey;
-    this.root.dispatchEvent(new CustomEvent(FIELD_STATE_CHANGE_EVENT));
+    this._lastPublishedStateKey = nextStateKey;
+    this.dispatchEvent(new CustomEvent(FIELD_STATE_CHANGE_EVENT));
   }
 
-  private scheduleDomSync() {
-    if (this.domSyncQueued) {
-      return;
-    }
-
-    this.domSyncQueued = true;
+  private _scheduleDomSync() {
+    if (this._domSyncQueued) return;
+    this._domSyncQueued = true;
     queueMicrotask(() => {
-      this.domSyncQueued = false;
-      this.syncFormOwner();
-      this.syncFormRegistration();
+      this._domSyncQueued = false;
+      this._syncFormOwner();
+      this._syncFormRegistration();
       this.syncAssociations();
-      this.publishStateChange();
+      this._publishStateChange();
     });
   }
 
-  private captureInitialValue() {
-    if (this.validityData.initialValue !== null) {
-      return;
-    }
-
+  private _captureInitialValue() {
+    if (this._validityData.initialValue !== null) return;
     const { validityTarget } = this.getControlTargets();
     const initialValue = getElementValue(validityTarget);
-
     if (initialValue !== null) {
-      this.validityData = {
-        ...this.validityData,
-        initialValue,
-      };
+      this._validityData = { ...this._validityData, initialValue };
     }
   }
 
-  private updateFieldValueState(element: InputLikeElement, currentValue: unknown) {
-    const initialValue = this.validityData.initialValue;
-
-    if (this.latestProps?.dirty === undefined) {
-      this.dirtyState = currentValue !== initialValue;
-    }
-
-    this.markedDirty = this.markedDirty || currentValue !== initialValue;
-    this.filled = isElementFilled(element);
-    this.validityData = {
-      ...this.validityData,
+  private _updateFieldValueState(element: InputLikeElement, currentValue: unknown) {
+    const initialValue = this._validityData.initialValue;
+    this._dirty = currentValue !== initialValue;
+    this._markedDirty = this._markedDirty || currentValue !== initialValue;
+    this._filled = isElementFilled(element);
+    this._validityData = {
+      ...this._validityData,
       value: currentValue,
       state: readValidityState(element),
     };
-
-    this.publishStateChange();
+    this._publishStateChange();
   }
 
-  private getFormValues() {
-    if (this.formRuntime != null) {
-      return this.formRuntime.getFormValues();
+  private _shouldValidateOnChange() {
+    const mode = this._getValidationMode();
+    return mode === 'onChange' || (mode === 'onSubmit' && this._submitAttempted);
+  }
+
+  private _getValidationMode() {
+    return this.validationMode ?? this._formRuntime?.getValidationMode() ?? 'onSubmit';
+  }
+
+  private _getFieldsetContext() {
+    if (this._fieldsetRoot == null) return null;
+    return getFieldsetContextFromElement(this._fieldsetRoot);
+  }
+
+  private _syncFieldsetRoot(element: Element | null) {
+    if (this._fieldsetRoot === element) return;
+    this._fieldsetRoot?.removeEventListener(
+      FIELDSET_STATE_CHANGE_EVENT,
+      this._handleFieldsetStateChange,
+    );
+    this._fieldsetRoot = element;
+    this._fieldsetRoot?.addEventListener(
+      FIELDSET_STATE_CHANGE_EVENT,
+      this._handleFieldsetStateChange,
+    );
+  }
+
+  private _handleFieldsetStateChange = () => {
+    this._syncDisabledCapture();
+    this._syncStateAttributes();
+    this._publishStateChange();
+  };
+
+  private _syncFormOwner() {
+    const { validityTarget } = this.getControlTargets();
+    const nextForm = validityTarget?.form ?? this.closest('form') ?? null;
+    const nextFormRuntime = getFormRuntimeOrNull(nextForm);
+
+    if (this._form === nextForm && this._formRuntime === nextFormRuntime) return;
+
+    this._detachForm();
+    this._form = nextForm;
+    this._formRuntime = nextFormRuntime;
+
+    if (this._formRuntime == null) {
+      this._form?.addEventListener('submit', this._handleFormSubmit);
+      return;
     }
 
-    const form = this.form;
+    this._form?.addEventListener(FORM_STATE_CHANGE_EVENT, this._handleFormStateChange);
+  }
 
-    if (form == null) {
-      return {};
+  private _detachForm() {
+    this._form?.removeEventListener('submit', this._handleFormSubmit);
+    this._form?.removeEventListener(FORM_STATE_CHANGE_EVENT, this._handleFormStateChange);
+    if (this._formRuntime != null) {
+      this._formRuntime.unregisterField(this);
+    }
+    this._formRuntime = null;
+    this._form = null;
+  }
+
+  private _handleFormSubmit = () => {
+    this._submitAttempted = true;
+    this._markedDirty = true;
+    const { validityTarget } = this.getControlTargets();
+    void this._commit(getElementValue(validityTarget));
+  };
+
+  private _handleFormStateChange = () => {
+    // Force re-publish so field-error can pick up changed form errors
+    this._lastPublishedStateKey = null;
+    this._publishStateChange();
+  };
+
+  private _syncFormRegistration() {
+    if (this._formRuntime == null) return;
+
+    const entry: FormFieldEntry = {
+      name: this.name ?? this.getControlTargets().validityTarget?.name ?? undefined,
+      getControl: () => this.getControlTargets().focusTarget,
+      getValue: () => getElementValue(this.getControlTargets().validityTarget),
+      getValidityData: () => this._validityData,
+      validate: (submitAttempted = true) => this._validateCurrentControl(submitAttempted),
+    };
+
+    this._formRuntime.registerField(this, entry);
+  }
+
+  private _syncDisabledCapture() {
+    this._disabledCaptureCleanup?.();
+    this._disabledCaptureCleanup = null;
+
+    if (!this.getFieldState().disabled) return;
+
+    const stopInteraction = (event: Event) => {
+      if (event.target === this) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+    };
+
+    const events: Array<keyof HTMLElementEventMap> = ['click', 'change', 'input', 'keydown', 'keyup'];
+    events.forEach((eventName) => {
+      this.addEventListener(eventName, stopInteraction, true);
+    });
+
+    this._disabledCaptureCleanup = () => {
+      events.forEach((eventName) => {
+        this.removeEventListener(eventName, stopInteraction, true);
+      });
+    };
+  }
+
+  private async _commit(value: unknown, revalidate = false) {
+    const { validityTarget } = this.getControlTargets();
+    if (validityTarget == null) return;
+
+    if (revalidate && this.getFieldState().valid !== false) return;
+
+    let nextState = readValidityState(validityTarget);
+
+    if (revalidate) {
+      if (!nextState.valueMissing) {
+        validityTarget.setCustomValidity('');
+        this._validityData = {
+          value,
+          state: { ...DEFAULT_VALIDITY_STATE, valid: true },
+          error: '',
+          errors: [],
+          initialValue: this._validityData.initialValue,
+        };
+        this._publishStateChange();
+        return;
+      }
+      if (!nextState.valid && !hasOnlyValueMissing(nextState)) return;
     }
 
+    if (nextState.valueMissing && !this._markedDirty) {
+      nextState = { ...nextState, valid: true, valueMissing: false };
+    }
+
+    let result: string | string[] | null = null;
+    let validationErrors: string[] = [];
+    let defaultValidationMessage = '';
+    const validateOnChange = this._shouldValidateOnChange();
+
+    if (validityTarget.validationMessage && !validateOnChange) {
+      defaultValidationMessage = validityTarget.validationMessage;
+      validationErrors = [validityTarget.validationMessage];
+    } else {
+      const validateFn = this.validate ?? (() => null);
+      const formValues = this._getFormValues();
+      const resultOrPromise = validateFn(value, formValues);
+
+      result =
+        typeof resultOrPromise === 'object' && resultOrPromise !== null && 'then' in resultOrPromise
+          ? await resultOrPromise
+          : resultOrPromise;
+
+      if (result !== null) {
+        nextState = { ...nextState, valid: false, customError: true };
+        if (Array.isArray(result)) {
+          validationErrors = result;
+          validityTarget.setCustomValidity(result.join('\n'));
+        } else if (result) {
+          validationErrors = [result];
+          validityTarget.setCustomValidity(result);
+        }
+      } else if (validateOnChange) {
+        validityTarget.setCustomValidity('');
+        nextState = { ...nextState, customError: false };
+        if (validityTarget.validationMessage) {
+          defaultValidationMessage = validityTarget.validationMessage;
+          validationErrors = [validityTarget.validationMessage];
+        } else if (validityTarget.validity.valid && nextState.valid === false) {
+          nextState = { ...nextState, valid: true };
+        }
+      } else {
+        validityTarget.setCustomValidity('');
+      }
+    }
+
+    this._validityData = {
+      value,
+      state: nextState,
+      error: defaultValidationMessage || (Array.isArray(result) ? (result[0] ?? '') : (result ?? '')),
+      errors: validationErrors,
+      initialValue: this._validityData.initialValue,
+    };
+
+    this._publishStateChange();
+  }
+
+  private _validateCurrentControl(submitAttempted = true) {
+    this._markedDirty = true;
+    if (submitAttempted) this._submitAttempted = true;
+    const { validityTarget } = this.getControlTargets();
+    void this._commit(getElementValue(validityTarget));
+  }
+
+  private _getFormValues(): Record<string, unknown> {
+    if (this._formRuntime != null) return this._formRuntime.getFormValues();
+    const form = this._form;
+    if (form == null) return {};
     const formData = new FormData(form);
     const result: Record<string, unknown> = {};
-
     formData.forEach((value, key) => {
       if (Object.hasOwn(result, key)) {
         const currentValue = result[key];
@@ -1131,1208 +800,385 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
         result[key] = value;
       }
     });
-
     return result;
   }
+}
 
-  private async commit(value: unknown, revalidate = false) {
-    const { validityTarget } = this.getControlTargets();
+if (!customElements.get('field-root')) {
+  customElements.define('field-root', FieldRootElement);
+}
 
-    if (validityTarget == null) {
-      return;
+// ─── FieldControlElement ─────────────────────────────────────────────────────────
+
+/**
+ * The form control for the field.
+ * Renders a `<field-control>` custom element with an `<input>` inside.
+ *
+ * Documentation: [Base UI Field](https://base-ui.com/react/components/field)
+ */
+export class FieldControlElement extends BaseHTMLElement {
+  private _root: FieldRootElement | null = null;
+  private _input: HTMLInputElement | null = null;
+  private _handler = () => this._syncAttributes();
+
+  connectedCallback() {
+    this.style.display = 'contents';
+    this._root = this.closest('field-root') as FieldRootElement | null;
+
+    // Create input if not already present
+    if (!this._input) {
+      this._input = document.createElement('input');
+      this._input.type = 'text';
+      this.appendChild(this._input);
     }
 
-    if (revalidate && this.getFieldState().valid !== false) {
-      return;
+    if (this._root) {
+      this._root.registerControl(this._input);
+      this._root.addEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
     }
 
-    let nextState = readValidityState(validityTarget);
+    queueMicrotask(() => this._syncAttributes());
+  }
 
-    if (revalidate) {
-      if (!nextState.valueMissing) {
-        const nextValidityData = {
-          value,
-          state: { ...DEFAULT_VALIDITY_STATE, valid: true },
-          error: '',
-          errors: [],
-          initialValue: this.validityData.initialValue,
-        };
-
-        validityTarget.setCustomValidity('');
-        this.validityData = nextValidityData;
-        this.publishStateChange();
-        return;
-      }
-
-      if (!nextState.valid && !hasOnlyValueMissing(nextState)) {
-        return;
-      }
+  disconnectedCallback() {
+    if (this._root) {
+      this._root.unregisterControl(this._input);
+      this._root.removeEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
     }
+    this._root = null;
+  }
 
-    if (nextState.valueMissing && !this.markedDirty) {
-      nextState = {
-        ...nextState,
-        valid: true,
-        valueMissing: false,
-      };
-    }
+  private _syncAttributes() {
+    if (!this._root || !this._input) return;
+    const state = this._root.getFieldState();
 
-    let result: string | string[] | null = null;
-    let validationErrors: string[] = [];
-    let defaultValidationMessage = '';
-    const validateOnChange = this.shouldValidateOnChange();
+    this._input.disabled = state.disabled;
 
-    if (validityTarget.validationMessage && !validateOnChange) {
-      defaultValidationMessage = validityTarget.validationMessage;
-      validationErrors = [validityTarget.validationMessage];
+    if (state.valid === false) {
+      this._input.setAttribute('aria-invalid', 'true');
     } else {
-      const validate = this.latestProps?.validate ?? (() => null);
-      const resultOrPromise = validate(value, this.getFormValues());
+      this._input.removeAttribute('aria-invalid');
+    }
+  }
+}
 
-      result =
-        typeof resultOrPromise === 'object' && resultOrPromise !== null && 'then' in resultOrPromise
-          ? await resultOrPromise
-          : resultOrPromise;
+if (!customElements.get('field-control')) {
+  customElements.define('field-control', FieldControlElement);
+}
 
-      if (result !== null) {
-        nextState = {
-          ...nextState,
-          valid: false,
-          customError: true,
-        };
+// ─── FieldLabelElement ───────────────────────────────────────────────────────────
 
-        if (Array.isArray(result)) {
-          validationErrors = result;
-          validityTarget.setCustomValidity(result.join('\n'));
-        } else if (result) {
-          validationErrors = [result];
-          validityTarget.setCustomValidity(result);
+/**
+ * An accessible label that is automatically associated with the field control.
+ * Renders a `<field-label>` custom element.
+ *
+ * Documentation: [Base UI Field](https://base-ui.com/react/components/field)
+ */
+export class FieldLabelElement extends BaseHTMLElement {
+  private _root: FieldRootElement | null = null;
+  private _handler = () => this._syncAttributes();
+
+  connectedCallback() {
+    this._root = this.closest('field-root') as FieldRootElement | null;
+
+    ensureId(this, 'base-ui-field-label');
+
+    if (this._root) {
+      this._root.registerLabel(this.id);
+      this._root.addEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
+    }
+
+    // Click handler: focus the control when label is clicked
+    this.addEventListener('click', this._handleClick);
+
+    queueMicrotask(() => this._syncAttributes());
+  }
+
+  disconnectedCallback() {
+    if (this._root) {
+      this._root.unregisterLabel(this.id);
+      this._root.removeEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
+    }
+    this.removeEventListener('click', this._handleClick);
+    this._root = null;
+  }
+
+  private _handleClick = () => {
+    if (!this._root) return;
+    const { focusTarget } = this._root.getControlTargets();
+    focusTarget?.focus();
+  };
+
+  private _syncAttributes() {
+    if (!this._root) return;
+    const state = this._root.getFieldState();
+    this.toggleAttribute('data-disabled', state.disabled);
+  }
+}
+
+if (!customElements.get('field-label')) {
+  customElements.define('field-label', FieldLabelElement);
+}
+
+// ─── FieldDescriptionElement ─────────────────────────────────────────────────────
+
+/**
+ * A paragraph with additional information about the field.
+ * Renders a `<field-description>` custom element.
+ *
+ * Documentation: [Base UI Field](https://base-ui.com/react/components/field)
+ */
+export class FieldDescriptionElement extends BaseHTMLElement {
+  private _root: FieldRootElement | null = null;
+
+  connectedCallback() {
+    this._root = this.closest('field-root') as FieldRootElement | null;
+
+    ensureId(this, 'base-ui-field-description');
+
+    if (this._root) {
+      this._root.registerDescription(this.id);
+    }
+  }
+
+  disconnectedCallback() {
+    if (this._root) {
+      this._root.unregisterDescription(this.id);
+    }
+    this._root = null;
+  }
+}
+
+if (!customElements.get('field-description')) {
+  customElements.define('field-description', FieldDescriptionElement);
+}
+
+// ─── FieldErrorElement ───────────────────────────────────────────────────────────
+
+/**
+ * An error message displayed if the field control fails validation.
+ * Renders a `<field-error>` custom element.
+ *
+ * Documentation: [Base UI Field](https://base-ui.com/react/components/field)
+ */
+export class FieldErrorElement extends BaseHTMLElement {
+  private _root: FieldRootElement | null = null;
+  private _handler = () => this._syncVisibility();
+  private _syncing = false;
+
+  connectedCallback() {
+    this._root = this.closest('field-root') as FieldRootElement | null;
+
+    ensureId(this, 'base-ui-field-error');
+
+    if (this._root) {
+      this._root.registerError(this.id, false);
+      this._root.addEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
+    }
+
+    queueMicrotask(() => this._syncVisibility());
+  }
+
+  disconnectedCallback() {
+    if (this._root) {
+      this._root.unregisterError(this.id);
+      this._root.removeEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
+    }
+    this._root = null;
+  }
+
+  private _syncVisibility() {
+    if (!this._root || this._syncing) return;
+    this._syncing = true;
+
+    try {
+      const validityData = this._root.getValidationData();
+      const formError = this._root.getFormError();
+
+      const shouldShow = formError != null || validityData.state.valid === false;
+
+      if (shouldShow) {
+        this.removeAttribute('hidden');
+        this.style.display = '';
+
+        // Set content from error messages
+        const content = formError != null
+          ? (Array.isArray(formError) ? formError.join(', ') : formError)
+          : validityData.errors.length > 0
+            ? validityData.errors.join(', ')
+            : validityData.error;
+
+        if (content && !this.hasChildNodes()) {
+          this.textContent = content;
+        } else if (content && this.childNodes.length === 1 && this.firstChild?.nodeType === Node.TEXT_NODE) {
+          this.textContent = content;
         }
-      } else if (validateOnChange) {
-        validityTarget.setCustomValidity('');
-        nextState = {
-          ...nextState,
-          customError: false,
-        };
 
-        if (validityTarget.validationMessage) {
-          defaultValidationMessage = validityTarget.validationMessage;
-          validationErrors = [validityTarget.validationMessage];
-        } else if (validityTarget.validity.valid && nextState.valid === false) {
-          nextState = {
-            ...nextState,
-            valid: true,
-          };
-        }
+        this._root.setErrorRendered(this.id, true);
+        this.setAttribute('data-invalid', '');
       } else {
-        validityTarget.setCustomValidity('');
+        this.setAttribute('hidden', '');
+        this.style.display = 'none';
+        this._root.setErrorRendered(this.id, false);
+        this.removeAttribute('data-invalid');
       }
+    } finally {
+      this._syncing = false;
+    }
+  }
+}
+
+if (!customElements.get('field-error')) {
+  customElements.define('field-error', FieldErrorElement);
+}
+
+// ─── FieldValidityElement ────────────────────────────────────────────────────────
+
+/**
+ * Used to display a custom message based on the field's validity.
+ * Renders a `<field-validity>` custom element.
+ *
+ * Documentation: [Base UI Field](https://base-ui.com/react/components/field)
+ */
+export class FieldValidityElement extends BaseHTMLElement {
+  /** Render function that receives validity state. Set via `.renderValidity=${fn}`. */
+  renderValidity: ((state: FieldValidityState) => unknown) | undefined;
+
+  private _root: FieldRootElement | null = null;
+  private _handler = () => this._syncContent();
+
+  connectedCallback() {
+    this._root = this.closest('field-root') as FieldRootElement | null;
+
+    if (this._root) {
+      this._root.addEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
     }
 
-    this.validityData = {
-      value,
-      state: nextState,
-      error:
-        defaultValidationMessage || (Array.isArray(result) ? (result[0] ?? '') : (result ?? '')),
-      errors: validationErrors,
-      initialValue: this.validityData.initialValue,
-    };
-
-    this.publishStateChange();
+    queueMicrotask(() => this._syncContent());
   }
 
-  private validateCurrentControl(submitAttempted = true) {
-    this.markedDirty = true;
-    if (submitAttempted) {
-      this.submitAttempted = true;
+  disconnectedCallback() {
+    if (this._root) {
+      this._root.removeEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
     }
-    const { validityTarget } = this.getControlTargets();
-    void this.commit(getElementValue(validityTarget));
+    this._root = null;
   }
 
-  private syncFormOwner() {
-    const { validityTarget } = this.getControlTargets();
-    const nextForm = validityTarget?.form ?? this.root?.closest('form') ?? null;
-    const nextFormRuntime = getFormRuntimeOrNull(nextForm);
+  private _syncContent() {
+    if (!this._root || !this.renderValidity) return;
+    const validityState = this._root.getValidityState();
+    this.renderValidity(validityState);
+  }
+}
 
-    if (this.form === nextForm && this.formRuntime === nextFormRuntime) {
-      return;
-    }
+if (!customElements.get('field-validity')) {
+  customElements.define('field-validity', FieldValidityElement);
+}
 
-    this.detachForm();
-    this.form = nextForm;
-    this.formRuntime = nextFormRuntime;
+// ─── FieldItemElement ────────────────────────────────────────────────────────────
 
-    if (this.formRuntime == null) {
-      this.form?.addEventListener('submit', this.handleFormSubmit);
-      return;
-    }
-
-    this.form?.addEventListener(FORM_STATE_CHANGE_EVENT, this.handleFormStateChange);
+/**
+ * Groups individual items in a checkbox group or radio group.
+ * Renders a `<field-item>` custom element.
+ *
+ * Documentation: [Base UI Field](https://base-ui.com/react/components/field)
+ */
+export class FieldItemElement extends BaseHTMLElement {
+  static get observedAttributes() {
+    return ['disabled'];
   }
 
-  private detachForm() {
-    this.form?.removeEventListener('submit', this.handleFormSubmit);
-    this.form?.removeEventListener(FORM_STATE_CHANGE_EVENT, this.handleFormStateChange);
-    if (this.root != null && this.formRuntime != null) {
-      this.formRuntime.unregisterField(this.root);
-    }
-    this.formRuntime = null;
-    this.form = null;
+  disabled = false;
+
+  private _captureCleanup: (() => void) | null = null;
+
+  connectedCallback() {
+    this.disabled = this.hasAttribute('disabled');
+    this._syncDisabledCapture();
   }
 
-  private handleFormSubmit = () => {
-    this.submitAttempted = true;
-    this.markedDirty = true;
-    const { validityTarget } = this.getControlTargets();
-    void this.commit(getElementValue(validityTarget));
-  };
-
-  private handleFormStateChange = () => {
-    this.requestComponentUpdate();
-    this.publishStateChange();
-  };
-
-  private syncFormRegistration() {
-    if (this.root == null || this.formRuntime == null) {
-      return;
-    }
-
-    const entry: FormFieldEntry = {
-      name: this.getFieldName(),
-      getControl: () => this.getControlTargets().focusTarget,
-      getValue: () => getElementValue(this.getControlTargets().validityTarget),
-      getValidityData: () => getCombinedFieldValidityData(this.validityData, this.getInvalid()),
-      validate: (submitAttempted = true) => this.validateCurrentControl(submitAttempted),
-    };
-
-    this.formRuntime.registerField(this.root, entry);
+  disconnectedCallback() {
+    this._captureCleanup?.();
+    this._captureCleanup = null;
   }
 
-  private syncDisabledCapture() {
-    this.disabledCaptureCleanup?.();
-    this.disabledCaptureCleanup = null;
+  attributeChangedCallback() {
+    this.disabled = this.hasAttribute('disabled');
+    this._syncDisabledCapture();
+  }
 
-    if (this.root == null || !this.getFieldState().disabled) {
-      return;
-    }
+  private _syncDisabledCapture() {
+    this._captureCleanup?.();
+    this._captureCleanup = null;
+
+    if (!this.disabled) return;
+
+    this.setAttribute('data-disabled', '');
 
     const stopInteraction = (event: Event) => {
-      if (event.target === this.root) {
-        return;
-      }
-
+      if (event.target === this) return;
       event.preventDefault();
-      event.stopImmediatePropagation();
       event.stopPropagation();
+      event.stopImmediatePropagation();
     };
 
-    const events: Array<keyof HTMLElementEventMap> = [
-      'click',
-      'change',
-      'input',
-      'keydown',
-      'keyup',
-    ];
-
+    const events: Array<keyof HTMLElementEventMap> = ['click', 'change', 'input', 'keydown', 'keyup'];
     events.forEach((eventName) => {
-      this.root?.addEventListener(eventName, stopInteraction, true);
+      this.addEventListener(eventName, stopInteraction, true);
     });
 
-    this.disabledCaptureCleanup = () => {
+    this._captureCleanup = () => {
       events.forEach((eventName) => {
-        this.root?.removeEventListener(eventName, stopInteraction, true);
+        this.removeEventListener(eventName, stopInteraction, true);
       });
     };
   }
 }
 
-const fieldRootDirective = directive(FieldRootDirective);
-
-class FieldControlDirective extends AsyncDirective {
-  private latestProps: FieldControlProps | null = null;
-  private root: HTMLElement | null = null;
-  private fieldRoot: HTMLElement | null = null;
-  private initialized = false;
-  private initialValue = '';
-  private lastFieldStateKey: string | null = null;
-  private fieldRootLookupQueued = false;
-
-  render(_componentProps: FieldControlProps) {
-    return nothing;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [FieldControlProps],
-  ) {
-    this.latestProps = componentProps;
-    const anchor = (part as { parentNode?: Node | null }).parentNode ?? null;
-    this.syncFieldRoot(getClosestFieldRoot(anchor));
-    this.scheduleFieldRootLookup(anchor);
-
-    if (!this.initialized) {
-      this.initialized = true;
-      this.initialValue = stringifyInputValue(
-        componentProps.value !== undefined ? componentProps.value : componentProps.defaultValue,
-      );
-    }
-
-    return this.renderCurrent();
-  }
-
-  override disconnected() {
-    this.getRuntime()?.unregisterControl(this.root);
-    this.fieldRoot?.removeEventListener(FIELD_STATE_CHANGE_EVENT, this.handleFieldStateChange);
-    this.root = null;
-    this.fieldRoot = null;
-    this.lastFieldStateKey = null;
-  }
-
-  override reconnected() {}
-
-  private renderCurrent() {
-    if (this.latestProps == null) {
-      return nothing;
-    }
-
-    const autoFocus = Boolean(this.latestProps.autoFocus);
-    const defaultValue = this.latestProps.defaultValue;
-    const disabledProp = Boolean(this.latestProps.disabled);
-    const id = this.latestProps.id as string | undefined;
-    const name = this.latestProps.name as string | undefined;
-    const onValueChange = this.latestProps.onValueChange;
-    const render = this.latestProps.render as FieldControlRenderProp | undefined;
-    const value = this.latestProps.value;
-    const externalOnBlur = this.latestProps.onBlur as FieldEventHandler<FocusEvent> | undefined;
-    const externalOnChange = this.latestProps.onChange as
-      | FieldEventHandler<InputEvent | Event>
-      | undefined;
-    const externalOnFocus = this.latestProps.onFocus as FieldEventHandler<FocusEvent> | undefined;
-    const externalOnInput = this.latestProps.onInput as
-      | FieldEventHandler<InputEvent | Event>
-      | undefined;
-    const externalOnKeyDown = this.latestProps.onKeyDown as
-      | FieldEventHandler<KeyboardEvent>
-      | undefined;
-    const externalRef = this.latestProps.ref as HTMLProps<HTMLElement>['ref'] | undefined;
-    const { ...elementProps } = this.latestProps;
-    delete elementProps.autoFocus;
-    delete elementProps.defaultValue;
-    delete elementProps.disabled;
-    delete elementProps.id;
-    delete elementProps.name;
-    delete elementProps.onBlur;
-    delete elementProps.onChange;
-    delete elementProps.onFocus;
-    delete elementProps.onInput;
-    delete elementProps.onKeyDown;
-    delete elementProps.onValueChange;
-    delete elementProps.ref;
-    delete elementProps.render;
-    delete elementProps.value;
-
-    const runtime = this.getRuntime();
-    const fieldState = runtime?.getFieldState() ?? DEFAULT_FIELD_ROOT_STATE;
-    const controlled = value !== undefined;
-    const disabled = fieldState.disabled || disabledProp;
-    const resolvedName = this.getFieldName() ?? name;
-
-    const handleInputEvent = (event: InputEvent | Event) => {
-      const baseUIEvent = makeEventPreventable(event as BaseUIEvent<InputEvent | Event>);
-
-      externalOnInput?.(baseUIEvent);
-      externalOnChange?.(baseUIEvent);
-
-      if (baseUIEvent.baseUIHandlerPrevented) {
-        return;
-      }
-
-      const currentTarget = event.currentTarget as Element | null;
-
-      if (isInputLikeElement(currentTarget)) {
-        const nextValue = currentTarget.value;
-        onValueChange?.(nextValue, createChangeEventDetails(event, currentTarget));
-
-        if (controlled) {
-          currentTarget.value = stringifyInputValue(value);
-        }
-
-        runtime?.handleControlInput(currentTarget, nextValue, event);
-      }
-    };
-
-    return useRender<FieldControlState, HTMLElement>({
-      defaultTagName: 'input',
-      render: this.resolveRenderProp(render, fieldState),
-      ref: this.createRootRef(externalRef),
-      state: {
-        ...fieldState,
-        disabled,
-      },
-      stateAttributesMapping: createFieldStateAttributesMapping(),
-      props: {
-        'aria-invalid': fieldState.valid === false ? 'true' : undefined,
-        'data-base-ui-field-control': '',
-        autoFocus,
-        disabled,
-        id,
-        name: resolvedName,
-        ...(controlled ? { value } : { defaultValue: this.initialValue || defaultValue }),
-        onBlur: (event: FocusEvent) => {
-          const baseUIEvent = makeEventPreventable(event as BaseUIEvent<FocusEvent>);
-
-          externalOnBlur?.(baseUIEvent);
-
-          if (baseUIEvent.baseUIHandlerPrevented) {
-            return;
-          }
-
-          const currentTarget = event.currentTarget as Element | null;
-          if (isInputLikeElement(currentTarget)) {
-            runtime?.handleControlBlur(currentTarget);
-          }
-        },
-        onFocus: (event: FocusEvent) => {
-          const baseUIEvent = makeEventPreventable(event as BaseUIEvent<FocusEvent>);
-
-          externalOnFocus?.(baseUIEvent);
-
-          if (baseUIEvent.baseUIHandlerPrevented) {
-            return;
-          }
-
-          runtime?.handleControlFocus();
-        },
-        onInput: handleInputEvent,
-        onChange: handleInputEvent,
-        onKeyDown: (event: KeyboardEvent) => {
-          const baseUIEvent = makeEventPreventable(event as BaseUIEvent<KeyboardEvent>);
-
-          externalOnKeyDown?.(baseUIEvent);
-
-          if (baseUIEvent.baseUIHandlerPrevented) {
-            return;
-          }
-
-          const currentTarget = event.currentTarget as Element | null;
-          if (isInputLikeElement(currentTarget)) {
-            runtime?.handleControlKeyDown(currentTarget, event.key);
-          }
-        },
-        ...(elementProps as HTMLProps<HTMLElement>),
-      },
-    });
-  }
-
-  private syncFieldRoot(nextFieldRoot: HTMLElement | null) {
-    if (this.fieldRoot === nextFieldRoot) {
-      return;
-    }
-
-    this.fieldRoot?.removeEventListener(FIELD_STATE_CHANGE_EVENT, this.handleFieldStateChange);
-    this.fieldRoot = nextFieldRoot;
-    this.fieldRoot?.addEventListener(FIELD_STATE_CHANGE_EVENT, this.handleFieldStateChange);
-  }
-
-  private handleFieldStateChange = () => {
-    const runtime = this.getRuntime();
-    const nextStateKey = JSON.stringify(runtime?.getFieldState() ?? DEFAULT_FIELD_ROOT_STATE);
-
-    if (nextStateKey === this.lastFieldStateKey) {
-      return;
-    }
-
-    this.lastFieldStateKey = nextStateKey;
-    try {
-      this.setValue(this.renderCurrent());
-    } catch (error) {
-      if (isDetachedChildPartError(error)) {
-        return;
-      }
-
-      throw error;
-    }
-  };
-
-  private createRootRef(externalRef: HTMLProps<HTMLElement>['ref'] | undefined) {
-    return (element: HTMLElement | null) => {
-      this.syncFieldRoot(getClosestFieldRoot(element) ?? getFallbackFieldRoot());
-      this.getRuntime()?.unregisterControl(this.root);
-      this.root = element;
-      assignRef(externalRef, element);
-      this.getRuntime()?.registerControl(element);
-    };
-  }
-
-  private resolveRenderProp(render: FieldControlRenderProp | undefined, state: FieldRootState) {
-    if (typeof render !== 'function') {
-      return render;
-    }
-
-    return (props: FieldControlRenderProps) => render(props, state);
-  }
-
-  private getRuntime() {
-    return getFieldRuntime(this.fieldRoot);
-  }
-
-  private getFieldName() {
-    const runtime = this.getRuntime();
-    const rootProps = (runtime as FieldRootDirective | null)?.[
-      'latestProps'
-    ] as FieldRootProps | null;
-    return rootProps?.name;
-  }
-
-  private scheduleFieldRootLookup(anchor: Node | null) {
-    if (this.fieldRoot != null || this.fieldRootLookupQueued) {
-      return;
-    }
-
-    this.fieldRootLookupQueued = true;
-    queueMicrotask(() => {
-      this.fieldRootLookupQueued = false;
-      this.syncFieldRoot(getClosestFieldRoot(anchor) ?? getFallbackFieldRoot());
-
-      if (this.fieldRoot != null) {
-        this.setValue(this.renderCurrent());
-      }
-    });
-  }
+if (!customElements.get('field-item')) {
+  customElements.define('field-item', FieldItemElement);
 }
 
-const fieldControlDirective = directive(FieldControlDirective);
-
-abstract class BaseFieldPartDirective<State, Props> extends AsyncDirective {
-  protected latestProps: Props | null = null;
-  protected fieldRoot: HTMLElement | null = null;
-  protected lastFieldStateKey: string | null = null;
-  private fieldRootLookupQueued = false;
-
-  override disconnected() {
-    this.fieldRoot?.removeEventListener(FIELD_STATE_CHANGE_EVENT, this.handleFieldStateChange);
-    this.fieldRoot = null;
-    this.lastFieldStateKey = null;
-  }
-
-  override reconnected() {}
-
-  protected syncFieldRoot(nextFieldRoot: HTMLElement | null) {
-    if (this.fieldRoot === nextFieldRoot) {
-      return;
-    }
-
-    this.fieldRoot?.removeEventListener(FIELD_STATE_CHANGE_EVENT, this.handleFieldStateChange);
-    this.fieldRoot = nextFieldRoot;
-    this.fieldRoot?.addEventListener(FIELD_STATE_CHANGE_EVENT, this.handleFieldStateChange);
-  }
-
-  protected getRuntime() {
-    return getFieldRuntime(this.fieldRoot);
-  }
-
-  protected getFieldState() {
-    return this.getRuntime()?.getFieldState() ?? DEFAULT_FIELD_ROOT_STATE;
-  }
-
-  protected scheduleFieldRootLookup(anchor: Node | null) {
-    if (this.fieldRoot != null || this.fieldRootLookupQueued) {
-      return;
-    }
-
-    this.fieldRootLookupQueued = true;
-    queueMicrotask(() => {
-      this.fieldRootLookupQueued = false;
-      this.syncFieldRoot(getClosestFieldRoot(anchor) ?? getFallbackFieldRoot());
-
-      if (this.fieldRoot != null) {
-        this.setValue(this.renderCurrent());
-      }
-    });
-  }
-
-  protected abstract renderCurrent(): unknown;
-
-  private handleFieldStateChange = () => {
-    const runtime = this.getRuntime();
-    const nextStateKey = JSON.stringify({
-      fieldState: runtime?.getFieldState() ?? DEFAULT_FIELD_ROOT_STATE,
-      validity: runtime?.getValidityState() ?? null,
-    });
-
-    if (nextStateKey === this.lastFieldStateKey) {
-      return;
-    }
-
-    this.lastFieldStateKey = nextStateKey;
-    try {
-      this.setValue(this.renderCurrent());
-    } catch (error) {
-      if (isDetachedChildPartError(error)) {
-        return;
-      }
-
-      throw error;
-    }
-  };
-}
-
-class FieldLabelDirective extends BaseFieldPartDirective<FieldLabelState, FieldLabelProps> {
-  private labelElement: HTMLElement | null = null;
-  private generatedId = createGeneratedId('base-ui-field-label');
-
-  render(_componentProps: FieldLabelProps) {
-    return nothing;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [FieldLabelProps],
-  ) {
-    this.latestProps = componentProps;
-    const anchor = (part as { parentNode?: Node | null }).parentNode ?? null;
-    this.syncFieldRoot(getClosestFieldRoot(anchor));
-    this.scheduleFieldRootLookup(anchor);
-
-    return this.renderCurrent();
-  }
-
-  override disconnected() {
-    this.getRuntime()?.clearLabel(this.labelElement);
-    super.disconnected();
-    this.labelElement = null;
-  }
-
-  protected renderCurrent() {
-    if (this.latestProps == null) {
-      return nothing;
-    }
-
-    const nativeLabel = this.latestProps.nativeLabel ?? true;
-    const externalOnClick = this.latestProps.onClick as FieldEventHandler<MouseEvent> | undefined;
-    const externalRef = this.latestProps.ref as HTMLProps<HTMLElement>['ref'] | undefined;
-    const render = this.latestProps.render as FieldLabelRenderProp | undefined;
-    const { ...elementProps } = this.latestProps;
-    delete elementProps.nativeLabel;
-    delete elementProps.onClick;
-    delete elementProps.ref;
-    delete elementProps.render;
-    const state = this.getFieldState();
-
-    return useRender<FieldLabelState, HTMLElement>({
-      defaultTagName: 'label',
-      render: typeof render === 'function' ? (props) => render(props, state) : render,
-      ref: (element) => {
-        this.syncFieldRoot(getClosestFieldRoot(element) ?? getFallbackFieldRoot());
-        this.labelElement = element;
-        assignRef(externalRef, element);
-        this.getRuntime()?.registerLabel(element, nativeLabel);
-
-        if (element != null && !element.id) {
-          element.id = this.generatedId;
-        }
-
-        if (process.env.NODE_ENV !== 'production' && element != null) {
-          const isLabelTag = element.tagName === 'LABEL';
-
-          if (nativeLabel && !isLabelTag) {
-            console.error(
-              'Base UI: <Field.Label> expected a <label> element because the `nativeLabel` prop is true.' +
-                ' Rendering a non-<label> disables native label association, so `htmlFor` will not work.' +
-                ' Use a real <label> in the `render` prop, or set `nativeLabel` to `false`.',
-            );
-          } else if (!nativeLabel && isLabelTag) {
-            console.error(
-              'Base UI: <Field.Label> expected a non-<label> element because the `nativeLabel` prop is false.' +
-                ' Rendering a <label> assumes native label behavior while Base UI treats it as non-native,' +
-                ' which can cause unexpected pointer behavior.' +
-                ' Use a non-<label> in the `render` prop, or set `nativeLabel` to `true`.',
-            );
-          }
-        }
-      },
-      state,
-      stateAttributesMapping: createFieldStateAttributesMapping(),
-      props: {
-        onClick: (event: BaseUIEvent<MouseEvent>) => {
-          externalOnClick?.(event);
-
-          if (event.baseUIHandlerPrevented || nativeLabel) {
-            return;
-          }
-
-          const focusTarget = this.getRuntime()?.getControlTargets().focusTarget;
-          focusTarget?.focus();
-        },
-        ...(elementProps as HTMLProps<HTMLElement>),
-      },
-    });
-  }
-}
-
-const fieldLabelDirective = directive(FieldLabelDirective);
-
-class FieldDescriptionDirective extends BaseFieldPartDirective<
-  FieldDescriptionState,
-  FieldDescriptionProps
-> {
-  private id: string | null = null;
-  private generatedId = createGeneratedId('base-ui-field-description');
-
-  render(_componentProps: FieldDescriptionProps) {
-    return nothing;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [FieldDescriptionProps],
-  ) {
-    this.latestProps = componentProps;
-    const anchor = (part as { parentNode?: Node | null }).parentNode ?? null;
-    this.syncFieldRoot(getClosestFieldRoot(anchor));
-    this.scheduleFieldRootLookup(anchor);
-
-    return this.renderCurrent();
-  }
-
-  override disconnected() {
-    if (this.id != null) {
-      this.getRuntime()?.unregisterDescription(this.id);
-    }
-    super.disconnected();
-    this.id = null;
-  }
-
-  protected renderCurrent() {
-    if (this.latestProps == null) {
-      return nothing;
-    }
-
-    const id = this.latestProps.id as string | undefined;
-    const externalRef = this.latestProps.ref as HTMLProps<HTMLParagraphElement>['ref'] | undefined;
-    const render = this.latestProps.render as FieldDescriptionRenderProp | undefined;
-    const { ...elementProps } = this.latestProps;
-    delete elementProps.id;
-    delete elementProps.ref;
-    delete elementProps.render;
-    const state = this.getFieldState();
-
-    return useRender<FieldDescriptionState, HTMLParagraphElement>({
-      defaultTagName: 'p',
-      render: typeof render === 'function' ? (props) => render(props, state) : render,
-      ref: (element) => {
-        this.syncFieldRoot(getClosestFieldRoot(element) ?? getFallbackFieldRoot());
-        if (this.id != null) {
-          this.getRuntime()?.unregisterDescription(this.id);
-        }
-
-        const resolvedId = id ?? this.generatedId;
-
-        if (element != null && !element.id) {
-          element.id = resolvedId;
-        }
-
-        this.id = element?.id ?? resolvedId;
-
-        if (this.id != null) {
-          this.getRuntime()?.registerDescription(this.id);
-        }
-
-        assignRef(externalRef, element);
-      },
-      state,
-      stateAttributesMapping: createFieldStateAttributesMapping(),
-      props: {
-        id,
-        ...(elementProps as HTMLProps<HTMLParagraphElement>),
-      },
-    });
-  }
-}
-
-const fieldDescriptionDirective = directive(FieldDescriptionDirective);
-
-class FieldErrorDirective extends BaseFieldPartDirective<FieldErrorState, FieldErrorProps> {
-  private id: string | null = null;
-  private generatedId = createGeneratedId('base-ui-field-error');
-
-  render(_componentProps: FieldErrorProps) {
-    return nothing;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [FieldErrorProps],
-  ) {
-    this.latestProps = componentProps;
-    const anchor = (part as { parentNode?: Node | null }).parentNode ?? null;
-    this.syncFieldRoot(getClosestFieldRoot(anchor));
-    this.scheduleFieldRootLookup(anchor);
-
-    return this.renderCurrent();
-  }
-
-  override disconnected() {
-    if (this.id != null) {
-      this.getRuntime()?.unregisterError(this.id);
-    }
-    super.disconnected();
-    this.id = null;
-  }
-
-  protected renderCurrent() {
-    if (this.latestProps == null) {
-      return nothing;
-    }
-
-    const runtime = this.getRuntime();
-    const fieldValidity = runtime?.getValidationData();
-    const formError = runtime?.getFormError();
-    const fieldState = this.getFieldState();
-    const id = this.latestProps.id as string | undefined;
-    const match = this.latestProps.match;
-    const externalRef = this.latestProps.ref as HTMLProps<HTMLDivElement>['ref'] | undefined;
-    const render = this.latestProps.render as FieldErrorRenderProp | undefined;
-    const children = this.latestProps.children;
-    const { ...elementProps } = this.latestProps;
-    delete elementProps.id;
-    delete elementProps.match;
-    delete elementProps.ref;
-    delete elementProps.render;
-
-    let rendered = false;
-    if (formError != null || match === true) {
-      rendered = true;
-    } else if (match) {
-      rendered = Boolean(fieldValidity?.state[match]);
-    } else {
-      rendered = fieldValidity?.state.valid === false;
-    }
-
-    if (!rendered) {
-      if (this.id != null) {
-        runtime?.setErrorRendered(this.id, false);
-      }
-      return nothing;
-    }
-
-    const content =
-      children !== undefined
-        ? children
-        : formError != null
-          ? Array.isArray(formError)
-            ? html`<ul>
-                ${formError.map((message) => html`<li>${message}</li>`)}
-              </ul>`
-            : formError
-          : fieldValidity != null && fieldValidity.errors.length > 1
-            ? html`<ul>
-                ${fieldValidity.errors.map((message) => html`<li>${message}</li>`)}
-              </ul>`
-            : (fieldValidity?.error ?? '');
-
-    return useRender<FieldErrorState, HTMLDivElement>({
-      defaultTagName: 'div',
-      render:
-        typeof render === 'function'
-          ? (props) =>
-              render(props, {
-                ...fieldState,
-                transitionStatus: undefined,
-              })
-          : render,
-      ref: (element) => {
-        this.syncFieldRoot(getClosestFieldRoot(element) ?? getFallbackFieldRoot());
-        if (this.id != null) {
-          runtime?.unregisterError(this.id);
-        }
-
-        const resolvedId = id ?? this.generatedId;
-
-        if (element != null && !element.id) {
-          element.id = resolvedId;
-        }
-
-        this.id = element?.id ?? resolvedId;
-
-        if (this.id != null) {
-          runtime?.registerError(this.id, true);
-        }
-
-        assignRef(externalRef, element);
-      },
-      state: {
-        ...fieldState,
-        transitionStatus: undefined,
-      },
-      stateAttributesMapping: createFieldStateAttributesMapping(),
-      props: {
-        id,
-        children: content,
-        ...(elementProps as HTMLProps<HTMLDivElement>),
-      },
-    });
-  }
-}
-
-const fieldErrorDirective = directive(FieldErrorDirective);
-
-class FieldValidityDirective extends BaseFieldPartDirective<
-  FieldValidityState,
-  FieldValidityProps
-> {
-  render(_componentProps: FieldValidityProps) {
-    return nothing;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [FieldValidityProps],
-  ) {
-    this.latestProps = componentProps;
-    const anchor = (part as { parentNode?: Node | null }).parentNode ?? null;
-    this.syncFieldRoot(getClosestFieldRoot(anchor));
-    this.scheduleFieldRootLookup(anchor);
-
-    return this.renderCurrent();
-  }
-
-  protected renderCurrent() {
-    if (this.latestProps == null) {
-      return nothing;
-    }
-
-    const validityState = this.getRuntime()?.getValidityState();
-
-    if (validityState == null) {
-      return nothing;
-    }
-
-    return this.latestProps.children(validityState);
-  }
-}
-
-const fieldValidityDirective = directive(FieldValidityDirective);
-
-class FieldItemDirective extends BaseFieldPartDirective<FieldItemState, FieldItemProps> {
-  private root: HTMLDivElement | null = null;
-  private captureCleanup: (() => void) | null = null;
-
-  render(_componentProps: FieldItemProps) {
-    return nothing;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [FieldItemProps],
-  ) {
-    this.latestProps = componentProps;
-    const anchor = (part as { parentNode?: Node | null }).parentNode ?? null;
-    this.syncFieldRoot(getClosestFieldRoot(anchor));
-    this.scheduleFieldRootLookup(anchor);
-
-    return this.renderCurrent();
-  }
-
-  override disconnected() {
-    this.captureCleanup?.();
-    this.captureCleanup = null;
-    this.root = null;
-    super.disconnected();
-  }
-
-  protected renderCurrent() {
-    if (this.latestProps == null) {
-      return nothing;
-    }
-
-    const disabled = Boolean(this.latestProps.disabled);
-    const externalRef = this.latestProps.ref as HTMLProps<HTMLDivElement>['ref'] | undefined;
-    const render = this.latestProps.render as FieldItemRenderProp | undefined;
-    const { ...elementProps } = this.latestProps;
-    delete elementProps.disabled;
-    delete elementProps.ref;
-    delete elementProps.render;
-    const fieldState = this.getFieldState();
-    const itemDisabled = fieldState.disabled || disabled;
-
-    return useRender<FieldItemState, HTMLDivElement>({
-      defaultTagName: 'div',
-      render: typeof render === 'function' ? (props) => render(props, fieldState) : render,
-      ref: (element) => {
-        this.syncFieldRoot(getClosestFieldRoot(element) ?? getFallbackFieldRoot());
-        this.captureCleanup?.();
-        this.captureCleanup = null;
-        this.root = element;
-        assignRef(externalRef, element);
-
-        if (element == null || !itemDisabled) {
-          return;
-        }
-
-        const stopInteraction = (event: Event) => {
-          if (event.target === element) {
-            return;
-          }
-
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
-        };
-
-        const events: Array<keyof HTMLElementEventMap> = [
-          'click',
-          'change',
-          'input',
-          'keydown',
-          'keyup',
-        ];
-        events.forEach((eventName) => {
-          element.addEventListener(eventName, stopInteraction, true);
-        });
-
-        this.captureCleanup = () => {
-          events.forEach((eventName) => {
-            element.removeEventListener(eventName, stopInteraction, true);
-          });
-        };
-      },
-      state: {
-        ...fieldState,
-        disabled: itemDisabled,
-      },
-      stateAttributesMapping: createFieldStateAttributesMapping(),
-      props: {
-        [FIELD_ITEM_ATTRIBUTE]: '',
-        ...(elementProps as HTMLProps<HTMLDivElement>),
-      },
-    });
-  }
-}
-
-const fieldItemDirective = directive(FieldItemDirective);
-
-/**
- * Groups all parts of the field.
- * Renders a `<div>` element.
- */
-export function FieldRoot(componentProps: FieldRoot.Props): TemplateResult {
-  return html`${fieldRootDirective(componentProps)}`;
-}
-
-/**
- * An accessible label that is automatically associated with the field control.
- * Renders a `<label>` element.
- */
-export function FieldLabel(componentProps: FieldLabel.Props): TemplateResult {
-  return html`${fieldLabelDirective(componentProps)}`;
-}
-
-/**
- * A paragraph with additional information about the field.
- * Renders a `<p>` element.
- */
-export function FieldDescription(componentProps: FieldDescription.Props): TemplateResult {
-  return html`${fieldDescriptionDirective(componentProps)}`;
-}
-
-/**
- * An error message displayed if the field control fails validation.
- * Renders a `<div>` element.
- */
-export function FieldError(componentProps: FieldError.Props): TemplateResult {
-  return html`${fieldErrorDirective(componentProps)}`;
-}
-
-/**
- * The form control to label and validate.
- * Renders an `<input>` element.
- */
-export function FieldControl(componentProps: FieldControl.Props): TemplateResult {
-  return html`${fieldControlDirective(componentProps)}`;
-}
-
-/**
- * Used to display a custom message based on the field’s validity.
- */
-export function FieldValidity(componentProps: FieldValidity.Props): TemplateResult {
-  return html`${fieldValidityDirective(componentProps)}`;
-}
-
-/**
- * Groups individual items in a checkbox group or radio group with a label and description.
- * Renders a `<div>` element.
- */
-export function FieldItem(componentProps: FieldItem.Props): TemplateResult {
-  return html`${fieldItemDirective(componentProps)}`;
-}
-
-export interface FieldValidityData {
-  state: ValidityStateObject;
-  error: string;
-  errors: string[];
-  value: unknown;
-  initialValue: unknown;
-}
-
-export interface FieldRootActions {
-  validate: () => void;
-}
-
-export interface FieldRootState {
-  disabled: boolean;
-  touched: boolean;
-  dirty: boolean;
-  valid: boolean | null;
-  filled: boolean;
-  focused: boolean;
-}
-
-export interface FieldRootProps extends ComponentPropsWithChildren<
-  'div',
-  FieldRootState,
-  unknown,
-  FieldRootRenderProps
-> {
-  actionsRef?: { current: FieldRoot.Actions | null } | undefined;
-  dirty?: boolean | undefined;
-  disabled?: boolean | undefined;
-  invalid?: boolean | undefined;
-  name?: string | undefined;
-  render?: FieldRootRenderProp | undefined;
-  touched?: boolean | undefined;
-  validate?:
-    | ((
-        value: unknown,
-        formValues: Record<string, unknown>,
-      ) => string | string[] | null | Promise<string | string[] | null>)
-    | undefined;
-  validationDebounceTime?: number | undefined;
-  validationMode?: 'onSubmit' | 'onBlur' | 'onChange' | undefined;
-}
-
-export interface FieldLabelState extends FieldRootState {}
-
-export interface FieldLabelProps extends ComponentPropsWithChildren<
-  'label',
-  FieldLabelState,
-  unknown,
-  FieldLabelRenderProps
-> {
-  nativeLabel?: boolean | undefined;
-  render?: FieldLabelRenderProp | undefined;
-}
-
-export interface FieldDescriptionState extends FieldRootState {}
-
-export interface FieldDescriptionProps extends ComponentPropsWithChildren<
-  'p',
-  FieldDescriptionState,
-  unknown,
-  FieldDescriptionRenderProps
-> {
-  render?: FieldDescriptionRenderProp | undefined;
-}
-
-export interface FieldErrorState extends FieldRootState {
-  transitionStatus: TransitionStatus;
-}
-
-export interface FieldErrorProps extends ComponentPropsWithChildren<
-  'div',
-  FieldErrorState,
-  unknown,
-  FieldErrorRenderProps
-> {
-  match?: boolean | keyof ValidityState | undefined;
-  render?: FieldErrorRenderProp | undefined;
-}
-
-export interface FieldControlState extends FieldRootState {}
-
-export interface FieldControlProps extends Omit<
-  ComponentPropsWithChildren<'input', FieldControlState, unknown, FieldControlRenderProps>,
-  'defaultValue' | 'value'
-> {
-  autoFocus?: boolean | undefined;
-  defaultValue?: FieldControlValue | undefined;
-  onValueChange?:
-    | ((value: string, eventDetails: FieldControl.ChangeEventDetails) => void)
-    | undefined;
-  render?: FieldControlRenderProp | undefined;
-  value?: FieldControlValue | undefined;
-}
-
-export interface FieldItemState extends FieldRootState {}
-
-export interface FieldItemProps extends ComponentPropsWithChildren<
-  'div',
-  FieldItemState,
-  unknown,
-  FieldItemRenderProps
-> {
-  disabled?: boolean | undefined;
-  render?: FieldItemRenderProp | undefined;
-}
-
-export interface FieldValidityState extends Omit<FieldValidityData, 'state'> {
-  validity: FieldValidityData['state'];
-  transitionStatus: TransitionStatus;
-}
-
-export interface FieldValidityProps {
-  children: (state: FieldValidityState) => unknown;
-}
-
-export type FieldControlChangeEventReason = 'none';
-export type FieldControlChangeEventDetails =
-  BaseUIChangeEventDetails<FieldControl.ChangeEventReason>;
+// ─── Namespace exports ──────────────────────────────────────────────────────────
 
 export namespace FieldRoot {
-  export type Actions = FieldRootActions;
-  export type Props = FieldRootProps;
   export type State = FieldRootState;
 }
 
 export namespace FieldLabel {
-  export type Props = FieldLabelProps;
   export type State = FieldLabelState;
 }
 
 export namespace FieldDescription {
-  export type Props = FieldDescriptionProps;
   export type State = FieldDescriptionState;
 }
 
 export namespace FieldError {
-  export type Props = FieldErrorProps;
   export type State = FieldErrorState;
 }
 
 export namespace FieldControl {
-  export type ChangeEventDetails = FieldControlChangeEventDetails;
-  export type ChangeEventReason = FieldControlChangeEventReason;
-  export type Props = FieldControlProps;
   export type State = FieldControlState;
 }
 
-export namespace FieldItem {
-  export type Props = FieldItemProps;
-  export type State = FieldItemState;
-}
-
 export namespace FieldValidity {
-  export type Props = FieldValidityProps;
   export type State = FieldValidityState;
 }
 
-export const Field = {
-  Root: FieldRoot,
-  Label: FieldLabel,
-  Description: FieldDescription,
-  Error: FieldError,
-  Control: FieldControl,
-  Validity: FieldValidity,
-  Item: FieldItem,
-} as const;
+export namespace FieldItem {
+  export type State = FieldItemState;
+}
+
+// ─── Global type declarations ───────────────────────────────────────────────────
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'field-root': FieldRootElement;
+    'field-control': FieldControlElement;
+    'field-label': FieldLabelElement;
+    'field-description': FieldDescriptionElement;
+    'field-error': FieldErrorElement;
+    'field-validity': FieldValidityElement;
+    'field-item': FieldItemElement;
+  }
+}

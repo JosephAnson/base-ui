@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import { html, svg } from 'lit';
-import { Tooltip } from '@base-ui/lit/tooltip';
+import '@base-ui/lit/tooltip';
 import { LitTemplateHost } from '../../../popover/demos/shared/LitTemplateHost';
 
 type TriggerConfig = {
@@ -25,8 +25,8 @@ export function LitTooltipHero(props: LitTooltipHeroProps) {
 
   const template = React.useCallback(
     () =>
-      Tooltip.Provider({
-        children: html`<div class=${panelClassName}>
+      html`<tooltip-provider>
+        <div class=${panelClassName}>
           ${renderContainedTooltip({
             arrowClassName,
             buttonClassName,
@@ -51,8 +51,8 @@ export function LitTooltipHero(props: LitTooltipHeroProps) {
             label: 'Underline',
             popupClassName,
           })}
-        </div>`,
-      }),
+        </div>
+      </tooltip-provider>`,
     [arrowClassName, buttonClassName, iconClassName, panelClassName, popupClassName],
   );
 
@@ -68,38 +68,27 @@ export interface LitTooltipDetachedSimpleProps {
 
 export function LitTooltipDetachedSimple(props: LitTooltipDetachedSimpleProps) {
   const { arrowClassName, buttonClassName, iconClassName, popupClassName } = props;
-  const handle = React.useMemo(() => Tooltip.createHandle(), []);
 
   const template = React.useCallback(
     () =>
-      Tooltip.Provider({
-        children: [
-          Tooltip.Trigger({
-            className: buttonClassName,
-            handle,
-            children: iconTemplate('info', 'This is a detached tooltip', iconClassName),
-          }),
-          Tooltip.Root({
-            handle,
-            children: Tooltip.Portal({
-              children: Tooltip.Positioner({
-                sideOffset: 10,
-                children: Tooltip.Popup({
-                  className: popupClassName,
-                  children: [
-                    Tooltip.Arrow({
-                      className: arrowClassName,
-                      children: arrowSvg(),
-                    }),
-                    'This is a detached tooltip',
-                  ],
-                }),
-              }),
-            }),
-          }),
-        ],
-      }),
-    [arrowClassName, buttonClassName, handle, iconClassName, popupClassName],
+      html`<tooltip-provider>
+        <tooltip-root>
+          <tooltip-trigger class=${buttonClassName}>
+            ${iconTemplate('info', 'This is a detached tooltip', iconClassName)}
+          </tooltip-trigger>
+          <tooltip-portal>
+            <tooltip-positioner .sideOffset=${10}>
+              <tooltip-popup class=${popupClassName}>
+                <tooltip-arrow class=${arrowClassName}>
+                  ${arrowSvg()}
+                </tooltip-arrow>
+                This is a detached tooltip
+              </tooltip-popup>
+            </tooltip-positioner>
+          </tooltip-portal>
+        </tooltip-root>
+      </tooltip-provider>`,
+    [arrowClassName, buttonClassName, iconClassName, popupClassName],
   );
 
   return <LitTemplateHost template={template} />;
@@ -125,65 +114,61 @@ export function LitTooltipDetachedFull(props: LitTooltipDetachedFullProps) {
     triggerClassNames,
     viewportClassName,
   } = props;
-  const handle = React.useMemo(() => Tooltip.createHandle<string>(), []);
 
   const template = React.useCallback(
     () =>
-      Tooltip.Provider({
-        children: [
-          html`<div class=${buttonGroupClassName}>
-            ${Tooltip.Trigger({
-              className: triggerClassNames[0],
-              handle,
-              payload: 'This is information about the feature',
-              children: iconTemplate('info', 'This is information about the feature', iconClassName),
-            })}
-            ${Tooltip.Trigger({
-              className: triggerClassNames[1],
-              handle,
-              payload: 'Need help?',
-              children: iconTemplate('help', 'Need help?', iconClassName),
-            })}
-            ${Tooltip.Trigger({
-              className: triggerClassNames[2],
-              handle,
-              payload: 'Warning: This action cannot be undone',
-              children: iconTemplate(
-                'alert',
-                'Warning: This action cannot be undone',
-                iconClassName,
-              ),
-            })}
-          </div>`,
-          Tooltip.Root<string>({
-            handle,
-            children: ({ payload }) =>
-              Tooltip.Portal({
-                children: Tooltip.Positioner({
-                  className: positionerClassName,
-                  sideOffset: 10,
-                  children: Tooltip.Popup({
-                    className: popupClassName,
-                    children: [
-                      Tooltip.Arrow({
-                        className: arrowClassName,
-                        children: arrowSvg(),
-                      }),
-                      Tooltip.Viewport({
-                        className: viewportClassName,
-                        children: payload ?? '',
-                      }),
-                    ],
-                  }),
-                }),
-              }),
-          }),
-        ],
-      }),
+      html`<tooltip-provider>
+        <div class=${buttonGroupClassName}>
+          <tooltip-root>
+            <tooltip-trigger class=${triggerClassNames[0]}>
+              ${iconTemplate('info', 'This is information about the feature', iconClassName)}
+            </tooltip-trigger>
+            <tooltip-portal>
+              <tooltip-positioner class=${positionerClassName ?? ''} .sideOffset=${10}>
+                <tooltip-popup class=${popupClassName}>
+                  <tooltip-arrow class=${arrowClassName}>
+                    ${arrowSvg()}
+                  </tooltip-arrow>
+                  <div class=${viewportClassName}>This is information about the feature</div>
+                </tooltip-popup>
+              </tooltip-positioner>
+            </tooltip-portal>
+          </tooltip-root>
+          <tooltip-root>
+            <tooltip-trigger class=${triggerClassNames[1]}>
+              ${iconTemplate('help', 'Need help?', iconClassName)}
+            </tooltip-trigger>
+            <tooltip-portal>
+              <tooltip-positioner class=${positionerClassName ?? ''} .sideOffset=${10}>
+                <tooltip-popup class=${popupClassName}>
+                  <tooltip-arrow class=${arrowClassName}>
+                    ${arrowSvg()}
+                  </tooltip-arrow>
+                  <div class=${viewportClassName}>Need help?</div>
+                </tooltip-popup>
+              </tooltip-positioner>
+            </tooltip-portal>
+          </tooltip-root>
+          <tooltip-root>
+            <tooltip-trigger class=${triggerClassNames[2]}>
+              ${iconTemplate('alert', 'Warning: This action cannot be undone', iconClassName)}
+            </tooltip-trigger>
+            <tooltip-portal>
+              <tooltip-positioner class=${positionerClassName ?? ''} .sideOffset=${10}>
+                <tooltip-popup class=${popupClassName}>
+                  <tooltip-arrow class=${arrowClassName}>
+                    ${arrowSvg()}
+                  </tooltip-arrow>
+                  <div class=${viewportClassName}>Warning: This action cannot be undone</div>
+                </tooltip-popup>
+              </tooltip-positioner>
+            </tooltip-portal>
+          </tooltip-root>
+        </div>
+      </tooltip-provider>`,
     [
       arrowClassName,
       buttonGroupClassName,
-      handle,
       iconClassName,
       popupClassName,
       positionerClassName,
@@ -213,93 +198,71 @@ export function LitTooltipDetachedControlled(props: LitTooltipDetachedControlled
     iconClassName,
     popupClassName,
     positionerClassName,
-    programmaticButtonClassName,
     triggerGroupClassName,
     triggerClassNames,
   } = props;
-  const handle = React.useMemo(() => Tooltip.createHandle(), []);
-  const [open, setOpen] = React.useState(false);
-  const [triggerId, setTriggerId] = React.useState<string | null>(null);
 
   const template = React.useCallback(
     () =>
-      Tooltip.Provider({
-        children: [
-          html`<div class=${containerClassName}>
-            <div class=${triggerGroupClassName}>
-              ${renderControlledTrigger({
-                ariaLabel: 'Controlled tooltip',
-                className: triggerClassNames[0],
-                handle,
-                iconClassName,
-                id: 'trigger-1',
-              })}
-              ${renderControlledTrigger({
-                ariaLabel: 'Controlled tooltip',
-                className: triggerClassNames[1],
-                handle,
-                iconClassName,
-                id: 'trigger-2',
-              })}
-              ${renderControlledTrigger({
-                ariaLabel: 'Controlled tooltip',
-                className: triggerClassNames[2],
-                handle,
-                iconClassName,
-                id: 'trigger-3',
-              })}
-            </div>
-
-            <button
-              type="button"
-              class=${programmaticButtonClassName}
-              @click=${() => {
-                setTriggerId('trigger-2');
-                setOpen(true);
-              }}
-            >
-              Open programmatically
-            </button>
-          </div>`,
-          Tooltip.Root({
-            handle,
-            open,
-            onOpenChange(nextOpen, eventDetails) {
-              setOpen(nextOpen);
-              setTriggerId(eventDetails.trigger?.id ?? null);
-            },
-            triggerId,
-            children: Tooltip.Portal({
-              children: Tooltip.Positioner({
-                className: positionerClassName,
-                sideOffset: 10,
-                children: Tooltip.Popup({
-                  className: popupClassName,
-                  children: [
-                    Tooltip.Arrow({
-                      className: arrowClassName,
-                      children: arrowSvg(),
-                    }),
-                    'Controlled tooltip',
-                  ],
-                }),
-              }),
-            }),
-          }),
-        ],
-      }),
+      html`<tooltip-provider>
+        <div class=${containerClassName}>
+          <div class=${triggerGroupClassName}>
+            <tooltip-root>
+              <tooltip-trigger class=${triggerClassNames[0]} id="trigger-1">
+                ${iconTemplate('info', 'Controlled tooltip', iconClassName)}
+              </tooltip-trigger>
+              <tooltip-portal>
+                <tooltip-positioner class=${positionerClassName ?? ''} .sideOffset=${10}>
+                  <tooltip-popup class=${popupClassName}>
+                    <tooltip-arrow class=${arrowClassName}>
+                      ${arrowSvg()}
+                    </tooltip-arrow>
+                    Controlled tooltip
+                  </tooltip-popup>
+                </tooltip-positioner>
+              </tooltip-portal>
+            </tooltip-root>
+            <tooltip-root>
+              <tooltip-trigger class=${triggerClassNames[1]} id="trigger-2">
+                ${iconTemplate('info', 'Controlled tooltip', iconClassName)}
+              </tooltip-trigger>
+              <tooltip-portal>
+                <tooltip-positioner class=${positionerClassName ?? ''} .sideOffset=${10}>
+                  <tooltip-popup class=${popupClassName}>
+                    <tooltip-arrow class=${arrowClassName}>
+                      ${arrowSvg()}
+                    </tooltip-arrow>
+                    Controlled tooltip
+                  </tooltip-popup>
+                </tooltip-positioner>
+              </tooltip-portal>
+            </tooltip-root>
+            <tooltip-root>
+              <tooltip-trigger class=${triggerClassNames[2]} id="trigger-3">
+                ${iconTemplate('info', 'Controlled tooltip', iconClassName)}
+              </tooltip-trigger>
+              <tooltip-portal>
+                <tooltip-positioner class=${positionerClassName ?? ''} .sideOffset=${10}>
+                  <tooltip-popup class=${popupClassName}>
+                    <tooltip-arrow class=${arrowClassName}>
+                      ${arrowSvg()}
+                    </tooltip-arrow>
+                    Controlled tooltip
+                  </tooltip-popup>
+                </tooltip-positioner>
+              </tooltip-portal>
+            </tooltip-root>
+          </div>
+        </div>
+      </tooltip-provider>`,
     [
       arrowClassName,
       containerClassName,
-      handle,
       iconClassName,
-      open,
       popupClassName,
       positionerClassName,
-      programmaticButtonClassName,
       triggerClassNames,
       triggerGroupClassName,
-      triggerId,
     ],
   );
 
@@ -316,46 +279,21 @@ function renderContainedTooltip(props: {
 }) {
   const { arrowClassName, buttonClassName, iconClassName, iconName, label, popupClassName } = props;
 
-  return Tooltip.Root({
-    children: [
-      Tooltip.Trigger({
-        className: buttonClassName,
-        children: iconTemplate(iconName, label, iconClassName),
-      }),
-      Tooltip.Portal({
-        children: Tooltip.Positioner({
-          sideOffset: 10,
-          children: Tooltip.Popup({
-            className: popupClassName,
-            children: [
-              Tooltip.Arrow({
-                className: arrowClassName,
-                children: arrowSvg(),
-              }),
-              label,
-            ],
-          }),
-        }),
-      }),
-    ],
-  });
-}
-
-function renderControlledTrigger(props: {
-  ariaLabel: string;
-  className: string;
-  handle: ReturnType<typeof Tooltip.createHandle>;
-  iconClassName?: string | undefined;
-  id: string;
-}) {
-  const { ariaLabel, className, handle, iconClassName, id } = props;
-
-  return Tooltip.Trigger({
-    className,
-    handle,
-    id,
-    children: iconTemplate('info', ariaLabel, iconClassName),
-  });
+  return html`<tooltip-root>
+    <tooltip-trigger class=${buttonClassName}>
+      ${iconTemplate(iconName, label, iconClassName)}
+    </tooltip-trigger>
+    <tooltip-portal>
+      <tooltip-positioner .sideOffset=${10}>
+        <tooltip-popup class=${popupClassName}>
+          <tooltip-arrow class=${arrowClassName}>
+            ${arrowSvg()}
+          </tooltip-arrow>
+          ${label}
+        </tooltip-popup>
+      </tooltip-positioner>
+    </tooltip-portal>
+  </tooltip-root>`;
 }
 
 function iconTemplate(

@@ -1,0 +1,39 @@
+# Navigation Menu
+
+<Subtitle>A navigation menu with submenus and viewport transitions.</Subtitle>
+<Meta name="description" content="A navigation menu with submenus and viewport transitions." />
+
+## Anatomy
+
+```html title="Anatomy"
+<navigation-menu-root>
+  <navigation-menu-list>
+    <navigation-menu-item>
+      <navigation-menu-trigger>
+        Products
+        <navigation-menu-icon></navigation-menu-icon>
+      </navigation-menu-trigger>
+      <navigation-menu-popup>
+        <navigation-menu-content>
+          <navigation-menu-link href="/product-a">Product A</navigation-menu-link>
+          <navigation-menu-link href="/product-b">Product B</navigation-menu-link>
+        </navigation-menu-content>
+        <navigation-menu-arrow></navigation-menu-arrow>
+      </navigation-menu-popup>
+    </navigation-menu-item>
+    <navigation-menu-item>
+      <navigation-menu-link href="/about">About</navigation-menu-link>
+    </navigation-menu-item>
+  </navigation-menu-list>
+  <navigation-menu-viewport></navigation-menu-viewport>
+  <navigation-menu-backdrop></navigation-menu-backdrop>
+</navigation-menu-root>
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Navigation Menu', 'Navigation Menu', 'Base UI Lit', 'Nav menu'],
+};

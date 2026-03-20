@@ -1,12 +1,10 @@
-/* eslint-disable testing-library/render-result-naming-convention */
-import { html, nothing, render as renderTemplate, type TemplateResult } from 'lit';
+import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { type BaseUIChangeEventDetails } from '@base-ui/lit/types';
-import type { ToggleChangeEventDetails, ToggleProps, ToggleState } from '@base-ui/lit/toggle';
-import { Toggle } from '@base-ui/lit/toggle';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import './index.ts';
+import type { ToggleRootElement } from './index.ts';
 
-describe('Toggle', () => {
+describe('toggle-root', () => {
   const containers = new Set<HTMLDivElement>();
 
   afterEach(() => {
@@ -15,212 +13,163 @@ describe('Toggle', () => {
       container.remove();
     });
     containers.clear();
-    vi.restoreAllMocks();
   });
 
-  function render(result: TemplateResult) {
+  function render(result: ReturnType<typeof html>) {
     const container = document.createElement('div');
     document.body.append(container);
     containers.add(container);
-
     renderTemplate(result, container);
     return container;
   }
 
-  async function flushMicrotasks(iterations = 4) {
-    for (let index = 0; index < iterations; index += 1) {
-      await Promise.resolve();
-    }
+  async function waitForUpdate() {
+    await new Promise((r) => setTimeout(r, 0));
   }
 
-  function getButton(container: HTMLElement) {
-    return container.querySelector('[aria-pressed]') as HTMLElement;
-  }
+  it('renders as a custom element in the DOM', () => {
+    const container = render(html`<toggle-root>Toggle</toggle-root>`);
+    const toggle = container.querySelector('toggle-root');
+    expect(toggle).toBeInTheDocument();
+    expect(toggle?.textContent).toBe('Toggle');
+  });
 
-  it('preserves the public type contracts', () => {
-    const toggle = Toggle({});
-
-    expectTypeOf(toggle).toEqualTypeOf<TemplateResult>();
-    expectTypeOf<ToggleProps['pressed']>().toEqualTypeOf<boolean | undefined>();
-    expectTypeOf<ToggleProps['defaultPressed']>().toEqualTypeOf<boolean | undefined>();
-    expectTypeOf<ToggleProps['nativeButton']>().toEqualTypeOf<boolean | undefined>();
-    expectTypeOf<ToggleProps['value']>().toEqualTypeOf<string | undefined>();
-    expectTypeOf<ToggleChangeEventDetails>().toEqualTypeOf<BaseUIChangeEventDetails<'none'>>();
-    expectTypeOf<ToggleState['pressed']>().toEqualTypeOf<boolean>();
+  it('has role="button" and aria-pressed="false" by default', async () => {
+    const container = render(html`<toggle-root></toggle-root>`);
+    const toggle = container.querySelector('toggle-root')!;
+    await waitForUpdate();
+    expect(toggle).toHaveAttribute('role', 'button');
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('toggles uncontrolled state when clicked', async () => {
-    const container = render(Toggle({ defaultPressed: false }));
-    const button = getButton(container);
+    const container = render(html`<toggle-root></toggle-root>`);
+    const toggle = container.querySelector('toggle-root')! as ToggleRootElement;
+    await waitForUpdate();
 
-    expect(button).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle).not.toHaveAttribute('data-pressed');
 
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushMicrotasks();
+    toggle.click();
+    await waitForUpdate();
 
-    expect(button).toHaveAttribute('aria-pressed', 'true');
-    expect(button).toHaveAttribute('data-pressed');
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle).toHaveAttribute('data-pressed');
 
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushMicrotasks();
+    toggle.click();
+    await waitForUpdate();
 
-    expect(button).toHaveAttribute('aria-pressed', 'false');
-    expect(button).not.toHaveAttribute('data-pressed');
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle).not.toHaveAttribute('data-pressed');
   });
 
-  it('updates controlled state when re-rendered from outside', async () => {
-    const container = render(Toggle({ pressed: false }));
-    const button = getButton(container);
+  it('respects defaultPressed', async () => {
+    const container = render(html`<toggle-root default-pressed></toggle-root>`);
+    const toggle = container.querySelector('toggle-root')! as ToggleRootElement;
+    await waitForUpdate();
 
-    expect(button).toHaveAttribute('aria-pressed', 'false');
-
-    renderTemplate(Toggle({ pressed: true }), container);
-    await flushMicrotasks();
-
-    expect(button).toHaveAttribute('aria-pressed', 'true');
-
-    renderTemplate(Toggle({ pressed: false }), container);
-    await flushMicrotasks();
-
-    expect(button).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle).toHaveAttribute('data-pressed');
   });
 
-  it('calls onPressedChange with change details and supports cancellation', async () => {
-    const handlePressedChange = vi.fn(
-      (pressed: boolean, eventDetails: ToggleChangeEventDetails) => {
-        if (pressed) {
-          eventDetails.cancel();
-        }
+  it('supports controlled pressed state', async () => {
+    const container = render(html`<toggle-root .pressed=${true}></toggle-root>`);
+    const toggle = container.querySelector('toggle-root')! as ToggleRootElement;
+    await waitForUpdate();
 
-        return eventDetails;
-      },
-    );
-    const container = render(Toggle({ onPressedChange: handlePressedChange }));
-    const button = getButton(container);
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
 
-    button.dispatchEvent(
-      new MouseEvent('click', {
-        altKey: true,
-        bubbles: true,
-        cancelable: true,
-        shiftKey: true,
-      }),
-    );
-    await flushMicrotasks();
-
-    expect(handlePressedChange).toHaveBeenCalledTimes(1);
-    expect(handlePressedChange.mock.calls[0]?.[0]).toBe(true);
-    expect(handlePressedChange.mock.results[0]?.value.event.shiftKey).toBe(true);
-    expect(handlePressedChange.mock.results[0]?.value.isCanceled).toBe(true);
-    expect(button).toHaveAttribute('aria-pressed', 'false');
+    // Clicking in controlled mode does not change state unless parent re-renders
+    toggle.click();
+    await waitForUpdate();
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('disables the component', async () => {
-    const handlePressedChange = vi.fn();
-    const container = render(Toggle({ disabled: true, onPressedChange: handlePressedChange }));
-    const button = container.querySelector('button') as HTMLButtonElement;
-
-    expect(button).toHaveAttribute('disabled');
-    expect(button).toHaveAttribute('data-disabled');
-    expect(button).toHaveAttribute('aria-pressed', 'false');
-
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    await flushMicrotasks();
-
-    expect(handlePressedChange).not.toHaveBeenCalled();
-    expect(button).toHaveAttribute('aria-pressed', 'false');
-  });
-
-  it('does not forward type, form, or value to the DOM', () => {
+  it('calls onPressedChange callback', async () => {
+    const handleChange = vi.fn();
     const container = render(
-      Toggle({
-        form: 'favorite-form',
-        type: 'submit',
-        value: 'favorite',
-      }),
+      html`<toggle-root .onPressedChange=${handleChange}></toggle-root>`,
     );
-    const button = container.querySelector('button') as HTMLButtonElement;
+    const toggle = container.querySelector('toggle-root')! as ToggleRootElement;
+    await waitForUpdate();
 
-    expect(button).toHaveAttribute('type', 'button');
-    expect(button).not.toHaveAttribute('form');
-    expect(button).not.toHaveAttribute('value');
+    toggle.click();
+
+    expect(handleChange).toHaveBeenCalledTimes(1);
+    expect(handleChange).toHaveBeenCalledWith(true, expect.any(Event));
   });
 
-  it('adds keyboard activation semantics for custom elements', async () => {
+  it('does not toggle when disabled', async () => {
+    const handleChange = vi.fn();
     const container = render(
-      Toggle({
-        nativeButton: false,
-        render: html`<span></span>`,
-        children: 'Favorite',
-      }),
+      html`<toggle-root disabled .onPressedChange=${handleChange}></toggle-root>`,
     );
-    const button = container.querySelector('[role="button"]') as HTMLElement;
+    const toggle = container.querySelector('toggle-root')! as ToggleRootElement;
+    await waitForUpdate();
 
-    button.dispatchEvent(
+    expect(toggle).toHaveAttribute('data-disabled');
+
+    toggle.click();
+    await waitForUpdate();
+
+    expect(handleChange).not.toHaveBeenCalled();
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('handles Enter key to toggle', async () => {
+    const container = render(html`<toggle-root></toggle-root>`);
+    const toggle = container.querySelector('toggle-root')! as ToggleRootElement;
+    await waitForUpdate();
+
+    toggle.dispatchEvent(
       new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }),
     );
-    await flushMicrotasks();
+    await waitForUpdate();
 
-    expect(button).toHaveAttribute('aria-pressed', 'true');
-
-    button.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: ' ' }));
-    await flushMicrotasks();
-
-    expect(button).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('warns when nativeButton is true but the rendered element is not a button', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('handles Space key to toggle', async () => {
+    const container = render(html`<toggle-root></toggle-root>`);
+    const toggle = container.querySelector('toggle-root')! as ToggleRootElement;
+    await waitForUpdate();
 
-    render(
-      Toggle({
-        render: html`<span></span>`,
-      }),
+    toggle.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: ' ' }),
     );
-    await flushMicrotasks();
+    toggle.dispatchEvent(
+      new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: ' ' }),
+    );
+    await waitForUpdate();
 
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'Base UI: A component that acts as a button expected a native <button> because the ' +
-          '`nativeButton` prop is true.',
-      ),
-    );
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('passes the current pressed state to the render callback', async () => {
-    const renderSpy = vi.fn((props: Record<string, unknown>, state: ToggleState) => {
-      return html`<span
-        aria-pressed=${String(props['aria-pressed'] ?? 'false')}
-        class=${String(props.className ?? '')}
-        data-pressed=${state.pressed ? '' : nothing}
-      ></span>`;
-    });
-    const container = render(
-      Toggle({
-        className: 'toggle-root',
-        pressed: false,
-        render(props, state) {
-          return renderSpy(props as Record<string, unknown>, state);
-        },
-      }),
-    );
-    const button = getButton(container);
+  it('is focusable via tabindex', async () => {
+    const container = render(html`<toggle-root></toggle-root>`);
+    const toggle = container.querySelector('toggle-root')! as ToggleRootElement;
+    await waitForUpdate();
+    expect(toggle.tabIndex).toBe(0);
+  });
 
-    expect(renderSpy.mock.lastCall?.[1]).toEqual({ disabled: false, pressed: false });
-    renderTemplate(
-      Toggle({
-        className: 'toggle-root',
-        pressed: true,
-        render(props, state) {
-          return renderSpy(props as Record<string, unknown>, state);
-        },
-      }),
-      container,
-    );
-    await flushMicrotasks();
+  it('not focusable when disabled', async () => {
+    const container = render(html`<toggle-root disabled></toggle-root>`);
+    const toggle = container.querySelector('toggle-root')! as ToggleRootElement;
+    await waitForUpdate();
+    expect(toggle.tabIndex).toBe(-1);
+  });
 
-    expect(renderSpy.mock.lastCall?.[1]).toEqual({ disabled: false, pressed: true });
-    expect(button).toHaveClass('toggle-root');
-    expect(button).toHaveAttribute('data-pressed');
+  it('updates when pressed property changes externally', async () => {
+    const container = render(html`<toggle-root .pressed=${false}></toggle-root>`);
+    const toggle = container.querySelector('toggle-root')! as ToggleRootElement;
+    await waitForUpdate();
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+    renderTemplate(html`<toggle-root .pressed=${true}></toggle-root>`, container);
+    await waitForUpdate();
+
+    const updatedToggle = container.querySelector('toggle-root')! as ToggleRootElement;
+    expect(updatedToggle).toHaveAttribute('aria-pressed', 'true');
   });
 });

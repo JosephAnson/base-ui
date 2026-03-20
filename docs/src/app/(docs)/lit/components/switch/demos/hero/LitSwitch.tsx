@@ -1,12 +1,20 @@
 'use client';
 import * as React from 'react';
-import { nothing, render as renderTemplate } from 'lit';
-import type { SwitchRootProps, SwitchThumbProps } from '@base-ui/lit/switch';
-import { Switch } from '@base-ui/lit/switch';
+import { html, nothing, render as renderTemplate } from 'lit';
+import '@base-ui/lit/switch';
 
 export interface LitSwitchProps {
-  rootProps?: SwitchRootProps | undefined;
-  thumbProps?: SwitchThumbProps | undefined;
+  rootProps?: {
+    className?: string;
+    checked?: boolean;
+    defaultChecked?: boolean;
+    disabled?: boolean;
+    name?: string;
+    required?: boolean;
+  } | undefined;
+  thumbProps?: {
+    className?: string;
+  } | undefined;
 }
 
 export function LitSwitch(props: LitSwitchProps) {
@@ -21,10 +29,15 @@ export function LitSwitch(props: LitSwitchProps) {
     }
 
     renderTemplate(
-      Switch.Root({
-        ...rootProps,
-        children: Switch.Thumb(thumbProps ?? {}),
-      }),
+      html`<switch-root
+        class=${rootProps?.className ?? ''}
+        ?checked=${rootProps?.defaultChecked ?? false}
+        ?disabled=${rootProps?.disabled ?? false}
+        ?required=${rootProps?.required ?? false}
+        name=${rootProps?.name ?? nothing}
+      >
+        <switch-thumb class=${thumbProps?.className ?? ''}></switch-thumb>
+      </switch-root>`,
       host,
     );
 

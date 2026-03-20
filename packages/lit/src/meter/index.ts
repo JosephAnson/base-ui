@@ -1,470 +1,336 @@
-import { html, noChange, type TemplateResult } from 'lit';
-// eslint-disable-next-line import/extensions
-import { AsyncDirective, directive } from 'lit/async-directive.js';
-import { useRender as renderElement } from '../use-render/index.ts';
+import { ReactiveElement } from 'lit';
+import { BaseHTMLElement, ensureId, formatNumberValue, valueToPercent } from '../utils/index.ts';
 
-const METER_ROOT_ATTRIBUTE = 'data-base-ui-meter-root';
-const METER_CONTEXT_ATTRIBUTE = 'data-base-ui-meter-context';
-const METER_FORMATTED_VALUE_ATTRIBUTE = 'data-base-ui-meter-formatted-value';
-const METER_LABEL_MODE_ATTRIBUTE = 'data-base-ui-meter-label-mode';
-const METER_LABEL_MODE_AUTO = 'auto';
-const METER_LABEL_MODE_EXPLICIT = 'explicit';
+// ─── Constants ──────────────────────────────────────────────────────────────────
+
+const STATE_CHANGE_EVENT = 'base-ui-meter-state-change';
 const NVDA_FORCE_ANNOUNCEMENT_STYLE =
-  'position:fixed;top:0;left:0;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;white-space:nowrap;clip-path:inset(50%);';
-const METER_CONTEXT_ERROR =
-  'Base UI: MeterRootContext is missing. Meter parts must be placed within <Meter.Root>.';
+  'position:fixed;top:0;left:0;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;white-space:nowrap;clip-path:inset(50%)';
+const CONTEXT_ERROR =
+  'Base UI: MeterRootContext is missing. Meter parts must be placed within <meter-root>.';
 
-let meterLabelId = 0;
+// ─── Types ──────────────────────────────────────────────────────────────────────
+
+export interface MeterRootState {}
+export interface MeterTrackState extends MeterRootState {}
+export interface MeterIndicatorState extends MeterRootState {}
+export interface MeterValueState extends MeterRootState {}
+export interface MeterLabelState extends MeterRootState {}
+
+// ─── MeterRootElement ────────────────────────────────────────────────────────────
 
 /**
  * Groups all parts of the meter and provides the value for screen readers.
- * Renders a `<div>` element.
+ * Renders a `<meter-root>` custom element.
+ *
+ * Documentation: [Base UI Meter](https://base-ui.com/react/components/meter)
  */
-function MeterRoot(componentProps: MeterRootProps): TemplateResult {
-  const {
-    format,
-    getAriaValueText,
-    locale,
-    max = 100,
-    min = 0,
-    value,
-    render,
-    children,
-    ...elementProps
-  } = componentProps;
+export class MeterRootElement extends ReactiveElement {
+  static properties = {
+    value: { type: Number, reflect: true },
+    min: { type: Number, reflect: true },
+    max: { type: Number, reflect: true },
+  };
 
-  const formattedValue = formatNumberValue(value, locale, format);
+  declare value: number;
+  declare min: number;
+  declare max: number;
 
-  let ariaValueText = `${value}%`;
-  if (getAriaValueText) {
-    ariaValueText = getAriaValueText(formattedValue, value);
-  } else if (format) {
-    ariaValueText = formattedValue;
+  /** Custom aria-valuetext function. Set via `.getAriaValueText=${fn}`. */
+  getAriaValueText: ((formattedValue: string, value: number) => string) | undefined;
+
+  /** Number format options. Set via `.format=${options}`. */
+  format: Intl.NumberFormatOptions | undefined;
+
+  /** Locale for formatting. Set via `.locale=${locale}`. */
+  locale: Intl.LocalesArgument | undefined;
+
+  private _labelId: string | undefined;
+  private _labelMode: 'auto' | 'explicit' = 'auto';
+  private _nvdaSpan: HTMLSpanElement | null = null;
+
+  constructor() {
+    super();
+    this.value = 0;
+    this.min = 0;
+    this.max = 100;
   }
 
-  return renderElement<MeterRootState, HTMLDivElement>({
-    defaultTagName: 'div',
-    render,
-    state: {},
-    props: {
-      [METER_ROOT_ATTRIBUTE]: '',
-      [METER_CONTEXT_ATTRIBUTE]: '',
-      [METER_FORMATTED_VALUE_ATTRIBUTE]: formattedValue,
-      [METER_LABEL_MODE_ATTRIBUTE]:
-        elementProps['aria-labelledby'] == null ? METER_LABEL_MODE_AUTO : METER_LABEL_MODE_EXPLICIT,
-      role: 'meter',
-      'aria-valuemax': max,
-      'aria-valuemin': min,
-      'aria-valuenow': value,
-      'aria-valuetext': ariaValueText,
-      children: html`${children}<span role="presentation" style=${NVDA_FORCE_ANNOUNCEMENT_STYLE}
-          >x</span
-        >`,
-      ...elementProps,
-    },
-  });
-}
-
-type MeterContext = {
-  formattedValue: string;
-  max: number;
-  min: number;
-  value: number;
-};
-
-class MeterIndicatorDirective extends AsyncDirective {
-  render(_componentProps: MeterIndicatorProps) {
-    return noChange;
+  override createRenderRoot() {
+    return this;
   }
 
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [MeterIndicatorProps],
-  ) {
-    const { render, ...elementProps } = componentProps;
-    const context = getMeterContext(part);
-    const percentageWidth = valueToPercent(context.value, context.min, context.max);
+  override connectedCallback() {
+    super.connectedCallback();
 
-    return renderElement<MeterIndicatorState, HTMLDivElement>({
-      defaultTagName: 'div',
-      render,
-      state: {},
-      props: {
-        ...elementProps,
-        style: mergeStyle(
-          {
-            insetInlineStart: 0,
-            height: 'inherit',
-            width: `${percentageWidth}%`,
-          },
-          elementProps.style,
-        ),
-      },
-    });
-  }
-}
-
-class MeterTrackDirective extends AsyncDirective {
-  render(_componentProps: MeterTrackProps) {
-    return noChange;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [MeterTrackProps],
-  ) {
-    const { render, children, ...elementProps } = componentProps;
-    const context = getMeterContextOrNull(part);
-
-    return renderElement<MeterTrackState, HTMLDivElement>({
-      defaultTagName: 'div',
-      render,
-      state: {},
-      props: {
-        ...getMeterContextAttributes(context),
-        ...elementProps,
-        children,
-      },
-    });
-  }
-}
-
-class MeterLabelDirective extends AsyncDirective {
-  private generatedId = `base-ui-meter-label-${(meterLabelId += 1)}`;
-  private renderedRoot: Element | null = null;
-  private renderedId: string | null = null;
-
-  render(_componentProps: MeterLabelProps) {
-    return noChange;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [MeterLabelProps],
-  ) {
-    const { render, id: idProp, ...elementProps } = componentProps;
-    const root = getMeterRoot(part);
-    const id = idProp ?? this.generatedId;
-
-    this.syncLabelRegistration(root, id);
-
-    return renderElement<MeterLabelState, HTMLSpanElement>({
-      defaultTagName: 'span',
-      render,
-      state: {},
-      props: {
-        id,
-        role: 'presentation',
-        ...elementProps,
-      },
-    });
-  }
-
-  override disconnected() {
-    this.clearLabelRegistration();
-  }
-
-  override reconnected() {}
-
-  private syncLabelRegistration(root: Element, id: string) {
-    if (this.renderedRoot != null && this.renderedRoot !== root) {
-      this.clearLabelRegistration();
+    if (!this._nvdaSpan) {
+      this._nvdaSpan = document.createElement('span');
+      this._nvdaSpan.setAttribute('role', 'presentation');
+      this._nvdaSpan.style.cssText = NVDA_FORCE_ANNOUNCEMENT_STYLE;
+      this._nvdaSpan.textContent = 'x';
+      this.appendChild(this._nvdaSpan);
     }
 
-    this.renderedRoot = root;
-    this.renderedId = id;
-
-    if (root.getAttribute(METER_LABEL_MODE_ATTRIBUTE) === METER_LABEL_MODE_EXPLICIT) {
-      return;
-    }
-
-    root.setAttribute('aria-labelledby', id);
+    this.syncAttributes();
   }
 
-  private clearLabelRegistration() {
-    if (
-      this.renderedRoot != null &&
-      this.renderedId != null &&
-      this.renderedRoot.getAttribute(METER_LABEL_MODE_ATTRIBUTE) === METER_LABEL_MODE_AUTO &&
-      this.renderedRoot.getAttribute('aria-labelledby') === this.renderedId
-    ) {
-      this.renderedRoot.removeAttribute('aria-labelledby');
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this._nvdaSpan?.remove();
+    this._nvdaSpan = null;
+  }
+
+  protected override updated() {
+    this.syncAttributes();
+  }
+
+  getFormattedValue(): string {
+    return formatNumberValue(this.value, this.locale, this.format);
+  }
+
+  getMeterContext() {
+    return {
+      value: this.value,
+      min: this.min,
+      max: this.max,
+      formattedValue: this.getFormattedValue(),
+    };
+  }
+
+  registerLabel(id: string) {
+    if (this._labelMode === 'explicit') return;
+    this._labelId = id;
+    this.setAttribute('aria-labelledby', id);
+  }
+
+  unregisterLabel(id: string) {
+    if (this._labelId === id) {
+      this._labelId = undefined;
+      this.removeAttribute('aria-labelledby');
+    }
+  }
+
+  setLabelMode(mode: 'auto' | 'explicit') {
+    this._labelMode = mode;
+  }
+
+  private syncAttributes() {
+    const formattedValue = this.getFormattedValue();
+
+    let ariaValueText = `${this.value}%`;
+    if (this.getAriaValueText) {
+      ariaValueText = this.getAriaValueText(formattedValue, this.value);
+    } else if (this.format) {
+      ariaValueText = formattedValue;
     }
 
-    this.renderedRoot = null;
-    this.renderedId = null;
+    this.setAttribute('role', 'meter');
+    this.setAttribute('aria-valuemin', String(this.min));
+    this.setAttribute('aria-valuemax', String(this.max));
+    this.setAttribute('aria-valuenow', String(this.value));
+    this.setAttribute('aria-valuetext', ariaValueText);
+
+    this.dispatchEvent(new CustomEvent(STATE_CHANGE_EVENT, { bubbles: false }));
   }
 }
 
-class MeterValueDirective extends AsyncDirective {
-  render(_componentProps: MeterValueProps) {
-    return noChange;
-  }
-
-  override update(
-    part: Parameters<AsyncDirective['update']>[0],
-    [componentProps]: [MeterValueProps],
-  ) {
-    const { children, render, ...elementProps } = componentProps;
-    const context = getMeterContext(part);
-    const resolvedChildren =
-      typeof children === 'function'
-        ? children(context.formattedValue, context.value)
-        : ((context.formattedValue || context.value) ?? '');
-
-    return renderElement<MeterValueState, HTMLSpanElement>({
-      defaultTagName: 'span',
-      render,
-      state: {},
-      props: {
-        'aria-hidden': true,
-        children: resolvedChildren,
-        ...elementProps,
-      },
-    });
-  }
+if (!customElements.get('meter-root')) {
+  customElements.define('meter-root', MeterRootElement);
 }
 
-const meterTrackDirective = directive(MeterTrackDirective);
-const meterIndicatorDirective = directive(MeterIndicatorDirective);
-const meterLabelDirective = directive(MeterLabelDirective);
-const meterValueDirective = directive(MeterValueDirective);
+// ─── MeterTrackElement ───────────────────────────────────────────────────────────
 
 /**
  * Contains the meter indicator and represents the entire range of the meter.
- * Renders a `<div>` element.
+ * Renders a `<meter-track>` custom element.
  */
-function MeterTrack(componentProps: MeterTrackProps): TemplateResult {
-  return html`${meterTrackDirective(componentProps)}`;
+export class MeterTrackElement extends BaseHTMLElement {
+  private _root: MeterRootElement | null = null;
+  private _handler = () => this.syncAttributes();
+
+  connectedCallback() {
+    this._root = this.closest('meter-root') as MeterRootElement | null;
+    if (!this._root) {
+      console.error(CONTEXT_ERROR);
+      return;
+    }
+
+    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    queueMicrotask(() => this.syncAttributes());
+  }
+
+  disconnectedCallback() {
+    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
+    this._root = null;
+  }
+
+  private syncAttributes() {
+    // Structural container — no special attributes needed
+  }
 }
+
+if (!customElements.get('meter-track')) {
+  customElements.define('meter-track', MeterTrackElement);
+}
+
+// ─── MeterIndicatorElement ───────────────────────────────────────────────────────
 
 /**
  * Visualizes the position of the value along the range.
- * Renders a `<div>` element.
+ * Renders a `<meter-indicator>` custom element.
  */
-function MeterIndicator(componentProps: MeterIndicatorProps): TemplateResult {
-  return html`${meterIndicatorDirective(componentProps)}`;
+export class MeterIndicatorElement extends BaseHTMLElement {
+  private _root: MeterRootElement | null = null;
+  private _handler = () => this.syncAttributes();
+
+  connectedCallback() {
+    this._root = this.closest('meter-root') as MeterRootElement | null;
+    if (!this._root) {
+      console.error(CONTEXT_ERROR);
+      return;
+    }
+
+    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    queueMicrotask(() => this.syncAttributes());
+  }
+
+  disconnectedCallback() {
+    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
+    this._root = null;
+  }
+
+  private syncAttributes() {
+    if (!this._root) return;
+    const ctx = this._root.getMeterContext();
+    const percent = valueToPercent(ctx.value, ctx.min, ctx.max);
+
+    this.style.width = `${percent}%`;
+    this.style.insetInlineStart = '0';
+    this.style.height = 'inherit';
+  }
 }
 
-/**
- * A text element displaying the current value.
- * Renders a `<span>` element.
- */
-function MeterValue(componentProps: MeterValueProps): TemplateResult {
-  return html`${meterValueDirective(componentProps)}`;
+if (!customElements.get('meter-indicator')) {
+  customElements.define('meter-indicator', MeterIndicatorElement);
 }
+
+// ─── MeterLabelElement ───────────────────────────────────────────────────────────
 
 /**
  * An accessible label for the meter.
- * Renders a `<span>` element.
+ * Renders a `<meter-label>` custom element.
  */
-function MeterLabel(componentProps: MeterLabelProps): TemplateResult {
-  return html`${meterLabelDirective(componentProps)}`;
-}
+export class MeterLabelElement extends BaseHTMLElement {
+  private _root: MeterRootElement | null = null;
+  private _handler = () => this.syncAttributes();
 
-function getMeterContext(part: Parameters<AsyncDirective['update']>[0]): MeterContext {
-  const context = getMeterContextOrNull(part);
+  connectedCallback() {
+    this._root = this.closest('meter-root') as MeterRootElement | null;
+    if (!this._root) {
+      console.error(CONTEXT_ERROR);
+      return;
+    }
 
-  if (context == null) {
-    throw new Error(METER_CONTEXT_ERROR);
+    this.setAttribute('role', 'presentation');
+    const id = ensureId(this, 'base-ui-meter-label');
+    this._root.registerLabel(id);
+    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    queueMicrotask(() => this.syncAttributes());
   }
 
-  return context;
-}
-
-function getMeterContextOrNull(part: Parameters<AsyncDirective['update']>[0]) {
-  const parentNode = (part as { parentNode?: Node | null | undefined }).parentNode ?? null;
-  const parentElement = getParentElement(parentNode);
-  const carrier = parentElement?.closest(`[${METER_CONTEXT_ATTRIBUTE}]`);
-
-  if (carrier == null) {
-    return null;
+  disconnectedCallback() {
+    if (this._root && this.id) {
+      this._root.unregisterLabel(this.id);
+    }
+    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
+    this._root = null;
   }
 
-  return getMeterContextFromElement(carrier);
+  private syncAttributes() {
+    // Structural — mirrors parent state if needed
+  }
 }
 
-function getMeterContextFromElement(element: Element): MeterContext {
-  return {
-    formattedValue: element.getAttribute(METER_FORMATTED_VALUE_ATTRIBUTE) ?? '',
-    max: Number(element.getAttribute('aria-valuemax')),
-    min: Number(element.getAttribute('aria-valuemin')),
-    value: Number(element.getAttribute('aria-valuenow')),
-  };
+if (!customElements.get('meter-label')) {
+  customElements.define('meter-label', MeterLabelElement);
 }
 
-function getMeterContextAttributes(context: MeterContext | null) {
-  if (context == null) {
-    return {};
+// ─── MeterValueElement ───────────────────────────────────────────────────────────
+
+/**
+ * A text element displaying the current value.
+ * Renders a `<meter-value>` custom element.
+ */
+export class MeterValueElement extends BaseHTMLElement {
+  private _root: MeterRootElement | null = null;
+  private _handler = () => this.syncAttributes();
+
+  /** Custom render function for value display. Set via `.renderValue=${fn}`. */
+  renderValue: ((formattedValue: string, value: number) => string) | undefined;
+
+  connectedCallback() {
+    this._root = this.closest('meter-root') as MeterRootElement | null;
+    if (!this._root) {
+      console.error(CONTEXT_ERROR);
+      return;
+    }
+
+    this.setAttribute('aria-hidden', 'true');
+    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    queueMicrotask(() => this.syncAttributes());
   }
 
-  return {
-    [METER_CONTEXT_ATTRIBUTE]: '',
-    [METER_FORMATTED_VALUE_ATTRIBUTE]: context.formattedValue,
-    'aria-valuemax': context.max,
-    'aria-valuemin': context.min,
-    'aria-valuenow': context.value,
-  };
-}
-
-function getMeterRoot(part: Parameters<AsyncDirective['update']>[0]) {
-  const parentNode = (part as { parentNode?: Node | null | undefined }).parentNode ?? null;
-  const parentElement = getParentElement(parentNode);
-  const root = parentElement?.closest(`[${METER_ROOT_ATTRIBUTE}]`);
-
-  if (root == null) {
-    throw new Error(METER_CONTEXT_ERROR);
+  disconnectedCallback() {
+    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
+    this._root = null;
   }
 
-  return root;
-}
+  private syncAttributes() {
+    if (!this._root) return;
+    const ctx = this._root.getMeterContext();
 
-function getParentElement(node: Node | null) {
-  if (node == null) {
-    return null;
+    if (this.renderValue) {
+      this.textContent = this.renderValue(ctx.formattedValue, ctx.value);
+    } else {
+      this.textContent = ctx.formattedValue || String(ctx.value);
+    }
   }
+}
 
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    return node as Element;
+if (!customElements.get('meter-value')) {
+  customElements.define('meter-value', MeterValueElement);
+}
+
+// ─── Namespace exports ──────────────────────────────────────────────────────────
+
+export namespace MeterRoot {
+  export type State = MeterRootState;
+}
+
+export namespace MeterTrack {
+  export type State = MeterTrackState;
+}
+
+export namespace MeterIndicator {
+  export type State = MeterIndicatorState;
+}
+
+export namespace MeterLabel {
+  export type State = MeterLabelState;
+}
+
+export namespace MeterValue {
+  export type State = MeterValueState;
+}
+
+// ─── Global type declarations ───────────────────────────────────────────────────
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'meter-root': MeterRootElement;
+    'meter-track': MeterTrackElement;
+    'meter-indicator': MeterIndicatorElement;
+    'meter-label': MeterLabelElement;
+    'meter-value': MeterValueElement;
   }
-
-  return node.parentElement;
 }
-
-function valueToPercent(value: number, min: number, max: number) {
-  return ((value - min) * 100) / (max - min);
-}
-
-const formatterCache = new Map<string, Intl.NumberFormat>();
-
-function getFormatter(locale?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions) {
-  const cacheKey = JSON.stringify({ locale, options });
-  const cachedFormatter = formatterCache.get(cacheKey);
-
-  if (cachedFormatter) {
-    return cachedFormatter;
-  }
-
-  const formatter = new Intl.NumberFormat(locale, options);
-  formatterCache.set(cacheKey, formatter);
-  return formatter;
-}
-
-function formatNumber(
-  value: number | null,
-  locale?: Intl.LocalesArgument,
-  options?: Intl.NumberFormatOptions,
-) {
-  if (value == null) {
-    return '';
-  }
-
-  return getFormatter(locale, options).format(value);
-}
-
-function formatNumberValue(
-  value: number | null,
-  locale?: Intl.LocalesArgument,
-  format?: Intl.NumberFormatOptions,
-) {
-  if (value == null) {
-    return '';
-  }
-
-  if (!format) {
-    return formatNumber(value / 100, locale, { style: 'percent' });
-  }
-
-  return formatNumber(value, locale, format);
-}
-
-function mergeStyle(defaultStyle: Record<string, unknown>, style: unknown) {
-  if (style == null || typeof style !== 'object') {
-    return defaultStyle;
-  }
-
-  return {
-    ...defaultStyle,
-    ...(style as Record<string, unknown>),
-  };
-}
-
-type ComponentPropsWithChildren<
-  ElementType extends keyof HTMLElementTagNameMap,
-  State,
-  Children = unknown,
-> = Omit<renderElement.ComponentProps<ElementType, State>, 'children' | 'render'> & {
-  children?: Children | undefined;
-  render?: renderElement.RenderProp<State> | undefined;
-};
-
-export interface MeterRootState {}
-
-export interface MeterRootProps extends ComponentPropsWithChildren<'div', MeterRootState> {
-  /**
-   * A string value that provides a user-friendly name for `aria-valuenow`, the current value of the meter.
-   */
-  'aria-valuetext'?: string | undefined;
-  /**
-   * Options to format the value.
-   */
-  format?: Intl.NumberFormatOptions | undefined;
-  /**
-   * A function that returns a string value that provides a human-readable text alternative for `aria-valuenow`, the current value of the meter.
-   */
-  getAriaValueText?: ((formattedValue: string, value: number) => string) | undefined;
-  /**
-   * The locale used by `Intl.NumberFormat` when formatting the value.
-   * Defaults to the user's runtime locale.
-   */
-  locale?: Intl.LocalesArgument | undefined;
-  /**
-   * The maximum value.
-   * @default 100
-   */
-  max?: number | undefined;
-  /**
-   * The minimum value.
-   * @default 0
-   */
-  min?: number | undefined;
-  /**
-   * The current value.
-   */
-  value: number;
-}
-
-export interface MeterTrackState extends MeterRootState {}
-
-export interface MeterTrackProps extends ComponentPropsWithChildren<'div', MeterTrackState> {}
-
-export interface MeterIndicatorState extends MeterRootState {}
-
-export interface MeterIndicatorProps extends ComponentPropsWithChildren<
-  'div',
-  MeterIndicatorState
-> {}
-
-export interface MeterValueState extends MeterRootState {}
-
-export interface MeterValueProps extends ComponentPropsWithChildren<
-  'span',
-  MeterValueState,
-  null | ((formattedValue: string, value: number) => unknown)
-> {
-  children?: null | ((formattedValue: string, value: number) => unknown) | undefined;
-}
-
-export interface MeterLabelState extends MeterRootState {}
-
-export interface MeterLabelProps extends ComponentPropsWithChildren<'span', MeterLabelState> {
-  id?: string | undefined;
-}
-
-export const Meter = {
-  Root: MeterRoot,
-  Track: MeterTrack,
-  Indicator: MeterIndicator,
-  Value: MeterValue,
-  Label: MeterLabel,
-} as const;

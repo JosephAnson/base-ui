@@ -9,16 +9,12 @@ import { DemoCheckboxHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { html, render } from 'lit';
-import { Checkbox } from '@base-ui/lit/checkbox';
-
-render(
-  Checkbox.Root({
-    children: Checkbox.Indicator({ children: html`<span>✓</span>` }),
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<checkbox-root>
+  <checkbox-indicator>
+    <span>✓</span>
+  </checkbox-indicator>
+</checkbox-root>
 ```
 
 ## Status

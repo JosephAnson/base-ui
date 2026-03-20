@@ -1,0 +1,73 @@
+# Composite
+
+<Subtitle>Shared keyboard navigation utilities for lists and grids.</Subtitle>
+<Meta
+  name="description"
+  content="Utilities for keyboard navigation in composite widgets like lists, menus, and grids."
+/>
+
+## Usage
+
+The composite utilities provide list and grid keyboard navigation with disabled item skipping, loop/wrap, RTL support, and Home/End keys.
+
+```ts title="List navigation"
+import { navigateList } from '@base-ui/lit/composite';
+
+const nextIndex = navigateList({
+  currentIndex: highlightedIndex,
+  items: listElements,
+  event: keyboardEvent,
+  orientation: 'vertical',
+  loop: true,
+});
+
+if (nextIndex !== -1) {
+  highlightedIndex = nextIndex;
+}
+```
+
+```ts title="Grid navigation"
+import { navigateGrid } from '@base-ui/lit/composite';
+
+const nextIndex = navigateGrid({
+  currentIndex: highlightedIndex,
+  items: gridElements,
+  event: keyboardEvent,
+  cols: 3,
+  loop: true,
+});
+```
+
+## API
+
+### `navigateList(options): number`
+
+Computes the next highlighted index for a 1D list. Returns `-1` if the event doesn't match a navigation key.
+
+### `navigateGrid(options): number`
+
+Computes the next highlighted index for a 2D grid. Returns `-1` if the event doesn't match a navigation key.
+
+### `findNonDisabledIndex(items, options): number`
+
+Walks forward or backward through items to find the next non-disabled index.
+
+### `getMinListIndex(items, disabledIndices?): number`
+
+Returns the first non-disabled index.
+
+### `getMaxListIndex(items, disabledIndices?): number`
+
+Returns the last non-disabled index.
+
+### `isListIndexDisabled(items, index, disabledIndices?): boolean`
+
+Checks whether an item should be treated as disabled.
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
+
+export const metadata = {
+  keywords: ['Lit Composite', 'Composite', 'Keyboard navigation', 'Base UI Lit'],
+};

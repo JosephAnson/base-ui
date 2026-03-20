@@ -9,16 +9,10 @@ import { DemoSwitchHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { Switch } from '@base-ui/lit/switch';
-
-render(
-  Switch.Root({
-    children: Switch.Thumb(),
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<switch-root>
+  <switch-thumb></switch-thumb>
+</switch-root>
 ```
 
 ## Status

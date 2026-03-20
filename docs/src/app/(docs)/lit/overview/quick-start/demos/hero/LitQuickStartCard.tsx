@@ -1,8 +1,8 @@
 'use client';
 import * as React from 'react';
 import { html, nothing, render as renderTemplate } from 'lit';
-import { Button } from '@base-ui/lit/button';
-import { Field } from '@base-ui/lit/field';
+import '@base-ui/lit/button';
+import '@base-ui/lit/field';
 
 export interface LitQuickStartCardProps {
   buttonClassName?: string | undefined;
@@ -39,34 +39,21 @@ export function LitQuickStartCard(props: LitQuickStartCardProps) {
       html`
         <div class=${surfaceClassName ?? ''}>
           <div class=${cardClassName ?? ''}>
-            ${Field.Root({
-              className: fieldClassName,
-              children: [
-                Field.Label({
-                  className: labelClassName,
-                  children: 'Project name',
-                }),
-                Field.Control({
-                  className: inputClassName,
-                  defaultValue: '',
-                  placeholder: 'Required',
-                  required: true,
-                }),
-                Field.Description({
-                  className: descriptionClassName,
-                  children: 'Visible to your whole team.',
-                }),
-                Field.Error({
-                  className: errorClassName,
-                  match: 'valueMissing',
-                  children: 'Enter a project name',
-                }),
-              ],
-            })}
-            ${Button({
-              className: buttonClassName,
-              children: 'Create workspace',
-            })}
+            <field-root class=${fieldClassName ?? ''}>
+              <field-label class=${labelClassName ?? ''}>Project name</field-label>
+              <field-control
+                class=${inputClassName ?? ''}
+                placeholder="Required"
+                required
+              ></field-control>
+              <field-description class=${descriptionClassName ?? ''}>
+                Visible to your whole team.
+              </field-description>
+              <field-error class=${errorClassName ?? ''} match="valueMissing">
+                Enter a project name
+              </field-error>
+            </field-root>
+            <button-root class=${buttonClassName ?? ''}>Create workspace</button-root>
           </div>
         </div>
       `,

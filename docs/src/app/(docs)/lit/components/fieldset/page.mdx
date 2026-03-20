@@ -9,16 +9,10 @@ import { DemoFieldsetHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { Fieldset } from '@base-ui/lit/fieldset';
-
-render(
-  Fieldset.Root({
-    children: [Fieldset.Legend({ children: 'Notifications' })],
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<fieldset-root>
+  <fieldset-legend>Notifications</fieldset-legend>
+</fieldset-root>
 ```
 
 ## Status

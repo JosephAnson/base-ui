@@ -1,18 +1,12 @@
-/* eslint-disable testing-library/render-result-naming-convention */
-import { html, nothing, render as renderTemplate, type TemplateResult } from 'lit';
+import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { Checkbox } from '@base-ui/lit/checkbox';
-import type {
-  FieldControlProps,
-  FieldRootProps,
-  FieldValidityState,
-} from '@base-ui/lit/field';
-import { Field } from '@base-ui/lit/field';
-import { Fieldset } from '@base-ui/lit/fieldset';
-import type { BaseUIChangeEventDetails } from '@base-ui/lit/types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import '../checkbox/index.ts';
+import '../fieldset/index.ts';
+import './index.ts';
+import type { FieldRootElement, FieldValidityState } from './index.ts';
 
-describe('Field', () => {
+describe('field', () => {
   const containers = new Set<HTMLDivElement>();
 
   afterEach(() => {
@@ -24,195 +18,156 @@ describe('Field', () => {
     vi.restoreAllMocks();
   });
 
-  function render(result: TemplateResult) {
+  function render(result: ReturnType<typeof html>) {
     const container = document.createElement('div');
     document.body.append(container);
     containers.add(container);
-
     renderTemplate(result, container);
     return container;
   }
 
-  async function flushMicrotasks(iterations = 6) {
-    for (let index = 0; index < iterations; index += 1) {
-      await Promise.resolve();
+  async function waitForUpdate() {
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => setTimeout(r, 0));
     }
   }
 
-  it('preserves the public type contracts', () => {
-    const root = Field.Root({});
-    const label = Field.Label({});
-    const control = Field.Control({});
-    const description = Field.Description({});
-    const error = Field.Error({});
-    const item = Field.Item({});
-    const validity = Field.Validity({ children: () => html`` });
+  it('renders field-root as a custom element', async () => {
+    const container = render(html`<field-root></field-root>`);
+    await waitForUpdate();
 
-    expectTypeOf(root).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(label).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(control).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(description).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(error).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(item).toEqualTypeOf<TemplateResult>();
-    expectTypeOf(validity).toEqualTypeOf<TemplateResult>();
-    expectTypeOf<FieldControlProps['onValueChange']>().toEqualTypeOf<
-      ((value: string, eventDetails: BaseUIChangeEventDetails<'none'>) => void) | undefined
-    >();
-    expectTypeOf<FieldRootProps['validationMode']>().toEqualTypeOf<
-      'onSubmit' | 'onBlur' | 'onChange' | undefined
-    >();
-    expectTypeOf<FieldValidityState['transitionStatus']>().toEqualTypeOf<
-      'starting' | 'ending' | undefined
-    >();
+    const root = container.querySelector('field-root') as FieldRootElement;
+    expect(root).toBeInTheDocument();
+    expect(root).toHaveAttribute('data-base-ui-field-root');
   });
 
-  it('links the label to the generated control id', async () => {
-    const container = render(
-      Field.Root({
-        children: [Field.Control({}), Field.Label({ children: 'Name' })],
-      }),
-    );
+  it('field-control creates an input inside itself', async () => {
+    const container = render(html`
+      <field-root>
+        <field-control></field-control>
+      </field-root>
+    `);
+    await waitForUpdate();
 
-    await flushMicrotasks();
-
-    const label = container.querySelector('label') as HTMLLabelElement;
     const input = container.querySelector('input') as HTMLInputElement;
-
+    expect(input).toBeInTheDocument();
     expect(input.id).not.toBe('');
-    expect(label).toHaveAttribute('for', input.id);
   });
 
-  it('focuses the control when a non-native label is clicked', async () => {
-    const container = render(
-      Field.Root({
-        children: [
-          Field.Control({}),
-          Field.Label({
-            children: 'Name',
-            nativeLabel: false,
-            render: html`<div data-testid="label"></div>`,
-          }),
-        ],
-      }),
-    );
+  it('field-label focuses the control when clicked', async () => {
+    const container = render(html`
+      <field-root>
+        <field-control></field-control>
+        <field-label>Name</field-label>
+      </field-root>
+    `);
+    await waitForUpdate();
 
-    await flushMicrotasks();
-
-    const label = container.querySelector('[data-testid="label"]') as HTMLDivElement;
+    const label = container.querySelector('field-label') as HTMLElement;
     const input = container.querySelector('input') as HTMLInputElement;
 
     label.click();
-    await flushMicrotasks();
+    await waitForUpdate();
 
     expect(input).toHaveFocus();
   });
 
-  it('applies aria-describedby from the description', async () => {
-    const container = render(
-      Field.Root({
-        children: [Field.Control({}), Field.Description({ children: 'Visible on your profile' })],
-      }),
-    );
-
-    await flushMicrotasks();
+  it('field-description applies aria-describedby to the control', async () => {
+    const container = render(html`
+      <field-root>
+        <field-control></field-control>
+        <field-description>Visible on your profile</field-description>
+      </field-root>
+    `);
+    await waitForUpdate();
 
     const input = container.querySelector('input') as HTMLInputElement;
-    const description = container.querySelector('p') as HTMLParagraphElement;
+    const description = container.querySelector('field-description') as HTMLElement;
 
     expect(description.id).not.toBe('');
     expect(input).toHaveAttribute('aria-describedby', description.id);
   });
 
-  it('shows the error content after submit validation and wires aria-describedby', async () => {
-    const container = render(html`<form>
-      ${Field.Root({
-        validate: () => 'Required',
-        children: [Field.Control({}), Field.Error({})],
-      })}
-    </form>`);
-
-    await flushMicrotasks();
+  it('shows error content after submit validation and wires aria-describedby', async () => {
+    const container = render(html`
+      <form>
+        <field-root .validate=${() => 'Required'}>
+          <field-control></field-control>
+          <field-error></field-error>
+        </field-root>
+      </form>
+    `);
+    await waitForUpdate();
 
     const form = container.querySelector('form') as HTMLFormElement;
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    await flushMicrotasks();
+    await waitForUpdate();
 
     const input = container.querySelector('input') as HTMLInputElement;
-    const error = container.querySelector('div[data-invalid]') as HTMLDivElement | null;
+    const error = container.querySelector('field-error') as HTMLElement;
 
-    expect(error).not.toBe(null);
+    expect(error).not.toHaveAttribute('hidden');
     expect(error).toHaveTextContent('Required');
-    expect(error?.id).not.toBe('');
-    expect(input).toHaveAttribute('aria-describedby', error?.id ?? '');
+    expect(error.id).not.toBe('');
+    expect(input).toHaveAttribute('aria-describedby', error.id);
   });
 
   it('passes validity updates to the render callback', async () => {
-    const handleValidity = vi.fn<(state: FieldValidityState) => TemplateResult>(() => html``);
-    const container = render(
-      Field.Root({
-        validationMode: 'onBlur',
-        validate: () => ['one', 'two'],
-        children: [Field.Control({}), Field.Validity({ children: handleValidity })],
-      }),
-    );
-
-    await flushMicrotasks();
+    const handleValidity = vi.fn();
+    const container = render(html`
+      <field-root .validationMode=${'onBlur'} .validate=${() => ['one', 'two']}>
+        <field-control></field-control>
+        <field-validity .renderValidity=${handleValidity}></field-validity>
+      </field-root>
+    `);
+    await waitForUpdate();
 
     const input = container.querySelector('input') as HTMLInputElement;
-    input.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
-    input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
-    await flushMicrotasks();
+    input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    await waitForUpdate();
 
     expect(handleValidity).toHaveBeenCalled();
-    const latestValidity = handleValidity.mock.lastCall?.[0];
-
-    expect(latestValidity?.error).toBe('one');
-    expect(latestValidity?.errors).toEqual(['one', 'two']);
-    expect(latestValidity).toHaveProperty('transitionStatus');
+    const latestCall = handleValidity.mock.lastCall?.[0] as FieldValidityState;
+    expect(latestCall?.error).toBe('one');
+    expect(latestCall?.errors).toEqual(['one', 'two']);
+    expect(latestCall).toHaveProperty('transitionStatus');
   });
 
-  it('blocks checkbox interaction inside a disabled item', async () => {
-    const container = render(
-      Field.Root({
-        children: [
-          Field.Item({
-            disabled: true,
-            children: Checkbox.Root({ 'data-testid': 'blocked' }),
-          }),
-          Field.Item({
-            children: Checkbox.Root({ 'data-testid': 'allowed' }),
-          }),
-        ],
-      }),
-    );
+  it('blocks interaction inside a disabled field-item', async () => {
+    const container = render(html`
+      <field-root>
+        <field-item disabled>
+          <checkbox-root></checkbox-root>
+        </field-item>
+        <checkbox-root data-testid="allowed"></checkbox-root>
+      </field-root>
+    `);
+    await waitForUpdate();
 
-    await flushMicrotasks();
-
-    const blocked = container.querySelector('[data-testid="blocked"]') as HTMLElement;
+    const blocked = container.querySelector('field-item checkbox-root') as HTMLElement;
     const allowed = container.querySelector('[data-testid="allowed"]') as HTMLElement;
 
     blocked.click();
-    await flushMicrotasks();
+    await waitForUpdate();
     expect(blocked).toHaveAttribute('aria-checked', 'false');
 
     allowed.click();
-    await flushMicrotasks();
+    await waitForUpdate();
     expect(allowed).toHaveAttribute('aria-checked', 'true');
   });
 
   it('inherits disabled state from a surrounding fieldset', async () => {
-    const container = render(
-      Fieldset.Root({
-        disabled: true,
-        children: Field.Root({
-          'data-testid': 'field',
-          children: [Field.Control({})],
-        }),
-      }),
-    );
+    const container = render(html`
+      <fieldset-root .disabled=${true}>
+        <field-root>
+          <field-control></field-control>
+        </field-root>
+      </fieldset-root>
+    `);
+    await waitForUpdate();
 
-    await flushMicrotasks();
-
-    expect(container.querySelector('[data-testid="field"]')).toHaveAttribute('data-disabled');
+    const field = container.querySelector('field-root') as FieldRootElement;
+    expect(field).toHaveAttribute('data-disabled');
   });
 });

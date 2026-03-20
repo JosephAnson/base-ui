@@ -12,23 +12,14 @@ import { DemoFormHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { Field } from '@base-ui/lit/field';
-import { Form } from '@base-ui/lit/form';
-
-render(
-  Form({
-    children: Field.Root({
-      children: [
-        Field.Label({ children: 'Homepage' }),
-        Field.Control({ required: true }),
-        Field.Error(),
-      ],
-    }),
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<form-root>
+  <field-root>
+    <field-label>Homepage</field-label>
+    <field-control required></field-control>
+    <field-error></field-error>
+  </field-root>
+</form-root>
 ```
 
 ## Status

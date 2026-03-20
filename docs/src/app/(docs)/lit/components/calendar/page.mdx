@@ -1,0 +1,40 @@
+# Calendar
+
+<Subtitle>A date picker calendar component.</Subtitle>
+<Meta name="description" content="A date picker calendar component." />
+
+## Anatomy
+
+```html title="Anatomy"
+<calendar-root>
+  <calendar-decrement-month>Previous</calendar-decrement-month>
+  <calendar-increment-month>Next</calendar-increment-month>
+  <calendar-day-grid>
+    <calendar-day-grid-header>
+      <calendar-day-grid-header-row>
+        <calendar-day-grid-header-cell>Su</calendar-day-grid-header-cell>
+        <calendar-day-grid-header-cell>Mo</calendar-day-grid-header-cell>
+        <calendar-day-grid-header-cell>Tu</calendar-day-grid-header-cell>
+      </calendar-day-grid-header-row>
+    </calendar-day-grid-header>
+    <calendar-day-grid-body>
+      <calendar-day-grid-row>
+        <calendar-day-grid-cell>
+          <calendar-day-button>1</calendar-day-button>
+        </calendar-day-grid-cell>
+        <calendar-day-grid-cell>
+          <calendar-day-button>2</calendar-day-button>
+        </calendar-day-grid-cell>
+      </calendar-day-grid-row>
+    </calendar-day-grid-body>
+  </calendar-day-grid>
+</calendar-root>
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Calendar', 'Calendar', 'Base UI Lit', 'Date picker'],
+};

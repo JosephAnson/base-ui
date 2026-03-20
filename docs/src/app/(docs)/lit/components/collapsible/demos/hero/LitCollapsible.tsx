@@ -1,18 +1,20 @@
 'use client';
 import * as React from 'react';
 import { html, nothing, render as renderTemplate } from 'lit';
-import type {
-  CollapsiblePanelProps,
-  CollapsibleRootProps,
-  CollapsibleTriggerProps,
-} from '@base-ui/lit/collapsible';
-import { Collapsible } from '@base-ui/lit/collapsible';
+import '@base-ui/lit/collapsible';
 
 export interface LitCollapsibleProps {
   contentClassName?: string | undefined;
-  panelProps?: CollapsiblePanelProps | undefined;
-  rootProps?: CollapsibleRootProps | undefined;
-  triggerProps?: CollapsibleTriggerProps | undefined;
+  panelProps?: {
+    className?: string;
+  } | undefined;
+  rootProps?: {
+    className?: string;
+    defaultOpen?: boolean;
+  } | undefined;
+  triggerProps?: {
+    className?: string;
+  } | undefined;
   triggerIconClassName?: string | undefined;
 }
 
@@ -28,23 +30,19 @@ export function LitCollapsible(props: LitCollapsibleProps) {
     }
 
     renderTemplate(
-      Collapsible.Root({
-        ...rootProps,
-        children: [
-          Collapsible.Trigger({
-            ...triggerProps,
-            children: [chevronIcon(triggerIconClassName), 'Recovery keys'],
-          }),
-          Collapsible.Panel({
-            ...panelProps,
-            children: html`<div class=${contentClassName ?? ''}>
-              <div>alien-bean-pasta</div>
-              <div>wild-irish-burrito</div>
-              <div>horse-battery-staple</div>
-            </div>`,
-          }),
-        ],
-      }),
+      html`<collapsible-root class=${rootProps?.className ?? ''}>
+        <collapsible-trigger class=${triggerProps?.className ?? ''}>
+          ${chevronIcon(triggerIconClassName)}
+          Recovery keys
+        </collapsible-trigger>
+        <collapsible-panel class=${panelProps?.className ?? ''}>
+          <div class=${contentClassName ?? ''}>
+            <div>alien-bean-pasta</div>
+            <div>wild-irish-burrito</div>
+            <div>horse-battery-staple</div>
+          </div>
+        </collapsible-panel>
+      </collapsible-root>`,
       host,
     );
 

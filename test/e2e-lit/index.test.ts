@@ -53,6 +53,41 @@ describe('e2e', () => {
     await page.waitForSelector('[data-testid="testcase"]:not([aria-busy="true"])');
   }
 
+  async function settleFixture() {
+    await page.evaluate(async () => {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            resolve();
+          });
+        });
+      });
+    });
+  }
+
+  async function waitForPopoverTriggerRegistration(testId: string) {
+    await page.waitForFunction(
+      (currentTestId) => {
+        const trigger = document.querySelector(`[data-testid="${currentTestId}"]`);
+        if (!(trigger instanceof HTMLElement) || trigger.id === '') {
+          return false;
+        }
+
+        const root = trigger.closest('[data-base-ui-popover-root]') as
+          | (HTMLElement & {
+              __baseUiPopoverRuntime?: {
+                getTriggerEntry(id: string): { element?: Element | null } | undefined;
+              };
+            })
+          | null;
+        const runtime = root?.__baseUiPopoverRuntime;
+        return runtime?.getTriggerEntry(trigger.id)?.element === trigger;
+      },
+      testId,
+      { timeout: 1000 },
+    );
+  }
+
   beforeAll(async function beforeHook() {
     browser = await chromium.launch({
       args: ['--disable-crash-reporter', '--disable-crashpad', '--font-render-hinting=none'],
@@ -214,6 +249,52 @@ describe('e2e', () => {
     });
   });
 
+  describe('menubar', () => {
+    it('opens sibling menus on hover when another top-level menu is open', async () => {
+      await renderFixture('menubar/Interactions');
+      await settleFixture();
+      await waitForPopoverTriggerRegistration('file-trigger');
+      await waitForPopoverTriggerRegistration('edit-trigger');
+
+      const fileTrigger = page.getByTestId('file-trigger');
+      const editTrigger = page.getByTestId('edit-trigger');
+
+      await fileTrigger.click();
+      await expect(fileTrigger).toHaveAttribute('aria-expanded', 'true', { timeout: 1000 });
+      await expect(page.getByTestId('file-menu')).toBeVisible({ timeout: 1000 });
+
+      await editTrigger.evaluate((element) => {
+        element.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true }));
+        element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
+      });
+
+      await expect(editTrigger).toHaveAttribute('aria-expanded', 'true', { timeout: 1000 });
+      await expect(page.getByTestId('edit-menu')).toBeVisible({ timeout: 1000 });
+      await expect(page.getByTestId('file-menu')).toBeHidden({ timeout: 1000 });
+    }, 10000);
+
+    it('supports keyboard navigation between open menus', async () => {
+      await renderFixture('menubar/Interactions');
+      await settleFixture();
+      await waitForPopoverTriggerRegistration('file-trigger');
+      await waitForPopoverTriggerRegistration('edit-trigger');
+
+      const fileTrigger = page.getByTestId('file-trigger');
+      const editTrigger = page.getByTestId('edit-trigger');
+
+      await fileTrigger.click();
+      await expect(fileTrigger).toHaveAttribute('aria-expanded', 'true', { timeout: 1000 });
+      await expect(page.getByTestId('file-menu')).toBeVisible({ timeout: 1000 });
+
+      await page.getByTestId('file-item-1').focus();
+      await page.keyboard.press('ArrowRight');
+
+      await expect(editTrigger).toHaveAttribute('aria-expanded', 'true', { timeout: 1000 });
+      await expect(page.getByTestId('edit-menu')).toBeVisible({ timeout: 1000 });
+      await expect(page.getByTestId('file-menu')).toBeHidden({ timeout: 1000 });
+    }, 10000);
+  });
+
   describe('accordion', () => {
     it('supports keyboard activation and roving focus', async () => {
       await renderFixture('accordion/Interactions');
@@ -263,6 +344,71 @@ describe('e2e', () => {
       await expect(page.getByText('Delete project?')).toBeVisible();
       },
     );
+  });
+
+  describe('<Menu />', () => {
+    describe('<Menu.LinkItem />', () => {
+      it('navigates on click', async () => {
+        await renderFixture('menu/LinkItemNavigation');
+
+        const trigger = page.getByTestId('menu-trigger');
+        await trigger.click();
+
+        const linkOne = page.getByTestId('link-one');
+        await linkOne.click();
+
+        await expect(page).toHaveURL(/\/e2e-fixtures\/menu\/PageOne/);
+        await expect(page.getByTestId('test-page')).toHaveText('Page one');
+
+        await page.goBack();
+        await expect(page.getByTestId('page-heading')).toHaveText('Menu with Link Items');
+
+        await trigger.click();
+        const linkTwo = page.getByTestId('link-two');
+        await linkTwo.click();
+
+        await expect(page).toHaveURL(/\/e2e-fixtures\/menu\/PageTwo/);
+        await expect(page.getByTestId('test-page')).toHaveText('Page two');
+      });
+
+      it('navigates on Enter key press', async () => {
+        await renderFixture('menu/LinkItemNavigation');
+
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('Enter');
+        await expect(page.getByTestId('link-one')).toBeFocused();
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('Enter');
+
+        await expect(page).toHaveURL(/\/e2e-fixtures\/menu\/PageTwo/);
+        await expect(page.getByTestId('test-page')).toHaveText('Page two');
+      });
+
+      it('navigates when rendering React Router Link component', async () => {
+        await renderFixture('menu/ReactRouterLinkItemNavigation');
+
+        const trigger = page.getByTestId('menu-trigger');
+        await trigger.click();
+
+        const linkOne = page.getByTestId('link-one');
+        await linkOne.click();
+
+        await expect(page).toHaveURL(/\/e2e-fixtures\/menu\/PageOne/);
+        await expect(page.getByTestId('test-page')).toHaveText('Page one');
+
+        await page.goBack();
+        await expect(page.getByTestId('page-heading')).toHaveText(
+          'Menu with React Router Link Items',
+        );
+
+        await trigger.click();
+        const linkTwo = page.getByTestId('link-two');
+        await linkTwo.click();
+
+        await expect(page).toHaveURL(/\/e2e-fixtures\/menu\/PageTwo/);
+        await expect(page.getByTestId('test-page')).toHaveText('Page two');
+      });
+    });
   });
 
   describe('collapsible', () => {
@@ -506,7 +652,7 @@ describe('e2e', () => {
 
         await page.keyboard.press('Tab');
         await page.keyboard.press('Enter');
-        // first item (page one) is initially highlighted
+        await expect(page.getByTestId('link-one')).toBeFocused();
         await page.keyboard.press('ArrowDown');
         await page.keyboard.press('Enter');
 

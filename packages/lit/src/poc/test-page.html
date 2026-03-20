@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Base UI Lit - Web Component POC Test Page</title>
+  <style>
+    /* ─── Reset ─────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: #fafafa;
+      color: #1a1a1a;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 2rem; }
+    h2 { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: 0.5rem; }
+    section { margin-bottom: 2rem; }
+    pre { background: #f0f0f0; padding: 1rem; border-radius: 4px; font-size: 0.85rem; overflow-x: auto; }
+
+    /* ─── Separator Styles ──────────────────────────────────────────────── */
+    separator-root {
+      display: block;
+      height: 1px;
+      background: #ddd;
+      margin: 1rem 0;
+    }
+    separator-root[data-orientation="vertical"] {
+      display: inline-block;
+      width: 1px;
+      height: 1.5rem;
+      vertical-align: middle;
+      margin: 0 0.5rem;
+    }
+
+    /* ─── Field Styles ──────────────────────────────────────────────────── */
+    field-root {
+      display: block;
+      margin-bottom: 1.5rem;
+    }
+    field-root[data-disabled] {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    field-root[data-invalid] field-label {
+      color: #dc2626;
+    }
+
+    field-label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    field-label[data-focused] {
+      color: #2563eb;
+    }
+
+    /* field-control has display:contents, so style the inner input */
+    field-control input,
+    field-control textarea {
+      display: block;
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    field-control input:focus,
+    field-control textarea:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    field-control input:disabled {
+      background: #f3f4f6;
+    }
+
+    field-description {
+      display: block;
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 0.25rem;
+    }
+
+    field-error {
+      display: block;
+      font-size: 0.75rem;
+      color: #dc2626;
+      margin-top: 0.25rem;
+    }
+
+    /* ─── Checkbox Styles ───────────────────────────────────────────────── */
+    checkbox-root {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+      font-size: 0.875rem;
+      padding: 0.25rem;
+      border-radius: 4px;
+    }
+    checkbox-root:focus-visible {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+    }
+    checkbox-root[data-disabled] {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    checkbox-indicator {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.25rem;
+      height: 1.25rem;
+      border: 2px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      transition: all 0.15s;
+    }
+    checkbox-root[data-checked] checkbox-indicator {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: white;
+    }
+    checkbox-root[data-indeterminate] checkbox-indicator {
+      background: #93c5fd;
+      border-color: #2563eb;
+      color: white;
+    }
+
+    /* ─── Demo Layout ───────────────────────────────────────────────────── */
+    .demo-box {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+    .inline-demo {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Base UI Lit - Web Component POC</h1>
+  <p>Demonstrating React-to-Lit migration using custom elements. Usage matches React's declarative, composable pattern.</p>
+
+  <!-- ─── Separator Demo ──────────────────────────────────────────────── -->
+
+  <h2>Separator</h2>
+  <div class="demo-box">
+    <p>Content above</p>
+    <separator-root></separator-root>
+    <p>Content below</p>
+
+    <div class="inline-demo">
+      <span>Left</span>
+      <separator-root orientation="vertical"></separator-root>
+      <span>Right</span>
+    </div>
+  </div>
+
+  <pre><code>&lt;separator-root&gt;&lt;/separator-root&gt;
+&lt;separator-root orientation="vertical"&gt;&lt;/separator-root&gt;</code></pre>
+
+  <!-- ─── Field Demo ──────────────────────────────────────────────────── -->
+
+  <h2>Field</h2>
+  <div class="demo-box">
+    <form id="demo-form">
+      <field-root>
+        <field-label>Full Name</field-label>
+        <field-control required placeholder="Enter your full name"></field-control>
+        <field-description>As it appears on your ID</field-description>
+        <field-error>Please enter your name</field-error>
+      </field-root>
+
+      <field-root>
+        <field-label>Email</field-label>
+        <field-control type="email" required placeholder="you@example.com"></field-control>
+        <field-description>We'll never share your email</field-description>
+        <field-error>Please enter a valid email</field-error>
+      </field-root>
+
+      <field-root>
+        <field-label>Bio</field-label>
+        <field-control>
+          <textarea placeholder="Tell us about yourself" rows="3"></textarea>
+        </field-control>
+        <field-description>Optional, 280 characters max</field-description>
+      </field-root>
+
+      <field-root disabled>
+        <field-label>Disabled Field</field-label>
+        <field-control placeholder="This is disabled"></field-control>
+      </field-root>
+    </form>
+  </div>
+
+  <pre><code>&lt;field-root&gt;
+  &lt;field-label&gt;Full Name&lt;/field-label&gt;
+  &lt;field-control required placeholder="Enter your full name"&gt;&lt;/field-control&gt;
+  &lt;field-description&gt;As it appears on your ID&lt;/field-description&gt;
+  &lt;field-error&gt;Please enter your name&lt;/field-error&gt;
+&lt;/field-root&gt;</code></pre>
+
+  <!-- ─── Checkbox Demo ───────────────────────────────────────────────── -->
+
+  <h2>Checkbox</h2>
+  <div class="demo-box">
+    <div class="checkbox-group">
+      <checkbox-root name="terms" value="accepted">
+        <checkbox-indicator>✓</checkbox-indicator>
+        I accept the terms and conditions
+      </checkbox-root>
+
+      <checkbox-root name="newsletter" default-checked>
+        <checkbox-indicator>✓</checkbox-indicator>
+        Subscribe to newsletter
+      </checkbox-root>
+
+      <checkbox-root disabled>
+        <checkbox-indicator>✓</checkbox-indicator>
+        Disabled option
+      </checkbox-root>
+
+      <checkbox-root indeterminate>
+        <checkbox-indicator>–</checkbox-indicator>
+        Indeterminate state
+      </checkbox-root>
+    </div>
+  </div>
+
+  <pre><code>&lt;checkbox-root name="terms" value="accepted"&gt;
+  &lt;checkbox-indicator&gt;✓&lt;/checkbox-indicator&gt;
+  I accept the terms and conditions
+&lt;/checkbox-root&gt;</code></pre>
+
+  <!-- ─── Comparison ──────────────────────────────────────────────────── -->
+
+  <h2>API Comparison: React vs Lit Web Components</h2>
+  <div class="demo-box" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+    <div>
+      <strong>React JSX</strong>
+      <pre style="margin-top: 0.5rem"><code>&lt;Field.Root&gt;
+  &lt;Field.Label&gt;Name&lt;/Field.Label&gt;
+  &lt;Field.Control required /&gt;
+  &lt;Field.Error&gt;Required&lt;/Field.Error&gt;
+&lt;/Field.Root&gt;</code></pre>
+    </div>
+    <div>
+      <strong>Lit Web Components</strong>
+      <pre style="margin-top: 0.5rem"><code>&lt;field-root&gt;
+  &lt;field-label&gt;Name&lt;/field-label&gt;
+  &lt;field-control required&gt;&lt;/field-control&gt;
+  &lt;field-error&gt;Required&lt;/field-error&gt;
+&lt;/field-root&gt;</code></pre>
+    </div>
+  </div>
+
+  <!-- ─── Scripts ─────────────────────────────────────────────────────── -->
+  <script type="module">
+    import './separator.ts';
+    import './field.ts';
+    import './checkbox.ts';
+  </script>
+</body>
+</html>

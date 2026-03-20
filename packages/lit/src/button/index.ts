@@ -1,254 +1,162 @@
-import type { TemplateResult } from 'lit';
-import { makeEventPreventable, mergeProps } from '../merge-props/index.ts';
-import type { BaseUIEvent, ComponentRenderFn, HTMLProps } from '../types/index.ts';
-import { useRender } from '../use-render/index.ts';
-
-const devWarningMessages = new Set<string>();
-
-type ButtonClickEvent = KeyboardEvent | MouseEvent;
-type ButtonEventHandler<EventType extends Event> = (event: BaseUIEvent<EventType>) => void;
-type ButtonClickEventHandler = ButtonEventHandler<ButtonClickEvent>;
-
-type ComponentPropsWithChildren<
-  ElementType extends keyof HTMLElementTagNameMap,
-  State,
-  Children = unknown,
-  RenderFunctionProps = HTMLProps,
-> = Omit<useRender.ComponentProps<ElementType, State, RenderFunctionProps>, 'children'> & {
-  children?: Children | undefined;
-};
-
-type ButtonRenderProps = Omit<
-  HTMLProps<HTMLElement>,
-  'children' | 'onClick' | 'onKeyDown' | 'onKeyUp' | 'onMouseDown' | 'onPointerDown'
-> & {
-  children?: unknown;
-  onClick?: ButtonClickEventHandler | undefined;
-  onKeyDown?: ButtonEventHandler<KeyboardEvent> | undefined;
-  onKeyUp?: ButtonEventHandler<KeyboardEvent> | undefined;
-  onMouseDown?: ButtonEventHandler<MouseEvent> | undefined;
-  onPointerDown?: ButtonEventHandler<PointerEvent> | undefined;
-};
-type ButtonRenderProp = TemplateResult | ComponentRenderFn<ButtonRenderProps, ButtonState>;
-type ButtonMergePropsInput = Parameters<typeof mergeProps<HTMLElement>>[0];
+import { ReactiveElement } from 'lit';
 
 /**
  * A button component that can be used to trigger actions.
- * Renders a `<button>` element.
+ * Renders a `<button-root>` custom element.
  *
  * Documentation: [Base UI Button](https://base-ui.com/react/components/button)
  */
-export function Button(componentProps: Button.Props): TemplateResult {
-  const {
-    children,
-    disabled = false,
-    focusableWhenDisabled = false,
-    nativeButton = true,
-    render,
-    onClick: externalOnClick,
-    onMouseDown: externalOnMouseDown,
-    onPointerDown: externalOnPointerDown,
-    onKeyDown: externalOnKeyDown,
-    onKeyUp: externalOnKeyUp,
-    ...elementProps
-  } = componentProps;
-
-  const state: ButtonState = {
-    disabled,
+export class ButtonRootElement extends ReactiveElement {
+  static properties = {
+    disabled: { type: Boolean, reflect: true },
+    focusableWhenDisabled: { type: Boolean, attribute: 'focusable-when-disabled' },
   };
-  let focusableTabIndex = 0;
 
-  if (!nativeButton && disabled) {
-    focusableTabIndex = focusableWhenDisabled ? 0 : -1;
+  declare disabled: boolean;
+  declare focusableWhenDisabled: boolean;
+
+  constructor() {
+    super();
+    this.disabled = false;
+    this.focusableWhenDisabled = false;
   }
 
-  const resolvedProps = mergeProps<HTMLElement>(
-    {
-      type: nativeButton ? 'button' : undefined,
-      onClick(event: MouseEvent) {
-        if (disabled) {
-          event.preventDefault();
-          return;
+  override createRenderRoot() {
+    return this;
+  }
+
+  override connectedCallback() {
+    super.connectedCallback();
+    this.addEventListener('click', this._handleClick);
+    this.addEventListener('keydown', this._handleKeyDown);
+    this.addEventListener('keyup', this._handleKeyUp);
+    this.addEventListener('pointerdown', this._handlePointerDown);
+    this.syncAttributes();
+  }
+
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this.removeEventListener('click', this._handleClick);
+    this.removeEventListener('keydown', this._handleKeyDown);
+    this.removeEventListener('keyup', this._handleKeyUp);
+    this.removeEventListener('pointerdown', this._handlePointerDown);
+  }
+
+  protected override updated() {
+    this.syncAttributes();
+  }
+
+  private _isNativeButton(): boolean {
+    return this.tagName === 'BUTTON';
+  }
+
+  private syncAttributes() {
+    const isNative = this._isNativeButton();
+
+    if (!isNative) {
+      this.setAttribute('role', 'button');
+
+      if (this.disabled) {
+        this.setAttribute('aria-disabled', 'true');
+        if (!this.focusableWhenDisabled) {
+          this.tabIndex = -1;
+        } else {
+          this.tabIndex = 0;
         }
+      } else {
+        this.removeAttribute('aria-disabled');
+        this.tabIndex = 0;
+      }
+    } else {
+      // Native button
+      if (this.focusableWhenDisabled) {
+        this.setAttribute('aria-disabled', 'true');
+        (this as unknown as HTMLButtonElement).disabled = false;
+      } else {
+        this.removeAttribute('aria-disabled');
+        (this as unknown as HTMLButtonElement).disabled = this.disabled;
+      }
 
-        externalOnClick?.(event as BaseUIEvent<MouseEvent>);
-      },
-      onMouseDown(event: MouseEvent) {
-        if (disabled) {
-          return;
-        }
+      if (!(this as unknown as HTMLButtonElement).type) {
+        (this as unknown as HTMLButtonElement).type = 'button';
+      }
+    }
 
-        externalOnMouseDown?.(event as BaseUIEvent<MouseEvent>);
-      },
-      onPointerDown(event: PointerEvent) {
-        if (disabled) {
-          event.preventDefault();
-          return;
-        }
+    this.toggleAttribute('data-disabled', this.disabled);
+  }
 
-        externalOnPointerDown?.(event as BaseUIEvent<PointerEvent>);
-      },
-      onKeyDown(event: KeyboardEvent) {
-        if (disabled) {
-          return;
-        }
+  private _handleClick = (event: MouseEvent) => {
+    if (this.disabled) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
 
-        const baseUIEvent = makeEventPreventable(event as BaseUIEvent<KeyboardEvent>);
-        externalOnKeyDown?.(baseUIEvent);
+  private _handlePointerDown = (event: PointerEvent) => {
+    if (this.disabled) {
+      event.preventDefault();
+    }
+  };
 
-        if (baseUIEvent.baseUIHandlerPrevented) {
-          return;
-        }
-
-        const currentTarget = event.currentTarget;
-
-        if (!(currentTarget instanceof HTMLElement) || event.target !== currentTarget) {
-          return;
-        }
-
-        const isLink = !nativeButton && isValidLinkElement(currentTarget);
-        const shouldClick = nativeButton ? isButtonElement(currentTarget) : !isLink;
-        const isEnterKey = event.key === 'Enter';
-        const isSpaceKey = event.key === ' ';
-
-        if (shouldClick && !nativeButton && (isSpaceKey || isEnterKey)) {
-          event.preventDefault();
-        }
-
-        if (shouldClick && !nativeButton && isEnterKey) {
-          externalOnClick?.(baseUIEvent);
-        }
-      },
-      onKeyUp(event: KeyboardEvent) {
-        if (disabled) {
-          return;
-        }
-
-        const baseUIEvent = makeEventPreventable(event as BaseUIEvent<KeyboardEvent>);
-        externalOnKeyUp?.(baseUIEvent);
-
-        if (baseUIEvent.baseUIHandlerPrevented) {
-          return;
-        }
-
-        const currentTarget = event.currentTarget;
-
-        if (
-          event.target === currentTarget &&
-          !nativeButton &&
-          currentTarget instanceof HTMLElement &&
-          event.key === ' '
-        ) {
-          externalOnClick?.(baseUIEvent);
-        }
-      },
-    },
-    !nativeButton ? { role: 'button' } : undefined,
-    {
-      onKeyDown(event: KeyboardEvent) {
-        if (disabled && focusableWhenDisabled && event.key !== 'Tab') {
-          event.preventDefault();
-        }
-      },
-      tabIndex: focusableTabIndex,
-      'aria-disabled':
-        (nativeButton && focusableWhenDisabled) || (!nativeButton && disabled) ? 'true' : undefined,
-      disabled: nativeButton && !focusableWhenDisabled ? disabled : undefined,
-    },
-    elementProps as ButtonMergePropsInput,
-  );
-  const validateRenderedElement = (element: HTMLElement | null) => {
-    if (process.env.NODE_ENV === 'production' || element == null) {
+  private _handleKeyDown = (event: KeyboardEvent) => {
+    if (this.disabled && this.focusableWhenDisabled && event.key !== 'Tab') {
+      event.preventDefault();
       return;
     }
 
-    const isButtonTag = isButtonElement(element);
+    if (this.disabled) {
+      return;
+    }
 
-    if (nativeButton && !isButtonTag) {
-      warnOnce(
-        'A component that acts as a button expected a native <button> because the ' +
-          '`nativeButton` prop is true. Rendering a non-<button> removes native button ' +
-          'semantics, which can impact forms and accessibility. Use a real <button> in the ' +
-          '`render` prop, or set `nativeButton` to `false`.',
-      );
-    } else if (!nativeButton && isButtonTag) {
-      warnOnce(
-        'A component that acts as a button expected a non-<button> because the `nativeButton` ' +
-          'prop is false. Rendering a <button> keeps native behavior while Base UI applies ' +
-          'non-native attributes and handlers, which can add unintended extra attributes (such ' +
-          'as `role` or `aria-disabled`). Use a non-<button> in the `render` prop, or set ' +
-          '`nativeButton` to `true`.',
-      );
+    if (event.target !== this) {
+      return;
+    }
+
+    const isNative = this._isNativeButton();
+
+    if (!isNative && (event.key === ' ' || event.key === 'Enter')) {
+      event.preventDefault();
+    }
+
+    if (!isNative && event.key === 'Enter') {
+      this.click();
     }
   };
 
-  return useRender<ButtonState, HTMLElement>({
-    defaultTagName: 'button',
-    render,
-    ref: validateRenderedElement,
-    state,
-    props: children === undefined ? resolvedProps : { ...resolvedProps, children },
-  });
+  private _handleKeyUp = (event: KeyboardEvent) => {
+    if (this.disabled) {
+      return;
+    }
+
+    if (event.target !== this) {
+      return;
+    }
+
+    const isNative = this._isNativeButton();
+
+    if (!isNative && event.key === ' ') {
+      this.click();
+    }
+  };
 }
 
-function isButtonElement(element: HTMLElement | null): element is HTMLButtonElement {
-  return element?.tagName === 'BUTTON';
+if (!customElements.get('button-root')) {
+  customElements.define('button-root', ButtonRootElement);
 }
 
-function isValidLinkElement(element: HTMLElement | null): element is HTMLAnchorElement {
-  return element?.tagName === 'A' && (element as HTMLAnchorElement).href.length > 0;
-}
-
-function warnOnce(message: string) {
-  if (devWarningMessages.has(message)) {
-    return;
-  }
-
-  devWarningMessages.add(message);
-  console.error(`Base UI: ${message}`);
-}
-
-export interface ButtonState {
+export interface ButtonRootState {
   /**
    * Whether the button should ignore user interaction.
    */
   disabled: boolean;
 }
 
-export interface ButtonProps extends Omit<
-  ComponentPropsWithChildren<'button', ButtonState, unknown, ButtonRenderProps>,
-  | 'children'
-  | 'disabled'
-  | 'onClick'
-  | 'onKeyDown'
-  | 'onKeyUp'
-  | 'onMouseDown'
-  | 'onPointerDown'
-  | 'render'
-> {
-  children?: unknown;
-  disabled?: boolean | undefined;
-  /**
-   * Whether the button should be focusable when disabled.
-   * @default false
-   */
-  focusableWhenDisabled?: boolean | undefined;
-  /**
-   * Whether the component renders a native `<button>` element when replacing it
-   * via the `render` prop.
-   * Set to `false` if the rendered element is not a button (e.g. `<div>`).
-   * @default true
-   */
-  nativeButton?: boolean | undefined;
-  onClick?: ButtonClickEventHandler | undefined;
-  onKeyDown?: ButtonEventHandler<KeyboardEvent> | undefined;
-  onKeyUp?: ButtonEventHandler<KeyboardEvent> | undefined;
-  onMouseDown?: ButtonEventHandler<MouseEvent> | undefined;
-  onPointerDown?: ButtonEventHandler<PointerEvent> | undefined;
-  render?: ButtonRenderProp | undefined;
+export namespace ButtonRoot {
+  export type State = ButtonRootState;
 }
 
-export namespace Button {
-  export type Props = ButtonProps;
-  export type State = ButtonState;
+declare global {
+  interface HTMLElementTagNameMap {
+    'button-root': ButtonRootElement;
+  }
 }

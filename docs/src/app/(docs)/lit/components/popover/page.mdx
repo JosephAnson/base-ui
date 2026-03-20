@@ -14,23 +14,11 @@ import OpenOnHoverDemo from './demos/open-on-hover/css-modules';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { Popover } from '@base-ui/lit/popover';
-
-render(
-  Popover.Root({
-    children: [
-      Popover.Trigger({ children: 'Open' }),
-      Popover.Portal({
-        children: Popover.Positioner({
-          children: Popover.Popup({ children: 'Content' }),
-        }),
-      }),
-    ],
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<popover-root>
+  <popover-trigger>Open</popover-trigger>
+  <popover-popup>Content</popover-popup>
+</popover-root>
 ```
 
 ## Status

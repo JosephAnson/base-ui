@@ -1,1407 +1,1083 @@
-import { html, noChange, nothing, type TemplateResult } from 'lit';
-// eslint-disable-next-line import/extensions
-import { AsyncDirective, directive } from 'lit/async-directive.js';
-// eslint-disable-next-line import/extensions
-import { ref } from 'lit/directives/ref.js';
-import type {
-  PopoverArrowProps,
-  PopoverPortalProps,
-  PopoverPopupProps,
-  PopoverPositionerProps,
-  PopoverRootActions,
-  PopoverRootProps,
-  PopoverTriggerProps,
-  PopoverViewportProps,
-} from '../popover/index.ts';
+import { ReactiveElement } from 'lit';
 import {
-  Popover,
-  PopoverHandle,
-  type PopoverRootChangeEventDetails,
-} from '../popover/index.ts';
-import type { BaseUIChangeEventDetails, HTMLProps } from '../types/index.ts';
-import { useRender } from '../use-render/index.ts';
+  arrow as floatingArrow,
+  autoUpdate,
+  computePosition,
+  flip,
+  hide,
+  limitShift,
+  offset,
+  shift,
+  type Placement,
+} from '@floating-ui/react-dom';
+import { BaseHTMLElement, ensureId } from '../utils/index.ts';
 
-const OPEN_DELAY = 600;
-const POPOVER_RUNTIME_PROPERTY = '__baseUiPopoverRuntime';
-const TOOLTIP_CONTROLLER_PROPERTY = '__baseUiTooltipController';
-const TOOLTIP_PROVIDER_PROPERTY = '__baseUiTooltipProvider';
-const ROOT_ATTRIBUTE = 'data-base-ui-tooltip-root';
-const PROVIDER_ATTRIBUTE = 'data-base-ui-tooltip-provider';
-const GENERATED_ID_PREFIX = 'base-ui-tooltip';
-const DATA_OPEN = { 'data-open': '' };
-const DATA_CLOSED = { 'data-closed': '' };
-const DATA_STARTING_STYLE = { 'data-starting-style': '' };
-const DATA_ENDING_STYLE = { 'data-ending-style': '' };
+// ─── Constants ──────────────────────────────────────────────────────────────────
 
-let generatedTooltipId = 0;
+const TOOLTIP_ROOT_ATTRIBUTE = 'data-base-ui-tooltip-root';
+const TOOLTIP_PROVIDER_ATTRIBUTE = 'data-base-ui-tooltip-provider';
+const TOOLTIP_STATE_CHANGE_EVENT = 'base-ui-tooltip-state-change';
+const DEFAULT_OPEN_DELAY = 600;
+const DEFAULT_CLOSE_DELAY = 0;
+const DEFAULT_PROVIDER_TIMEOUT = 400;
+
+// ─── Types ──────────────────────────────────────────────────────────────────────
 
 type Side = 'top' | 'right' | 'bottom' | 'left';
 type Align = 'start' | 'center' | 'end';
 type TransitionStatus = 'starting' | 'ending' | undefined;
-type TooltipInstantType = 'delay' | 'dismiss' | 'focus' | undefined;
-type TooltipPositionerInstant = TooltipInstantType | 'tracking-cursor' | undefined;
-type TooltipChangeReason =
+
+export type TooltipChangeEventReason =
   | 'trigger-hover'
   | 'trigger-focus'
   | 'trigger-press'
-  | 'outside-press'
   | 'escape-key'
-  | 'disabled'
-  | 'imperative-action'
   | 'none';
 
-type RefObject<T> = {
-  current: T | null;
-};
-
-type Ref<T> = ((instance: T | null) => void) | RefObject<T> | null | undefined;
-
-type ComponentPropsWithChildren<
-  ElementType extends keyof HTMLElementTagNameMap,
-  State,
-  Children = unknown,
-  RenderFunctionProps = HTMLProps,
-> = Omit<useRender.ComponentProps<ElementType, State, RenderFunctionProps>, 'children'> & {
-  children?: Children | undefined;
-};
-
-type RootChildren<Payload> =
-  | unknown
-  | ((data: { payload: Payload | undefined }) => unknown)
-  | undefined;
-
-type TooltipRuntimeElement = HTMLElement & {
-  [TOOLTIP_CONTROLLER_PROPERTY]?: TooltipRootController<any> | undefined;
-};
-
-type TooltipProviderElement = HTMLElement & {
-  [TOOLTIP_PROVIDER_PROPERTY]?: TooltipProviderController | undefined;
-};
-
-type TooltipHandleInternal<Payload = unknown> = TooltipHandle<Payload> & {
-  [TOOLTIP_CONTROLLER_PROPERTY]?: TooltipRootController<Payload> | undefined;
-};
-
-type TooltipPopoverRuntime<Payload = unknown> = {
-  subscribe(listener: () => void): () => void;
-  getOpen(): boolean;
-  isMounted(): boolean;
-  getOpenReason(): string | null;
-  getTransitionStatus(): TransitionStatus;
-  getPayload(): Payload | undefined;
-  getPopupId(): string;
-  getActiveTriggerId(): string | null;
-  getActiveTriggerElement(): HTMLElement | null;
-  getPositionState(): {
-    align: Align;
-    anchorHidden: boolean;
-    arrowOffsetX: number | null;
-    arrowOffsetY: number | null;
-    arrowUncentered: boolean;
-    side: Side;
-    transformOrigin: string;
-  };
-  registerTrigger(entry: {
-    id: string;
-    element: HTMLElement | null;
-    disabled: boolean;
-    payload: Payload | undefined;
-    openOnHover: boolean;
-    delay: number;
-    closeDelay: number;
-  }): () => void;
-  setPopupElement(element: HTMLElement | null): void;
-  setPopupId(id: string | undefined): void;
-  handle?: TooltipHandle<Payload> | undefined;
-  root: HTMLElement | null;
-  openWithTrigger(
-    triggerId: string | null,
-    event: Event | undefined,
-    reason: string,
-    sourceElement?: Element | undefined,
-  ): void;
-  close(event: Event | undefined, reason: string, sourceElement?: Element | undefined): void;
-  scheduleHoverOpen(id: string, delay: number, event: MouseEvent): void;
-  cancelHoverOpen(): void;
-  enterHoverRegion(): void;
-  leaveHoverRegion(event: MouseEvent | undefined, closeDelay: number): void;
-};
-
-interface SubscriptionOwner {
-  onControllerChange(nextController: TooltipRootController<any> | null): void;
+export interface TooltipChangeEventDetails {
+  reason: TooltipChangeEventReason;
+  event: Event;
+  readonly isCanceled: boolean;
+  cancel(): void;
 }
 
-function getComposedParent(node: Node | null): Node | null {
-  if (node == null) {
-    return null;
-  }
+// ─── Helpers ────────────────────────────────────────────────────────────────────
 
-  if ((node as ShadowRoot).host != null) {
-    return (node as ShadowRoot).host;
-  }
-
-  return node.parentNode;
-}
-
-function assignRef<T>(refToAssign: Ref<T>, value: T | null) {
-  if (refToAssign == null) {
-    return;
-  }
-
-  if (typeof refToAssign === 'function') {
-    refToAssign(value);
-    return;
-  }
-
-  refToAssign.current = value;
-}
-
-function isTooltipPopoverRuntime(value: unknown): value is TooltipPopoverRuntime<any> {
-  return (
-    typeof value === 'object' &&
-    value != null &&
-    'getOpen' in value &&
-    'registerTrigger' in value &&
-    'scheduleHoverOpen' in value
-  );
-}
-
-function findPopoverRuntime(node: Node | null): TooltipPopoverRuntime<any> | null {
-  let current: Node | null = node;
-
-  while (current != null) {
-    if (
-      current instanceof HTMLElement &&
-      isTooltipPopoverRuntime(
-        (current as HTMLElement & { [POPOVER_RUNTIME_PROPERTY]?: unknown })[POPOVER_RUNTIME_PROPERTY],
-      )
-    ) {
-      return (
-        current as HTMLElement & {
-          [POPOVER_RUNTIME_PROPERTY]?: TooltipPopoverRuntime<any> | undefined;
-        }
-      )[POPOVER_RUNTIME_PROPERTY] ?? null;
-    }
-
-    current = getComposedParent(current);
-  }
-
-  return null;
-}
-
-function findTooltipRootController(node: Node | null): TooltipRootController<any> | null {
-  let current: Node | null = node;
-
-  while (current != null) {
-    if (
-      current instanceof HTMLElement &&
-      (current as TooltipRuntimeElement)[TOOLTIP_CONTROLLER_PROPERTY] != null
-    ) {
-      return (current as TooltipRuntimeElement)[TOOLTIP_CONTROLLER_PROPERTY] ?? null;
-    }
-
-    const runtime = findPopoverRuntime(current);
-    const handle = runtime?.handle as TooltipHandleInternal<any> | undefined;
-    if (handle?.[TOOLTIP_CONTROLLER_PROPERTY] != null) {
-      return handle[TOOLTIP_CONTROLLER_PROPERTY] ?? null;
-    }
-
-    current = getComposedParent(current);
-  }
-
-  return null;
-}
-
-function findTooltipProviderController(node: Node | null): TooltipProviderController | null {
-  let current: Node | null = node;
-
-  while (current != null) {
-    if (
-      current instanceof HTMLElement &&
-      (current as TooltipProviderElement)[TOOLTIP_PROVIDER_PROPERTY] != null
-    ) {
-      return (current as TooltipProviderElement)[TOOLTIP_PROVIDER_PROPERTY] ?? null;
-    }
-
-    current = getComposedParent(current);
-  }
-
-  return null;
-}
-
-function mergeStyle(
-  baseStyle: unknown,
-  extraStyle: Record<string, string | undefined>,
-): string | Record<string, string | undefined> | undefined {
-  if (typeof baseStyle === 'string') {
-    const extra = Object.entries(extraStyle)
-      .filter(([, value]) => value != null)
-      .map(([name, value]) => `${name}: ${value}`)
-      .join('; ');
-
-    if (extra.length === 0) {
-      return baseStyle;
-    }
-
-    return `${baseStyle}${baseStyle.trim().endsWith(';') ? ' ' : '; '}${extra}`;
-  }
-
-  if (baseStyle != null && typeof baseStyle === 'object') {
-    return {
-      ...(baseStyle as Record<string, string | undefined>),
-      ...extraStyle,
-    };
-  }
-
-  if (Object.keys(extraStyle).length === 0) {
-    return undefined;
-  }
-
-  return extraStyle;
-}
-
-function rethrowIfStillConnected(error: unknown, isConnected: boolean) {
-  if (isConnected) {
-    throw error;
-  }
-}
-
-function createTooltipChangeEventDetails(
-  eventDetails: PopoverRootChangeEventDetails,
-  reason: TooltipChangeReason,
-): TooltipRootChangeEventDetails {
+function createChangeEventDetails(
+  reason: TooltipChangeEventReason,
+  event: Event,
+): TooltipChangeEventDetails {
+  let canceled = false;
   return {
-    get reason() {
-      return reason;
-    },
-    get event() {
-      return eventDetails.event;
-    },
-    get trigger() {
-      return eventDetails.trigger;
+    reason,
+    event,
+    get isCanceled() {
+      return canceled;
     },
     cancel() {
-      eventDetails.cancel();
-    },
-    allowPropagation() {
-      eventDetails.allowPropagation();
-    },
-    get isCanceled() {
-      return eventDetails.isCanceled;
-    },
-    get isPropagationAllowed() {
-      return eventDetails.isPropagationAllowed;
-    },
-    preventUnmountOnClose() {
-      eventDetails.preventUnmountOnClose();
-    },
-  } as TooltipRootChangeEventDetails;
-}
-
-function getTooltipReason(reason: string | null | undefined): TooltipChangeReason {
-  switch (reason) {
-    case 'trigger-hover':
-    case 'trigger-focus':
-    case 'trigger-press':
-    case 'outside-press':
-    case 'escape-key':
-    case 'disabled':
-    case 'imperative-action':
-    case 'none':
-      return reason;
-    default:
-      return 'none';
-  }
-}
-
-class TooltipProviderController {
-  private delay: number | undefined = undefined;
-  private closeDelay: number | undefined = undefined;
-  private timeout = 400;
-  private instantUntil = 0;
-  private openController: TooltipRootController<any> | null = null;
-
-  updateProps(props: TooltipProviderProps) {
-    this.delay = props.delay;
-    this.closeDelay = props.closeDelay;
-    this.timeout = props.timeout ?? 400;
-  }
-
-  isInstantPhase() {
-    return Date.now() <= this.instantUntil;
-  }
-
-  resolveOpenDelay(triggerDelay: number | undefined) {
-    if (this.isInstantPhase()) {
-      return { delay: 0, instant: true };
-    }
-
-    return {
-      delay: triggerDelay ?? this.delay ?? OPEN_DELAY,
-      instant: false,
-    };
-  }
-
-  resolveCloseDelay(triggerCloseDelay: number | undefined) {
-    return triggerCloseDelay ?? this.closeDelay ?? 0;
-  }
-
-  notifyOpen(controller: TooltipRootController<any>) {
-    if (this.openController != null && this.openController !== controller) {
-      this.openController.closeForSibling();
-    }
-
-    this.openController = controller;
-    this.instantUntil = 0;
-  }
-
-  notifyClose(controller: TooltipRootController<any>) {
-    if (this.openController === controller) {
-      this.openController = null;
-    }
-
-    this.instantUntil = Date.now() + this.timeout;
-  }
-}
-
-class TooltipRootController<Payload = unknown> {
-  private props: TooltipRootProps<Payload> = {};
-  private rootElement: HTMLElement | null = null;
-  private provider: TooltipProviderController | null = null;
-  private popoverRuntime: TooltipPopoverRuntime<Payload> | null = null;
-  private cursorAnchorElement: HTMLSpanElement | null = null;
-  private listeners = new Set<() => void>();
-  private unsubscribeHandleOwner: (() => void) | null = null;
-  private readonly owner = {
-    onRuntimeChange: (nextRuntime: TooltipPopoverRuntime<Payload> | null) => {
-      this.popoverRuntime = nextRuntime;
-      if (this.props.disabled && nextRuntime?.getOpen()) {
-        this.handle.close();
-      }
-      this.notify();
+      canceled = true;
     },
   };
+}
 
-  readonly internalHandle = new TooltipHandle<Payload>();
-  handle: TooltipHandle<Payload> = this.internalHandle;
-  instantType: TooltipInstantType = undefined;
-  pendingOpenInstantType: TooltipInstantType = undefined;
+function toPlacement(side: Side, align: Align): Placement {
+  return align === 'center' ? side : `${side}-${align}`;
+}
 
-  updateProps(props: TooltipRootProps<Payload>) {
-    this.props = props;
-    this.setHandle(props.handle ?? this.internalHandle);
-    this.provider = findTooltipProviderController(this.rootElement);
+function parsePlacement(placement: Placement): { side: Side; align: Align } {
+  const [side, align] = placement.split('-') as [Side, Align | undefined];
+  return { side, align: align ?? 'center' };
+}
 
-    if (this.props.disabled && this.popoverRuntime?.getOpen()) {
-      this.handle.close();
-    }
+function getTransformOrigin(
+  side: Side,
+  align: Align,
+  arrowX: number | null,
+  arrowY: number | null,
+) {
+  const alignValue =
+    align === 'start' ? '0%' : align === 'end' ? '100%' : '50%';
+  if (side === 'top')
+    return `${arrowX != null ? `${arrowX}px` : alignValue} 100%`;
+  if (side === 'bottom')
+    return `${arrowX != null ? `${arrowX}px` : alignValue} 0%`;
+  if (side === 'left')
+    return `100% ${arrowY != null ? `${arrowY}px` : alignValue}`;
+  return `0% ${arrowY != null ? `${arrowY}px` : alignValue}`;
+}
 
-    if (!this.popoverRuntime?.getOpen()) {
-      this.clearCursorAnchor();
-    }
+// ─── TooltipProviderElement ─────────────────────────────────────────────────────
 
-    this.notify();
+/**
+ * Coordinates tooltip delays for a group. Enables instant switching between
+ * adjacent tooltips after one has been opened.
+ */
+export class TooltipProviderElement extends BaseHTMLElement {
+  /** Default open delay for tooltips in this group (ms). */
+  delay: number | null = null;
+
+  /** Default close delay for tooltips in this group (ms). */
+  closeDelay: number | null = null;
+
+  /** Warmth timeout — how long after one tooltip closes before instant
+   *  switching expires (ms). */
+  timeout = DEFAULT_PROVIDER_TIMEOUT;
+
+  private _closedAt: number | null = null;
+
+  connectedCallback() {
+    this.style.display = 'contents';
+    this.setAttribute(TOOLTIP_PROVIDER_ATTRIBUTE, '');
   }
 
-  connectRoot(element: HTMLElement | null) {
-    if (this.rootElement === element) {
-      return;
-    }
-
-    if (this.rootElement != null) {
-      delete (this.rootElement as TooltipRuntimeElement)[TOOLTIP_CONTROLLER_PROPERTY];
-    }
-
-    this.rootElement = element;
-    this.provider = findTooltipProviderController(this.rootElement);
-
-    if (this.rootElement != null) {
-      (this.rootElement as TooltipRuntimeElement)[TOOLTIP_CONTROLLER_PROPERTY] = this;
-    }
+  /** Called by a tooltip root when its tooltip closes. */
+  notifyClosed() {
+    this._closedAt = Date.now();
   }
 
-  subscribe(listener: () => void) {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
-  }
-
-  getDisabled() {
-    return Boolean(this.props.disabled);
-  }
-
-  getDisableHoverablePopup() {
-    return Boolean(this.props.disableHoverablePopup);
-  }
-
-  getTrackCursorAxis() {
-    return this.props.trackCursorAxis ?? 'none';
-  }
-
-  getPositionerInstant(): TooltipPositionerInstant {
-    if (this.getTrackCursorAxis() !== 'none') {
-      return 'tracking-cursor';
-    }
-
-    return this.instantType ?? this.pendingOpenInstantType;
-  }
-
-  getEffectiveInstantType() {
-    return this.instantType ?? this.pendingOpenInstantType;
-  }
-
-  getPopoverRuntime() {
-    return this.popoverRuntime;
-  }
-
-  resolveOpenDelay(triggerDelay: number | undefined) {
-    this.provider ??= findTooltipProviderController(this.rootElement);
-    const providerResolution = this.provider?.resolveOpenDelay(triggerDelay);
-    if (providerResolution != null) {
-      return providerResolution;
-    }
-
-    return {
-      delay: triggerDelay ?? OPEN_DELAY,
-      instant: false,
-    };
-  }
-
-  resolveCloseDelay(triggerCloseDelay: number | undefined) {
-    this.provider ??= findTooltipProviderController(this.rootElement);
-    return this.provider?.resolveCloseDelay(triggerCloseDelay) ?? triggerCloseDelay ?? 0;
-  }
-
-  closeForSibling() {
-    const runtime = this.popoverRuntime;
-    if (runtime == null || !runtime.getOpen()) {
-      return;
-    }
-
-    this.instantType = 'delay';
-    runtime.close(undefined, 'none', runtime.getActiveTriggerElement() ?? undefined);
-    this.notify();
-  }
-
-  updateCursorAnchor(event: MouseEvent, triggerElement: HTMLElement | null) {
-    const axis = this.getTrackCursorAxis();
-    if (axis === 'none') {
-      return;
-    }
-
-    const ownerDocument = triggerElement?.ownerDocument ?? this.rootElement?.ownerDocument ?? document;
-    const ownerWindow = ownerDocument.defaultView ?? window;
-
-    if (this.cursorAnchorElement == null) {
-      const anchor = ownerDocument.createElement('span');
-      anchor.setAttribute('aria-hidden', 'true');
-      anchor.style.position = 'fixed';
-      anchor.style.width = '0px';
-      anchor.style.height = '0px';
-      anchor.style.pointerEvents = 'none';
-      anchor.style.visibility = 'hidden';
-      anchor.style.left = '0px';
-      anchor.style.top = '0px';
-      this.cursorAnchorElement = anchor;
-      ownerDocument.body.append(anchor);
-    } else if (this.cursorAnchorElement.parentNode == null) {
-      ownerDocument.body.append(this.cursorAnchorElement);
-    }
-
-    const triggerRect = triggerElement?.getBoundingClientRect();
-    const x =
-      axis === 'x' || axis === 'both'
-        ? event.clientX
-        : (triggerRect?.left ?? 0) + (triggerRect?.width ?? 0) / 2;
-    const y =
-      axis === 'y' || axis === 'both'
-        ? event.clientY
-        : (triggerRect?.top ?? 0) + (triggerRect?.height ?? 0) / 2;
-
-    this.cursorAnchorElement.style.left = `${Math.round(x)}px`;
-    this.cursorAnchorElement.style.top = `${Math.round(y)}px`;
-
-    if (ownerWindow.visualViewport != null) {
-      this.cursorAnchorElement.style.transform = `translate(${ownerWindow.visualViewport.offsetLeft}px, ${ownerWindow.visualViewport.offsetTop}px)`;
-    } else {
-      this.cursorAnchorElement.style.transform = '';
-    }
-  }
-
-  getCursorAnchorElement() {
-    return this.getTrackCursorAxis() === 'none' ? undefined : this.cursorAnchorElement;
-  }
-
-  clearCursorAnchor() {
-    this.cursorAnchorElement?.remove();
-  }
-
-  handleOpenChange(
-    nextOpen: boolean,
-    eventDetails: PopoverRootChangeEventDetails,
-    userOnOpenChange:
-      | ((open: boolean, details: TooltipRootChangeEventDetails) => void)
-      | undefined,
-  ) {
-    const reason = getTooltipReason(eventDetails.reason);
-    const details = createTooltipChangeEventDetails(eventDetails, reason);
-
-    userOnOpenChange?.(nextOpen, details);
-
-    if (eventDetails.isCanceled) {
-      this.pendingOpenInstantType = undefined;
-      this.notify();
-      return;
-    }
-
-    if (nextOpen) {
-      this.instantType =
-        this.pendingOpenInstantType ?? (reason === 'trigger-focus' ? 'focus' : undefined);
-      this.provider?.notifyOpen(this);
-    } else {
-      if (reason === 'trigger-press' || reason === 'escape-key') {
-        this.instantType = 'dismiss';
-      } else if (reason === 'none') {
-        this.instantType = 'delay';
-      } else {
-        this.instantType = undefined;
-      }
-
-      this.provider?.notifyClose(this);
-      this.clearCursorAnchor();
-    }
-
-    this.pendingOpenInstantType = undefined;
-    this.notify();
-  }
-
-  disconnected() {
-    this.unsubscribeHandleOwner?.();
-    this.unsubscribeHandleOwner = null;
-    this.clearCursorAnchor();
-    delete (this.handle as TooltipHandleInternal<Payload>)[TOOLTIP_CONTROLLER_PROPERTY];
-  }
-
-  private setHandle(nextHandle: TooltipHandle<Payload>) {
-    if (this.handle === nextHandle) {
-      (this.handle as TooltipHandleInternal<Payload>)[TOOLTIP_CONTROLLER_PROPERTY] = this;
-      return;
-    }
-
-    delete (this.handle as TooltipHandleInternal<Payload>)[TOOLTIP_CONTROLLER_PROPERTY];
-    this.unsubscribeHandleOwner?.();
-    this.unsubscribeHandleOwner = null;
-    this.handle = nextHandle;
-    (this.handle as TooltipHandleInternal<Payload>)[TOOLTIP_CONTROLLER_PROPERTY] = this;
-    this.unsubscribeHandleOwner = this.handle.subscribeOwner(this.owner as never);
-  }
-
-  private notify() {
-    this.listeners.forEach((listener) => {
-      listener();
-    });
+  /** Returns `true` if a tooltip was recently closed (within `timeout`). */
+  isWarm(): boolean {
+    if (this._closedAt == null) return false;
+    return Date.now() - this._closedAt < this.timeout;
   }
 }
 
-export class TooltipHandle<Payload = unknown> extends PopoverHandle<Payload> {
-  override open(triggerId: string) {
-    try {
-      super.open(triggerId);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.startsWith('Base UI: PopoverHandle.open: No trigger found with id "')
-      ) {
-        throw new Error(
-          error.message.replace('Base UI: PopoverHandle.open:', 'Base UI: TooltipHandle.open:'),
+if (!customElements.get('tooltip-provider')) {
+  customElements.define('tooltip-provider', TooltipProviderElement);
+}
+
+// ─── TooltipRootElement ─────────────────────────────────────────────────────────
+
+export class TooltipRootElement extends ReactiveElement {
+  static properties = {
+    disabled: { type: Boolean },
+  };
+
+  declare disabled: boolean;
+
+  /** Default open state (uncontrolled). */
+  defaultOpen = false;
+
+  /** Callback when open state changes. */
+  onOpenChange:
+    | ((open: boolean, details: TooltipChangeEventDetails) => void)
+    | undefined;
+
+  // ── Controlled / uncontrolled ──────────────────────────────────────────────
+  private _open: boolean | undefined;
+  private _openIsControlled = false;
+  private _internalOpen = false;
+  private _initialized = false;
+  private _transitionStatus: TransitionStatus = undefined;
+  private _lastPublishedStateKey: string | null = null;
+
+  // ── Open reasons ───────────────────────────────────────────────────────────
+  private _hoverActive = false;
+  private _focusActive = false;
+  private _openReason: TooltipChangeEventReason | null = null;
+
+  // ── Timers ─────────────────────────────────────────────────────────────────
+  private _hoverOpenTimer: number | null = null;
+  private _hoverCloseTimer: number | null = null;
+
+  // ── Part references ────────────────────────────────────────────────────────
+  private _popupId: string | undefined;
+  private _arrowElement: HTMLElement | null = null;
+  private _activeTriggerElement: HTMLElement | null = null;
+  private _provider: TooltipProviderElement | null = null;
+
+  // ── Position state ─────────────────────────────────────────────────────────
+  private _positionState = {
+    side: 'bottom' as Side,
+    align: 'center' as Align,
+    anchorHidden: false,
+    arrowOffsetX: null as number | null,
+    arrowOffsetY: null as number | null,
+    arrowUncentered: false,
+    transformOrigin: '50% 0%',
+  };
+
+  get open(): boolean | undefined {
+    return this._open;
+  }
+  set open(value: boolean | undefined) {
+    if (value !== undefined) {
+      this._openIsControlled = true;
+      this._open = value;
+    } else {
+      this._openIsControlled = false;
+      this._open = undefined;
+    }
+    this._syncAttributes();
+    this._publishStateChange();
+  }
+
+  constructor() {
+    super();
+    this.disabled = false;
+  }
+
+  override createRenderRoot() {
+    return this;
+  }
+
+  override connectedCallback() {
+    super.connectedCallback();
+
+    if (!this._initialized) {
+      this._initialized = true;
+      this._internalOpen = this.defaultOpen;
+    }
+
+    this._provider = this.closest(
+      'tooltip-provider',
+    ) as TooltipProviderElement | null;
+
+    this.style.display = 'contents';
+    this.setAttribute(TOOLTIP_ROOT_ATTRIBUTE, '');
+
+    document.addEventListener('keydown', this._handleEscapeKey);
+
+    this._syncAttributes();
+    queueMicrotask(() => this._publishStateChange());
+  }
+
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener('keydown', this._handleEscapeKey);
+    this._clearTimers();
+    this._lastPublishedStateKey = null;
+    this._transitionStatus = undefined;
+  }
+
+  protected override updated() {
+    this._syncAttributes();
+    this._publishStateChange();
+  }
+
+  // ── Public API ─────────────────────────────────────────────────────────────
+
+  getOpen(): boolean {
+    return this._openIsControlled
+      ? Boolean(this._open)
+      : this._internalOpen;
+  }
+
+  getPopupId() {
+    return this._popupId;
+  }
+  setPopupId(id: string | undefined) {
+    if (this._popupId === id) return;
+    this._popupId = id;
+    this._publishStateChange();
+  }
+
+  getArrowElement() {
+    return this._arrowElement;
+  }
+  setArrowElement(el: HTMLElement | null) {
+    this._arrowElement = el;
+    this._publishStateChange();
+  }
+
+  getActiveTriggerElement() {
+    return this._activeTriggerElement;
+  }
+  setActiveTriggerElement(el: HTMLElement | null) {
+    this._activeTriggerElement = el;
+  }
+
+  getTransitionStatus() {
+    return this._transitionStatus;
+  }
+  setTransitionStatus(status: TransitionStatus) {
+    if (this._transitionStatus === status) return;
+    this._transitionStatus = status;
+    this._syncAttributes();
+    this._publishStateChange();
+  }
+
+  getPositionState() {
+    return this._positionState;
+  }
+  setPositionState(
+    next: Partial<typeof this._positionState>,
+  ) {
+    const merged = { ...this._positionState, ...next };
+    const cur = this._positionState;
+    if (
+      cur.side === merged.side &&
+      cur.align === merged.align &&
+      cur.anchorHidden === merged.anchorHidden &&
+      cur.arrowOffsetX === merged.arrowOffsetX &&
+      cur.arrowOffsetY === merged.arrowOffsetY &&
+      cur.arrowUncentered === merged.arrowUncentered &&
+      cur.transformOrigin === merged.transformOrigin
+    )
+      return;
+    this._positionState = merged;
+    this._publishStateChange();
+  }
+
+  getProvider() {
+    return this._provider;
+  }
+
+  /** Compute the effective open delay, accounting for provider warmth. */
+  getEffectiveDelay(triggerDelay: number | null): number {
+    if (this._provider?.isWarm()) return 0;
+    if (triggerDelay != null) return triggerDelay;
+    if (this._provider?.delay != null) return this._provider.delay;
+    return DEFAULT_OPEN_DELAY;
+  }
+
+  /** Compute the effective close delay. */
+  getEffectiveCloseDelay(triggerCloseDelay: number | null): number {
+    if (triggerCloseDelay != null) return triggerCloseDelay;
+    if (this._provider?.closeDelay != null)
+      return this._provider.closeDelay;
+    return DEFAULT_CLOSE_DELAY;
+  }
+
+  // ── Hover open / close ─────────────────────────────────────────────────────
+
+  scheduleHoverOpen(delay: number, event: MouseEvent) {
+    this._cancelHoverOpen();
+    this._hoverOpenTimer = window.setTimeout(() => {
+      this._hoverOpenTimer = null;
+      this._hoverActive = true;
+      this._syncOpenState(event, 'trigger-hover');
+    }, delay);
+  }
+
+  cancelHoverOpen() {
+    this._cancelHoverOpen();
+  }
+
+  scheduleHoverClose(closeDelay: number, event: MouseEvent) {
+    this._cancelHoverClose();
+    this._hoverCloseTimer = window.setTimeout(() => {
+      this._hoverCloseTimer = null;
+      this._hoverActive = false;
+      this._syncOpenState(event, 'none');
+    }, closeDelay);
+  }
+
+  // ── Focus open / close ─────────────────────────────────────────────────────
+
+  openFromFocus(event: Event) {
+    if (this.disabled) return;
+    this._focusActive = true;
+    this._syncOpenState(event, 'trigger-focus');
+  }
+
+  closeFromFocus(event: Event) {
+    this._focusActive = false;
+    this._syncOpenState(event, 'none');
+  }
+
+  // ── Click cancel ───────────────────────────────────────────────────────────
+
+  cancelFromClick(event: Event) {
+    this._cancelHoverOpen();
+    if (this.getOpen()) {
+      this._hoverActive = false;
+      this._focusActive = false;
+      this._syncOpenState(event, 'trigger-press');
+    }
+  }
+
+  // ── Internal ───────────────────────────────────────────────────────────────
+
+  private _syncOpenState(event: Event, reason: TooltipChangeEventReason) {
+    const shouldBeOpen =
+      !this.disabled && (this._hoverActive || this._focusActive);
+
+    if (shouldBeOpen === this.getOpen()) return;
+
+    const details = createChangeEventDetails(
+      reason,
+      event,
+    );
+    this.onOpenChange?.(shouldBeOpen, details);
+    if (details.isCanceled) return;
+
+    this._openReason = reason;
+
+    if (!this._openIsControlled) {
+      this._internalOpen = shouldBeOpen;
+    }
+
+    if (!shouldBeOpen) {
+      this._provider?.notifyClosed();
+    }
+
+    this._syncAttributes();
+    this._publishStateChange();
+  }
+
+  private _handleEscapeKey = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape') return;
+    if (!this.getOpen()) return;
+
+    this._hoverActive = false;
+    this._focusActive = false;
+    this._clearTimers();
+
+    const details = createChangeEventDetails('escape-key', event);
+    this.onOpenChange?.(false, details);
+    if (details.isCanceled) return;
+
+    this._openReason = 'escape-key';
+
+    if (!this._openIsControlled) {
+      this._internalOpen = false;
+    }
+
+    this._provider?.notifyClosed();
+    this._syncAttributes();
+    this._publishStateChange();
+  };
+
+  private _cancelHoverOpen() {
+    if (this._hoverOpenTimer != null) {
+      window.clearTimeout(this._hoverOpenTimer);
+      this._hoverOpenTimer = null;
+    }
+  }
+
+  private _cancelHoverClose() {
+    if (this._hoverCloseTimer != null) {
+      window.clearTimeout(this._hoverCloseTimer);
+      this._hoverCloseTimer = null;
+    }
+  }
+
+  private _clearTimers() {
+    this._cancelHoverOpen();
+    this._cancelHoverClose();
+  }
+
+  private _syncAttributes() {
+    const open = this.getOpen();
+    this.toggleAttribute('data-open', open);
+    this.toggleAttribute('data-closed', !open);
+  }
+
+  private _publishStateChange() {
+    const ps = this._positionState;
+    const nextKey = [
+      this.getOpen() ? 'open' : 'closed',
+      this._transitionStatus ?? 'idle',
+      this._popupId ?? '',
+      ps.side,
+      ps.align,
+      String(ps.anchorHidden),
+      String(ps.arrowOffsetX),
+      String(ps.arrowOffsetY),
+      String(ps.arrowUncentered),
+      this._openReason ?? '',
+      this.disabled ? 'disabled' : '',
+    ].join('|');
+
+    if (nextKey === this._lastPublishedStateKey) return;
+    this._lastPublishedStateKey = nextKey;
+    this.dispatchEvent(new CustomEvent(TOOLTIP_STATE_CHANGE_EVENT));
+  }
+}
+
+if (!customElements.get('tooltip-root')) {
+  customElements.define('tooltip-root', TooltipRootElement);
+}
+
+// ─── TooltipTriggerElement ──────────────────────────────────────────────────────
+
+export class TooltipTriggerElement extends BaseHTMLElement {
+  /** Tooltip-level disabled — prevents tooltip but keeps button interactive. */
+  disabled = false;
+
+  /** Open delay override (null = use provider / default). */
+  delay: number | null = null;
+
+  /** Close delay override (null = use provider / default). */
+  closeDelay: number | null = null;
+
+  /** Whether clicking the trigger cancels the tooltip (default true). */
+  closeOnClick = true;
+
+  private _root: TooltipRootElement | null = null;
+  private _handler = () => this._syncAttributes();
+
+  connectedCallback() {
+    this._root = this.closest(
+      'tooltip-root',
+    ) as TooltipRootElement | null;
+    if (!this._root) {
+      console.error(
+        'Base UI: Tooltip parts must be placed within <tooltip-root>.',
+      );
+      return;
+    }
+
+    this._root.setActiveTriggerElement(this);
+
+    this._root.addEventListener(
+      TOOLTIP_STATE_CHANGE_EVENT,
+      this._handler,
+    );
+
+    this.addEventListener('mouseenter', this._handleMouseEnter);
+    this.addEventListener('mousemove', this._handleMouseMove);
+    this.addEventListener('mouseleave', this._handleMouseLeave);
+    this.addEventListener('focusin', this._handleFocus);
+    this.addEventListener('focusout', this._handleBlur);
+    this.addEventListener('click', this._handleClick);
+
+    queueMicrotask(() => this._syncAttributes());
+  }
+
+  disconnectedCallback() {
+    this._root?.removeEventListener(
+      TOOLTIP_STATE_CHANGE_EVENT,
+      this._handler,
+    );
+    this.removeEventListener('mouseenter', this._handleMouseEnter);
+    this.removeEventListener('mousemove', this._handleMouseMove);
+    this.removeEventListener('mouseleave', this._handleMouseLeave);
+    this.removeEventListener('focusin', this._handleFocus);
+    this.removeEventListener('focusout', this._handleBlur);
+    this.removeEventListener('click', this._handleClick);
+    this._root = null;
+  }
+
+  private _isDisabled(): boolean {
+    return this.disabled || Boolean(this._root?.disabled);
+  }
+
+  private _handleMouseEnter = (event: MouseEvent) => {
+    if (!this._root || this._isDisabled()) return;
+    const effectiveDelay = this._root.getEffectiveDelay(this.delay);
+    this._root.scheduleHoverOpen(effectiveDelay, event);
+  };
+
+  private _handleMouseMove = (event: MouseEvent) => {
+    // Ensure hover open is scheduled (covers edge cases)
+    if (!this._root || this._isDisabled()) return;
+    if (this._root.getOpen()) return; // already open
+  };
+
+  private _handleMouseLeave = (event: MouseEvent) => {
+    if (!this._root) return;
+    this._root.cancelHoverOpen();
+    const effectiveCloseDelay = this._root.getEffectiveCloseDelay(
+      this.closeDelay,
+    );
+    this._root.scheduleHoverClose(effectiveCloseDelay, event);
+  };
+
+  private _handleFocus = (event: FocusEvent) => {
+    if (!this._root || this._isDisabled()) return;
+    this._root.openFromFocus(event);
+  };
+
+  private _handleBlur = (event: FocusEvent) => {
+    if (!this._root) return;
+    this._root.closeFromFocus(event);
+  };
+
+  private _handleClick = (event: Event) => {
+    if (!this._root) return;
+    if (this.closeOnClick) {
+      this._root.cancelFromClick(event);
+    }
+  };
+
+  private _syncAttributes() {
+    if (!this._root) return;
+
+    const open = this._root.getOpen();
+    const popupId = this._root.getPopupId();
+    const isDisabled = this._isDisabled();
+
+    // Tooltip trigger uses aria-describedby (not aria-expanded or aria-controls)
+    if (open && popupId) {
+      this.setAttribute('aria-describedby', popupId);
+    } else {
+      this.removeAttribute('aria-describedby');
+    }
+
+    this.toggleAttribute('data-popup-open', open);
+    this.toggleAttribute('data-trigger-disabled', isDisabled);
+  }
+}
+
+if (!customElements.get('tooltip-trigger')) {
+  customElements.define('tooltip-trigger', TooltipTriggerElement);
+}
+
+// ─── TooltipPortalElement ───────────────────────────────────────────────────────
+
+export class TooltipPortalElement extends BaseHTMLElement {
+  connectedCallback() {
+    this.style.display = 'contents';
+  }
+}
+
+if (!customElements.get('tooltip-portal')) {
+  customElements.define('tooltip-portal', TooltipPortalElement);
+}
+
+// ─── TooltipPositionerElement ───────────────────────────────────────────────────
+
+export class TooltipPositionerElement extends BaseHTMLElement {
+  side: Side = 'bottom';
+  sideOffset = 0;
+  align: Align = 'center';
+  alignOffset = 0;
+  collisionAvoidance: 'flip' | 'shift' | 'none' | undefined = undefined;
+  collisionPadding = 5;
+  arrowPadding = 5;
+  sticky = false;
+  disableAnchorTracking = false;
+  positionMethod: 'absolute' | 'fixed' = 'absolute';
+
+  private _root: TooltipRootElement | null = null;
+  private _handler = () => this._handleStateChange();
+  private _cleanupAutoUpdate: (() => void) | null = null;
+
+  connectedCallback() {
+    this._root = this.closest(
+      'tooltip-root',
+    ) as TooltipRootElement | null;
+    if (!this._root) {
+      console.error(
+        'Base UI: Tooltip parts must be placed within <tooltip-root>.',
+      );
+      return;
+    }
+
+    this.setAttribute('role', 'presentation');
+    Object.assign(this.style, {
+      position: this.positionMethod,
+      left: '0px',
+      top: '0px',
+    });
+
+    this._root.addEventListener(
+      TOOLTIP_STATE_CHANGE_EVENT,
+      this._handler,
+    );
+    queueMicrotask(() => this._handleStateChange());
+  }
+
+  disconnectedCallback() {
+    this._stopAutoUpdate();
+    this._root?.removeEventListener(
+      TOOLTIP_STATE_CHANGE_EVENT,
+      this._handler,
+    );
+    this._root = null;
+  }
+
+  private _handleStateChange() {
+    if (!this._root) return;
+
+    const open = this._root.getOpen();
+
+    if (open) {
+      this.removeAttribute('hidden');
+      this._syncAutoUpdate();
+    } else {
+      this.setAttribute('hidden', '');
+      this._stopAutoUpdate();
+    }
+
+    this._syncAttributes();
+  }
+
+  private _syncAutoUpdate() {
+    this._stopAutoUpdate();
+    if (!this._root?.getOpen()) return;
+
+    const anchorElement = this._root.getActiveTriggerElement();
+    if (!(anchorElement instanceof Element)) return;
+
+    const placement = toPlacement(this.side, this.align);
+    const middleware: Array<any> = [
+      offset({
+        mainAxis: this.sideOffset,
+        crossAxis: this.alignOffset,
+      }),
+      hide(),
+    ];
+
+    const avoid = this.collisionAvoidance;
+    if (avoid !== 'none') {
+      if (avoid === undefined || avoid === 'flip') {
+        middleware.push(flip({ padding: this.collisionPadding }));
+      }
+      if (avoid === undefined || avoid === 'shift') {
+        middleware.push(
+          shift({
+            padding: this.collisionPadding,
+            limiter: this.sticky ? undefined : limitShift(),
+          }),
         );
       }
-
-      throw error;
-    }
-  }
-}
-
-export function createTooltipHandle<Payload = unknown>() {
-  return new TooltipHandle<Payload>();
-}
-
-class TooltipProviderDirective extends AsyncDirective {
-  private latestProps: TooltipProviderProps | null = null;
-  private readonly controller = new TooltipProviderController();
-
-  render(_props: TooltipProviderProps) {
-    return noChange;
-  }
-
-  override update(
-    _part: Parameters<AsyncDirective['update']>[0],
-    [props]: [TooltipProviderProps],
-  ) {
-    this.latestProps = props;
-    this.controller.updateProps(props);
-    return this.renderCurrent();
-  }
-
-  private renderCurrent() {
-    const props = this.latestProps;
-    if (props == null) {
-      return nothing;
     }
 
-    return html`<div
-      ${ref((element) => {
-        if (element instanceof HTMLElement) {
-          (element as TooltipProviderElement)[TOOLTIP_PROVIDER_PROPERTY] = this.controller;
-        }
-      })}
-      ${PROVIDER_ATTRIBUTE}=""
-      style="display: contents;"
-    >
-      ${props.children ?? nothing}
-    </div>`;
-  }
-}
-
-const tooltipProviderDirective = directive(TooltipProviderDirective);
-
-class TooltipRootDirective<Payload = unknown> extends AsyncDirective {
-  private latestProps: TooltipRootProps<Payload> | null = null;
-  private readonly controller = new TooltipRootController<Payload>();
-
-  render(_props: TooltipRootProps<Payload>) {
-    return noChange;
-  }
-
-  override update(
-    _part: Parameters<AsyncDirective['update']>[0],
-    [props]: [TooltipRootProps<Payload>],
-  ) {
-    this.latestProps = props;
-    this.controller.updateProps(props);
-    return this.renderCurrent();
-  }
-
-  override disconnected() {
-    this.controller.disconnected();
-    this.controller.connectRoot(null);
-  }
-
-  private renderCurrent() {
-    const props = this.latestProps;
-    if (props == null) {
-      return nothing;
-    }
-
-    return html`<div
-      ${ref((element) => {
-        this.controller.connectRoot(element as HTMLElement | null);
-      })}
-      ${ROOT_ATTRIBUTE}=""
-      style="display: contents;"
-    >
-      ${Popover.Root<Payload>({
-        actionsRef: props.actionsRef as RefObject<PopoverRootActions | null> | undefined,
-        defaultOpen: props.defaultOpen,
-        defaultTriggerId: props.defaultTriggerId,
-        handle: this.controller.handle,
-        open: props.disabled ? false : props.open,
-        onOpenChange: (open, eventDetails) => {
-          this.controller.handleOpenChange(open, eventDetails, props.onOpenChange);
-        },
-        onOpenChangeComplete: props.onOpenChangeComplete,
-        triggerId: props.triggerId,
-        children: props.children as PopoverRootProps<Payload>['children'],
-      })}
-    </div>`;
-  }
-}
-
-const tooltipRootDirective = directive(TooltipRootDirective);
-
-abstract class TooltipPartDirective<Props, ElementType extends HTMLElement>
-  extends AsyncDirective
-  implements SubscriptionOwner
-{
-  protected latestProps: Props | null = null;
-  protected controller: TooltipRootController<any> | null = null;
-  protected element: ElementType | null = null;
-  private unsubscribeController: (() => void) | null = null;
-
-  abstract renderCurrent(): TemplateResult;
-
-  override disconnected() {
-    this.unsubscribeController?.();
-    this.unsubscribeController = null;
-    this.element = null;
-  }
-
-  override reconnected() {}
-
-  protected requestRender() {
-    if (!this.isConnected) {
-      return;
-    }
-
-    try {
-      this.setValue(this.renderCurrent());
-    } catch (error) {
-      // Let Lit recover on the next update if the part was detached mid-render.
-      rethrowIfStillConnected(error, this.isConnected);
-    }
-  }
-
-  onControllerChange(nextController: TooltipRootController<any> | null) {
-    if (this.controller === nextController) {
-      return;
-    }
-
-    this.unsubscribeController?.();
-    this.unsubscribeController = null;
-    this.controller = nextController;
-    this.unsubscribeController =
-      nextController?.subscribe(() => {
-        this.requestRender();
-      }) ?? null;
-    this.requestRender();
-  }
-
-  protected setController(nextController: TooltipRootController<any> | null) {
-    this.onControllerChange(nextController);
-  }
-}
-
-class TooltipTriggerDirective<Payload = unknown>
-  extends AsyncDirective
-  implements SubscriptionOwner
-{
-  private latestProps: TooltipTriggerProps<Payload> | null = null;
-  private handle: TooltipHandle<Payload> | undefined = undefined;
-  private runtime: TooltipPopoverRuntime<Payload> | null = null;
-  private controller: TooltipRootController<Payload> | null = null;
-  private element: HTMLElement | null = null;
-  private unregisterTrigger: (() => void) | null = null;
-  private unsubscribeRuntime: (() => void) | null = null;
-  private unsubscribeHandle: (() => void) | null = null;
-  private generatedId = `${GENERATED_ID_PREFIX}-trigger-${(generatedTooltipId += 1)}`;
-
-  render(_props: TooltipTriggerProps<Payload>) {
-    return noChange;
-  }
-
-  override update(
-    _part: Parameters<AsyncDirective['update']>[0],
-    [props]: [TooltipTriggerProps<Payload>],
-  ) {
-    this.latestProps = props;
-    this.syncHandle(props.handle);
-    return this.renderCurrent();
-  }
-
-  override disconnected() {
-    this.unregisterTrigger?.();
-    this.unregisterTrigger = null;
-    this.unsubscribeRuntime?.();
-    this.unsubscribeRuntime = null;
-    this.unsubscribeHandle?.();
-    this.unsubscribeHandle = null;
-    this.handle = undefined;
-  }
-
-  override reconnected() {}
-
-  onControllerChange(_nextController: TooltipRootController<any> | null) {}
-
-  private setRuntime(nextRuntime: TooltipPopoverRuntime<Payload> | null) {
-    if (this.runtime === nextRuntime) {
-      return;
-    }
-
-    this.unregisterTrigger?.();
-    this.unregisterTrigger = null;
-    this.unsubscribeRuntime?.();
-    this.unsubscribeRuntime = null;
-    this.runtime = nextRuntime;
-    this.controller =
-      (nextRuntime?.handle as TooltipHandleInternal<Payload> | undefined)?.[
-        TOOLTIP_CONTROLLER_PROPERTY
-      ] ?? this.controller;
-    this.unsubscribeRuntime =
-      nextRuntime?.subscribe(() => {
-        this.requestRender();
-      }) ?? null;
-    this.registerTrigger();
-    this.requestRender();
-  }
-
-  private requestRender() {
-    if (!this.isConnected) {
-      return;
-    }
-
-    try {
-      this.setValue(this.renderCurrent());
-    } catch (error) {
-      // Ignore detached parts.
-      rethrowIfStillConnected(error, this.isConnected);
-    }
-  }
-
-  private syncHandle(handle: TooltipHandle<Payload> | undefined) {
-    if (this.handle === handle) {
-      return;
-    }
-
-    this.handle = handle;
-    this.unsubscribeHandle?.();
-    this.unsubscribeHandle = null;
-
-    if (handle == null) {
-      return;
-    }
-
-    this.controller = (handle as TooltipHandleInternal<Payload>)[TOOLTIP_CONTROLLER_PROPERTY] ?? null;
-    this.unsubscribeHandle = handle.subscribeOwner({
-      onRuntimeChange: (nextRuntime: TooltipPopoverRuntime<Payload> | null) => {
-        this.controller =
-          (handle as TooltipHandleInternal<Payload>)[TOOLTIP_CONTROLLER_PROPERTY] ?? null;
-        this.setRuntime(nextRuntime);
-      },
-    } as never);
-  }
-
-  private getId() {
-    return this.latestProps?.id ?? this.generatedId;
-  }
-
-  private registerTrigger() {
-    this.unregisterTrigger?.();
-    this.unregisterTrigger = null;
-
-    if (this.runtime == null) {
-      return;
-    }
-
-    this.unregisterTrigger = this.runtime.registerTrigger({
-      id: this.getId(),
-      element: this.element,
-      disabled: Boolean(this.latestProps?.disabled ?? this.controller?.getDisabled()),
-      payload: this.latestProps?.payload,
-      openOnHover: true,
-      delay: this.latestProps?.delay ?? OPEN_DELAY,
-      closeDelay: this.latestProps?.closeDelay ?? 0,
-    });
-  }
-
-  private renderCurrent() {
-    const props = this.latestProps ?? {};
-    const {
-      children,
-      closeDelay,
-      closeOnClick = true,
-      delay,
-      disabled: disabledProp,
-      handle: _handle,
-      id: _id,
-      payload: _payload,
-      ref: forwardedRef,
-      render,
-      ...elementProps
-    } = props as TooltipTriggerProps<Payload> & Record<string, unknown>;
-    void _handle;
-    void _id;
-    void _payload;
-
-    const runtime = this.runtime;
-    const controller =
-      this.controller ??
-      ((runtime?.handle as TooltipHandleInternal<Payload> | undefined)?.[
-        TOOLTIP_CONTROLLER_PROPERTY
-      ] ?? null);
-    this.controller = controller;
-    const open = runtime?.getOpen() === true && runtime.getActiveTriggerId() === this.getId();
-    const disabled = Boolean(disabledProp ?? controller?.getDisabled());
-
-    if (runtime == null && props.handle == null && this.element != null) {
-      this.setRuntime(findPopoverRuntime(this.element));
-      this.controller = findTooltipRootController(this.element) as TooltipRootController<Payload> | null;
-    }
-
-    if (runtime == null && props.handle == null && this.element == null) {
-      // Wait for the element ref callback to resolve runtime/controller.
-    } else if (runtime == null && props.handle == null) {
-      throw new Error(
-        'Base UI: <Tooltip.Trigger> must be either used within a <Tooltip.Root> component or provided with a handle.',
+    const arrowElement = this._root.getArrowElement();
+    if (arrowElement) {
+      middleware.push(
+        floatingArrow({
+          element: arrowElement,
+          padding: this.arrowPadding,
+        }),
       );
     }
 
-    return useRender<TooltipTriggerState, HTMLElement>({
-      defaultTagName: 'button',
-      render: render as Parameters<typeof useRender<TooltipTriggerState, HTMLElement>>[0]['render'],
-      ref: [
-        (element) => {
-          this.element = element;
-          if (element != null && props.handle == null) {
-            this.controller =
-              findTooltipRootController(element) as TooltipRootController<Payload> | null;
-            if (this.controller != null) {
-              this.syncHandle(this.controller.handle);
-            }
-            this.setRuntime(findPopoverRuntime(element));
-            if (this.runtime == null) {
-              queueMicrotask(() => {
-                if (this.element !== element || props.handle != null) {
-                  return;
-                }
+    const root = this._root;
 
-                this.controller =
-                  findTooltipRootController(element) as TooltipRootController<Payload> | null;
-                if (this.controller != null) {
-                  this.syncHandle(this.controller.handle);
-                }
-                this.setRuntime(findPopoverRuntime(element));
-              });
-            }
-          }
-          this.registerTrigger();
-          assignRef(forwardedRef as Ref<HTMLElement>, element);
-        },
-      ],
-      state: { open },
-      props: {
-        type: 'button',
-        id: this.getId(),
-        'data-popup-open': open ? '' : undefined,
-        'data-trigger-disabled': disabled ? '' : undefined,
-        'aria-describedby': open ? runtime?.getPopupId() : undefined,
-        onClick: (event: MouseEvent) => {
-          const currentRuntime = this.runtime;
-          if (!disabled && closeOnClick) {
-            currentRuntime?.cancelHoverOpen();
-            if (open) {
-              currentRuntime?.close(event, 'trigger-press', this.element ?? undefined);
-            }
-          }
+    const updatePosition = () => {
+      computePosition(anchorElement, this, {
+        placement,
+        strategy: this.positionMethod,
+        middleware,
+      }).then(
+        (result: Awaited<ReturnType<typeof computePosition>>) => {
+          Object.assign(this.style, {
+            left: `${result.x}px`,
+            top: `${result.y}px`,
+            position: this.positionMethod,
+          });
 
-          (elementProps.onClick as ((event: MouseEvent) => void) | undefined)?.(event);
-        },
-        onFocus: (event: FocusEvent) => {
-          const currentRuntime = this.runtime;
-          const currentController =
-            this.controller ??
-            ((currentRuntime?.handle as TooltipHandleInternal<Payload> | undefined)?.[
-              TOOLTIP_CONTROLLER_PROPERTY
-            ] ?? null);
+          const parsed = parsePlacement(result.placement);
+          const arrowData = result.middlewareData.arrow as
+            | {
+                x?: number;
+                y?: number;
+                centerOffset?: number;
+              }
+            | undefined;
+          const hideData = result.middlewareData.hide as
+            | { referenceHidden?: boolean }
+            | undefined;
 
-          if (!disabled) {
-            if (currentController != null) {
-              currentController.pendingOpenInstantType = 'focus';
-            }
-            currentRuntime?.openWithTrigger(
-              this.getId(),
-              event,
-              'trigger-focus',
-              this.element ?? undefined,
-            );
+          if (arrowElement) {
+            const staticSide =
+              parsed.side === 'top'
+                ? 'bottom'
+                : parsed.side === 'bottom'
+                  ? 'top'
+                  : parsed.side === 'left'
+                    ? 'right'
+                    : 'left';
+            Object.assign(arrowElement.style, {
+              left:
+                arrowData?.x != null ? `${arrowData.x}px` : '',
+              top:
+                arrowData?.y != null ? `${arrowData.y}px` : '',
+              right: '',
+              bottom: '',
+              [staticSide]: '-4px',
+            });
           }
 
-          (elementProps.onFocus as ((event: FocusEvent) => void) | undefined)?.(event);
+          root.setPositionState({
+            side: parsed.side,
+            align: parsed.align,
+            anchorHidden: Boolean(hideData?.referenceHidden),
+            arrowOffsetX: arrowData?.x ?? null,
+            arrowOffsetY: arrowData?.y ?? null,
+            arrowUncentered:
+              arrowData?.centerOffset != null
+                ? Math.abs(arrowData.centerOffset) > 0.5
+                : false,
+            transformOrigin: getTransformOrigin(
+              parsed.side,
+              parsed.align,
+              arrowData?.x ?? null,
+              arrowData?.y ?? null,
+            ),
+          });
         },
-        onBlur: (event: FocusEvent) => {
-          const currentRuntime = this.runtime;
-          if (open) {
-            currentRuntime?.close(event, 'none', this.element ?? undefined);
-          }
+      );
+    };
 
-          (elementProps.onBlur as ((event: FocusEvent) => void) | undefined)?.(event);
-        },
-        onMouseEnter: (event: MouseEvent) => {
-          const currentRuntime = this.runtime;
-          const currentController =
-            this.controller ??
-            ((currentRuntime?.handle as TooltipHandleInternal<Payload> | undefined)?.[
-              TOOLTIP_CONTROLLER_PROPERTY
-            ] ?? null);
-
-          if (!disabled) {
-            const resolution = currentController?.resolveOpenDelay(delay);
-            currentController?.updateCursorAnchor(event, this.element);
-            if (currentController != null) {
-              currentController.pendingOpenInstantType = resolution?.instant ? 'delay' : undefined;
-            }
-            currentRuntime?.enterHoverRegion();
-            currentRuntime?.scheduleHoverOpen(
-              this.getId(),
-              resolution?.delay ?? delay ?? OPEN_DELAY,
-              event,
-            );
-          }
-
-          (elementProps.onMouseEnter as ((event: MouseEvent) => void) | undefined)?.(event);
-        },
-        onMouseMove: (event: MouseEvent) => {
-          const currentRuntime = this.runtime;
-          const currentController =
-            this.controller ??
-            ((currentRuntime?.handle as TooltipHandleInternal<Payload> | undefined)?.[
-              TOOLTIP_CONTROLLER_PROPERTY
-            ] ?? null);
-          currentController?.updateCursorAnchor(event, this.element);
-          (elementProps.onMouseMove as ((event: MouseEvent) => void) | undefined)?.(event);
-        },
-        onMouseLeave: (event: MouseEvent) => {
-          const currentRuntime = this.runtime;
-          const currentController =
-            this.controller ??
-            ((currentRuntime?.handle as TooltipHandleInternal<Payload> | undefined)?.[
-              TOOLTIP_CONTROLLER_PROPERTY
-            ] ?? null);
-          currentRuntime?.leaveHoverRegion(
-            event,
-            currentController?.resolveCloseDelay(closeDelay) ?? 0,
-          );
-          (elementProps.onMouseLeave as ((event: MouseEvent) => void) | undefined)?.(event);
-        },
-        ...(children === undefined ? elementProps : { ...elementProps, children }),
+    updatePosition();
+    this._cleanupAutoUpdate = autoUpdate(
+      anchorElement,
+      this,
+      updatePosition,
+      {
+        elementResize: !this.disableAnchorTracking,
+        layoutShift: !this.disableAnchorTracking,
       },
+    );
+  }
+
+  private _stopAutoUpdate() {
+    this._cleanupAutoUpdate?.();
+    this._cleanupAutoUpdate = null;
+  }
+
+  private _syncAttributes() {
+    if (!this._root) return;
+    const open = this._root.getOpen();
+    const ps = this._root.getPositionState();
+
+    this.toggleAttribute('data-open', open);
+    this.toggleAttribute('data-closed', !open);
+    this.setAttribute('data-side', ps.side);
+    this.setAttribute('data-align', ps.align);
+  }
+}
+
+if (!customElements.get('tooltip-positioner')) {
+  customElements.define('tooltip-positioner', TooltipPositionerElement);
+}
+
+// ─── TooltipPopupElement ────────────────────────────────────────────────────────
+
+export class TooltipPopupElement extends BaseHTMLElement {
+  private _root: TooltipRootElement | null = null;
+  private _handler = () => this._handleStateChange();
+  private _mounted = false;
+  private _transitionStatus: TransitionStatus = undefined;
+  private _lastOpen: boolean | null = null;
+  private _frameId: number | null = null;
+  private _exitRunId = 0;
+
+  connectedCallback() {
+    this._root = this.closest(
+      'tooltip-root',
+    ) as TooltipRootElement | null;
+    if (!this._root) {
+      console.error(
+        'Base UI: Tooltip parts must be placed within <tooltip-root>.',
+      );
+      return;
+    }
+
+    ensureId(this, 'base-ui-tooltip-popup');
+    this._root.setPopupId(this.id);
+
+    this._root.addEventListener(
+      TOOLTIP_STATE_CHANGE_EVENT,
+      this._handler,
+    );
+
+    if (!this._root.getOpen()) {
+      this.setAttribute('hidden', '');
+    }
+
+    queueMicrotask(() => this._handleStateChange());
+  }
+
+  disconnectedCallback() {
+    this._clearFrame();
+    if (this._root) {
+      this._root.setPopupId(undefined);
+      this._root.setTransitionStatus(undefined);
+      this._root.removeEventListener(
+        TOOLTIP_STATE_CHANGE_EVENT,
+        this._handler,
+      );
+    }
+    this._root = null;
+    this._mounted = false;
+    this._lastOpen = null;
+    this._transitionStatus = undefined;
+  }
+
+  private _handleStateChange() {
+    if (!this._root) return;
+
+    const open = this._root.getOpen();
+    const wasOpen = this._lastOpen;
+
+    if (open) {
+      this._exitRunId += 1;
+      if (wasOpen !== true && !this._mounted) {
+        this._mounted = true;
+        this._transitionStatus = 'starting';
+        this._scheduleStartingCleanup();
+      } else if (this._transitionStatus === 'ending') {
+        this._transitionStatus = undefined;
+      }
+    } else if (
+      wasOpen === true &&
+      this._mounted &&
+      this._transitionStatus !== 'ending'
+    ) {
+      this._transitionStatus = 'ending';
+      this._scheduleExitCleanup();
+    }
+
+    this._lastOpen = open;
+    this._syncVisibility();
+  }
+
+  private _syncVisibility() {
+    if (!this._root) return;
+
+    const open = this._root.getOpen();
+    const shouldRender =
+      this._mounted || this._transitionStatus === 'ending';
+
+    if (!shouldRender) {
+      this.setAttribute('hidden', '');
+      this._root.setTransitionStatus(undefined);
+      return;
+    }
+
+    const hidden = !open && this._transitionStatus !== 'ending';
+
+    if (hidden) {
+      this.setAttribute('hidden', '');
+    } else {
+      this.removeAttribute('hidden');
+    }
+
+    // Tooltip uses role=tooltip (not role=dialog)
+    this.setAttribute('role', 'tooltip');
+
+    // Data attributes
+    this.toggleAttribute('data-open', open);
+    this.toggleAttribute('data-closed', !open);
+    this.toggleAttribute(
+      'data-starting-style',
+      this._transitionStatus === 'starting',
+    );
+    this.toggleAttribute(
+      'data-ending-style',
+      this._transitionStatus === 'ending',
+    );
+
+    this._root.setTransitionStatus(this._transitionStatus);
+  }
+
+  private _scheduleStartingCleanup() {
+    this._clearFrame();
+    this._frameId = requestAnimationFrame(() => {
+      this._frameId = null;
+      if (!this._root || this._transitionStatus !== 'starting') return;
+      if (!this._root.getOpen()) return;
+      this._transitionStatus = undefined;
+      this._syncVisibility();
     });
   }
-}
 
-const tooltipTriggerDirective = directive(TooltipTriggerDirective);
-
-class TooltipPositionerDirective extends TooltipPartDirective<
-  TooltipPositionerProps,
-  HTMLDivElement
-> {
-  render(_props: TooltipPositionerProps) {
-    return noChange;
-  }
-
-  override update(
-    _part: Parameters<AsyncDirective['update']>[0],
-    [props]: [TooltipPositionerProps],
-  ) {
-    this.latestProps = props;
-    return this.renderCurrent();
-  }
-
-  renderCurrent() {
-    const props = this.latestProps ?? {};
-    const controller = this.controller;
-    const runtime = controller?.getPopoverRuntime();
-    const open = runtime?.getOpen() ?? false;
-    const pointerEventsDisabled =
-      !open || controller?.getTrackCursorAxis() === 'both' || controller?.getDisableHoverablePopup();
-
-    return Popover.Positioner({
-      ...(props as PopoverPositionerProps),
-      anchor: controller?.getCursorAnchorElement() ?? props.anchor,
-      'data-instant': controller?.getPositionerInstant(),
-      style: mergeStyle(props.style, {
-        pointerEvents: pointerEventsDisabled ? 'none' : undefined,
-      }),
-      ref: [
-        (element: HTMLDivElement | null) => {
-          this.element = element;
-          if (element != null) {
-            this.setController(findTooltipRootController(element));
-          }
-          assignRef(props.ref as Ref<HTMLDivElement>, element);
-        },
-      ],
+  private _scheduleExitCleanup() {
+    this._clearFrame();
+    this._exitRunId += 1;
+    const runId = this._exitRunId;
+    this._frameId = requestAnimationFrame(() => {
+      this._frameId = null;
+      this._waitForExitAnimations(runId);
     });
   }
-}
 
-const tooltipPositionerDirective = directive(TooltipPositionerDirective);
+  private _waitForExitAnimations(runId: number) {
+    if (runId !== this._exitRunId) return;
 
-class TooltipPopupDirective extends TooltipPartDirective<TooltipPopupProps, HTMLDivElement> {
-  render(_props: TooltipPopupProps) {
-    return noChange;
+    if (
+      typeof this.getAnimations !== 'function' ||
+      (
+        globalThis as typeof globalThis & {
+          BASE_UI_ANIMATIONS_DISABLED?: boolean;
+        }
+      ).BASE_UI_ANIMATIONS_DISABLED
+    ) {
+      this._finishExit(runId);
+      return;
+    }
+
+    Promise.all(this.getAnimations().map((a) => a.finished))
+      .then(() => this._finishExit(runId))
+      .catch(() => {
+        if (runId !== this._exitRunId) return;
+        this._finishExit(runId);
+      });
   }
 
-  override update(
-    _part: Parameters<AsyncDirective['update']>[0],
-    [props]: [TooltipPopupProps],
-  ) {
-    this.latestProps = props;
-    return this.renderCurrent();
+  private _finishExit(runId: number) {
+    if (runId !== this._exitRunId) return;
+    this._mounted = false;
+    this._transitionStatus = undefined;
+    this._syncVisibility();
   }
 
-  renderCurrent() {
-    const props = this.latestProps ?? {};
-
-    return Popover.Popup({
-      ...(props as PopoverPopupProps),
-      initialFocus: false,
-      role: 'tooltip',
-      tabindex: undefined,
-      'aria-labelledby': undefined,
-      'aria-describedby': undefined,
-      'data-instant': this.controller?.getEffectiveInstantType(),
-      ref: [
-        (element: HTMLDivElement | null) => {
-          this.element = element;
-          if (element != null) {
-            this.setController(findTooltipRootController(element));
-          }
-          assignRef(props.ref as Ref<HTMLDivElement>, element);
-        },
-      ],
-    });
+  private _clearFrame() {
+    if (this._frameId != null) {
+      cancelAnimationFrame(this._frameId);
+      this._frameId = null;
+    }
   }
 }
 
-const tooltipPopupDirective = directive(TooltipPopupDirective);
+if (!customElements.get('tooltip-popup')) {
+  customElements.define('tooltip-popup', TooltipPopupElement);
+}
 
-class TooltipArrowDirective extends TooltipPartDirective<TooltipArrowProps, HTMLDivElement> {
-  render(_props: TooltipArrowProps) {
-    return noChange;
+// ─── TooltipArrowElement ────────────────────────────────────────────────────────
+
+export class TooltipArrowElement extends BaseHTMLElement {
+  private _root: TooltipRootElement | null = null;
+  private _handler = () => this._syncAttributes();
+
+  connectedCallback() {
+    this._root = this.closest(
+      'tooltip-root',
+    ) as TooltipRootElement | null;
+    if (!this._root) {
+      console.error(
+        'Base UI: Tooltip parts must be placed within <tooltip-root>.',
+      );
+      return;
+    }
+
+    this._root.setArrowElement(this);
+    this.setAttribute('aria-hidden', 'true');
+
+    this._root.addEventListener(
+      TOOLTIP_STATE_CHANGE_EVENT,
+      this._handler,
+    );
+    queueMicrotask(() => this._syncAttributes());
   }
 
-  override update(
-    _part: Parameters<AsyncDirective['update']>[0],
-    [props]: [TooltipArrowProps],
-  ) {
-    this.latestProps = props;
-    return this.renderCurrent();
+  disconnectedCallback() {
+    if (this._root) {
+      this._root.setArrowElement(null);
+      this._root.removeEventListener(
+        TOOLTIP_STATE_CHANGE_EVENT,
+        this._handler,
+      );
+    }
+    this._root = null;
   }
 
-  renderCurrent() {
-    const props = this.latestProps ?? {};
+  private _syncAttributes() {
+    if (!this._root) return;
+    const ps = this._root.getPositionState();
+    const open = this._root.getOpen();
 
-    return Popover.Arrow({
-      ...(props as PopoverArrowProps),
-      'data-instant': this.controller?.getEffectiveInstantType(),
-      ref: [
-        (element: HTMLDivElement | null) => {
-          this.element = element;
-          if (element != null) {
-            this.setController(findTooltipRootController(element));
-          }
-          assignRef(props.ref as Ref<HTMLDivElement>, element);
-        },
-      ],
-    });
+    this.toggleAttribute('data-open', open);
+    this.setAttribute('data-side', ps.side);
+    this.setAttribute('data-align', ps.align);
+    this.toggleAttribute('data-uncentered', ps.arrowUncentered);
   }
 }
 
-const tooltipArrowDirective = directive(TooltipArrowDirective);
-
-class TooltipViewportDirective extends TooltipPartDirective<TooltipViewportProps, HTMLDivElement> {
-  render(_props: TooltipViewportProps) {
-    return noChange;
-  }
-
-  override update(
-    _part: Parameters<AsyncDirective['update']>[0],
-    [props]: [TooltipViewportProps],
-  ) {
-    this.latestProps = props;
-    return this.renderCurrent();
-  }
-
-  renderCurrent() {
-    const props = this.latestProps ?? {};
-
-    return Popover.Viewport({
-      ...(props as PopoverViewportProps),
-      'data-instant': this.controller?.getEffectiveInstantType(),
-      ref: [
-        (element: HTMLDivElement | null) => {
-          this.element = element;
-          if (element != null) {
-            this.setController(findTooltipRootController(element));
-          }
-          assignRef(props.ref as Ref<HTMLDivElement>, element);
-        },
-      ],
-    });
-  }
+if (!customElements.get('tooltip-arrow')) {
+  customElements.define('tooltip-arrow', TooltipArrowElement);
 }
 
-const tooltipViewportDirective = directive(TooltipViewportDirective);
-
-export interface TooltipProviderState {}
-
-export interface TooltipProviderProps {
-  children?: unknown;
-  delay?: number | undefined;
-  closeDelay?: number | undefined;
-  timeout?: number | undefined;
-}
-
-export namespace TooltipProvider {
-  export type State = TooltipProviderState;
-  export type Props = TooltipProviderProps;
-}
-
-export interface TooltipRootState {}
-
-export interface TooltipRootProps<Payload = unknown> {
-  defaultOpen?: boolean | undefined;
-  open?: boolean | undefined;
-  onOpenChange?:
-    | ((open: boolean, eventDetails: TooltipRootChangeEventDetails) => void)
-    | undefined;
-  onOpenChangeComplete?: ((open: boolean) => void) | undefined;
-  disableHoverablePopup?: boolean | undefined;
-  trackCursorAxis?: 'none' | 'x' | 'y' | 'both' | undefined;
-  actionsRef?: RefObject<TooltipRootActions | null> | undefined;
-  disabled?: boolean | undefined;
-  handle?: TooltipHandle<Payload> | undefined;
-  children?: RootChildren<Payload>;
-  triggerId?: string | null | undefined;
-  defaultTriggerId?: string | null | undefined;
-}
-
-export type TooltipRootChangeEventReason = TooltipChangeReason;
-export type TooltipRootChangeEventDetails = BaseUIChangeEventDetails<
-  TooltipRootChangeEventReason,
-  { preventUnmountOnClose(): void }
->;
-export type TooltipRootActions = PopoverRootActions;
+// ─── Namespace exports ──────────────────────────────────────────────────────────
 
 export namespace TooltipRoot {
-  export type State = TooltipRootState;
-  export type Props<Payload = unknown> = TooltipRootProps<Payload>;
-  export type Actions = TooltipRootActions;
-  export type ChangeEventReason = TooltipRootChangeEventReason;
-  export type ChangeEventDetails = TooltipRootChangeEventDetails;
+  export type ChangeEventReason = TooltipChangeEventReason;
+  export type ChangeEventDetails = TooltipChangeEventDetails;
 }
 
-export interface TooltipTriggerState {
-  open: boolean;
+export namespace TooltipProvider {}
+export namespace TooltipTrigger {}
+export namespace TooltipPopup {}
+export namespace TooltipPositioner {}
+export namespace TooltipArrow {}
+export namespace TooltipPortal {}
+
+// ─── Global type declarations ───────────────────────────────────────────────────
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'tooltip-provider': TooltipProviderElement;
+    'tooltip-root': TooltipRootElement;
+    'tooltip-trigger': TooltipTriggerElement;
+    'tooltip-portal': TooltipPortalElement;
+    'tooltip-positioner': TooltipPositionerElement;
+    'tooltip-popup': TooltipPopupElement;
+    'tooltip-arrow': TooltipArrowElement;
+  }
 }
-
-export type TooltipTriggerProps<Payload = unknown> = ComponentPropsWithChildren<
-  'button',
-  TooltipTriggerState
-> & {
-  handle?: TooltipHandle<Payload> | undefined;
-  payload?: Payload | undefined;
-  delay?: number | undefined;
-  closeOnClick?: boolean | undefined;
-  closeDelay?: number | undefined;
-  disabled?: boolean | undefined;
-  id?: string | undefined;
-};
-
-export namespace TooltipTrigger {
-  export type State = TooltipTriggerState;
-  export type Props<Payload = unknown> = TooltipTriggerProps<Payload>;
-}
-
-export interface TooltipPortalState {}
-
-export type TooltipPortalProps = Omit<PopoverPortalProps, 'handle'>;
-
-export namespace TooltipPortal {
-  export type State = TooltipPortalState;
-  export type Props = TooltipPortalProps;
-}
-
-export interface TooltipPositionerState {
-  open: boolean;
-  side: Side;
-  align: Align;
-  anchorHidden: boolean;
-  instant: string | undefined;
-}
-
-export type TooltipPositionerProps = PopoverPositionerProps;
-
-export namespace TooltipPositioner {
-  export type State = TooltipPositionerState;
-  export type Props = TooltipPositionerProps;
-}
-
-export interface TooltipPopupState {
-  open: boolean;
-  side: Side;
-  align: Align;
-  instant: TooltipInstantType;
-  transitionStatus: TransitionStatus;
-}
-
-export type TooltipPopupProps = Omit<PopoverPopupProps, 'initialFocus' | 'finalFocus'>;
-
-export namespace TooltipPopup {
-  export type State = TooltipPopupState;
-  export type Props = TooltipPopupProps;
-}
-
-export interface TooltipArrowState {
-  open: boolean;
-  side: Side;
-  align: Align;
-  uncentered: boolean;
-  instant: TooltipInstantType;
-}
-
-export type TooltipArrowProps = PopoverArrowProps;
-
-export namespace TooltipArrow {
-  export type State = TooltipArrowState;
-  export type Props = TooltipArrowProps;
-}
-
-export interface TooltipViewportState {
-  activationDirection: string | undefined;
-  transitioning: boolean;
-  instant: TooltipInstantType;
-}
-
-export type TooltipViewportProps = PopoverViewportProps;
-
-export namespace TooltipViewport {
-  export type State = TooltipViewportState;
-  export type Props = TooltipViewportProps;
-}
-
-export function TooltipProvider(props: TooltipProviderProps) {
-  return html`${tooltipProviderDirective(props)}`;
-}
-
-export function TooltipRoot<Payload = unknown>(props: TooltipRootProps<Payload>) {
-  return html`${tooltipRootDirective(props)}`;
-}
-
-export function TooltipTrigger<Payload = unknown>(props: TooltipTriggerProps<Payload>) {
-  return html`${tooltipTriggerDirective(props)}`;
-}
-
-export function TooltipPortal(props: TooltipPortalProps) {
-  return Popover.Portal(props);
-}
-
-export function TooltipPositioner(props: TooltipPositionerProps) {
-  return html`${tooltipPositionerDirective(props)}`;
-}
-
-export function TooltipPopup(props: TooltipPopupProps) {
-  return html`${tooltipPopupDirective(props)}`;
-}
-
-export function TooltipArrow(props: TooltipArrowProps) {
-  return html`${tooltipArrowDirective(props)}`;
-}
-
-export function TooltipViewport(props: TooltipViewportProps) {
-  return html`${tooltipViewportDirective(props)}`;
-}
-
-export const Tooltip = {
-  Provider: TooltipProvider,
-  Root: TooltipRoot,
-  Trigger: TooltipTrigger,
-  Portal: TooltipPortal,
-  Positioner: TooltipPositioner,
-  Popup: TooltipPopup,
-  Arrow: TooltipArrow,
-  Viewport: TooltipViewport,
-  createHandle: createTooltipHandle,
-  Handle: TooltipHandle,
-};

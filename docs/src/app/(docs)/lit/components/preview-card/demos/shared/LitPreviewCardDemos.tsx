@@ -1,11 +1,8 @@
 'use client';
 import * as React from 'react';
-import { html, svg, nothing, type TemplateResult } from 'lit';
-import { PreviewCard } from '@base-ui/lit/preview-card';
-import type { PreviewCardHandle } from '@base-ui/lit/preview-card';
+import { html, svg } from 'lit';
+import '@base-ui/lit/preview-card';
 import { LitTemplateHost } from '../../../popover/demos/shared/LitTemplateHost';
-
-type PreviewCardPayload = 'art' | 'design' | 'typography';
 
 export interface LitPreviewCardBaseProps {
   arrowClassName: string;
@@ -39,43 +36,34 @@ export function LitPreviewCardHero(props: LitPreviewCardHeroProps) {
 
   const template = React.useCallback(
     () =>
-      PreviewCard.Root({
-        children: [
-          html`<p class=${paragraphClassName}>
-            The principles of good
-            ${PreviewCard.Trigger({
-              className: linkClassName,
-              href: 'https://en.wikipedia.org/wiki/Typography',
-              children: 'typography',
-            })}
-            remain in the digital age.
-          </p>`,
-          PreviewCard.Portal({
-            children: PreviewCard.Positioner({
-              sideOffset: 8,
-              children: PreviewCard.Popup({
-                className: popupClassName,
-                children: [
-                  PreviewCard.Arrow({
-                    className: arrowClassName,
-                    children: arrowSvg({
-                      arrowFillClassName,
-                      arrowInnerStrokeClassName,
-                      arrowOuterStrokeClassName,
-                    }),
-                  }),
-                  renderCardContent({
-                    imageClassName,
-                    popupContentClassName,
-                    summaryClassName,
-                    payload: 'typography',
-                  }),
-                ],
-              }),
-            }),
-          }),
-        ],
-      }),
+      html`<preview-card-root>
+        <p class=${paragraphClassName}>
+          The principles of good
+          <preview-card-trigger class=${linkClassName} href="https://en.wikipedia.org/wiki/Typography">
+            typography
+          </preview-card-trigger>
+          remain in the digital age.
+        </p>
+        <preview-card-portal>
+          <preview-card-positioner .sideOffset=${8}>
+            <preview-card-popup class=${popupClassName}>
+              <preview-card-arrow class=${arrowClassName}>
+                ${arrowSvg({
+                  arrowFillClassName,
+                  arrowInnerStrokeClassName,
+                  arrowOuterStrokeClassName,
+                })}
+              </preview-card-arrow>
+              ${renderCardContent({
+                imageClassName,
+                popupContentClassName,
+                summaryClassName,
+                payload: 'typography',
+              })}
+            </preview-card-popup>
+          </preview-card-positioner>
+        </preview-card-portal>
+      </preview-card-root>`,
     [
       arrowClassName,
       arrowFillClassName,
@@ -110,55 +98,42 @@ export function LitPreviewCardDetachedSimple(props: LitPreviewCardDetachedSimple
     popupContentClassName,
     summaryClassName,
   } = props;
-  const handle = React.useMemo(() => PreviewCard.createHandle<PreviewCardPayload>(), []);
 
   const template = React.useCallback(
     () =>
-      html`${html`<p class=${paragraphClassName}>
-            The principles of good
-            ${PreviewCard.Trigger({
-              className: linkClassName,
-              handle,
-              href: 'https://en.wikipedia.org/wiki/Typography',
-              payload: 'typography',
-              children: 'typography',
-            })}
-            remain in the digital age.
-          </p>`}
-        ${PreviewCard.Root<PreviewCardPayload>({
-          handle,
-          children: ({ payload }) =>
-            PreviewCard.Portal({
-              children: PreviewCard.Positioner({
-                sideOffset: 8,
-                children: PreviewCard.Popup({
-                  className: popupClassName,
-                  children: [
-                    PreviewCard.Arrow({
-                      className: arrowClassName,
-                      children: arrowSvg({
-                        arrowFillClassName,
-                        arrowInnerStrokeClassName,
-                        arrowOuterStrokeClassName,
-                      }),
-                    }),
-                    renderCardContent({
-                      imageClassName,
-                      popupContentClassName,
-                      summaryClassName,
-                      payload: payload ?? 'typography',
-                    }),
-                  ],
-                }),
-              }),
-            }),
-        })}`,
+      html`<preview-card-root>
+        <p class=${paragraphClassName}>
+          The principles of good
+          <preview-card-trigger class=${linkClassName} href="https://en.wikipedia.org/wiki/Typography">
+            typography
+          </preview-card-trigger>
+          remain in the digital age.
+        </p>
+        <preview-card-portal>
+          <preview-card-positioner .sideOffset=${8}>
+            <preview-card-popup class=${popupClassName}>
+              <preview-card-arrow class=${arrowClassName}>
+                ${arrowSvg({
+                  arrowFillClassName,
+                  arrowInnerStrokeClassName,
+                  arrowOuterStrokeClassName,
+                })}
+              </preview-card-arrow>
+              ${renderCardContent({
+                imageClassName,
+                popupContentClassName,
+                summaryClassName,
+                payload: 'typography',
+              })}
+            </preview-card-popup>
+          </preview-card-positioner>
+        </preview-card-portal>
+      </preview-card-root>`,
     [
       arrowClassName,
       arrowFillClassName,
       arrowInnerStrokeClassName,
       arrowOuterStrokeClassName,
-      handle,
       imageClassName,
       linkClassName,
       paragraphClassName,
@@ -190,80 +165,93 @@ export function LitPreviewCardDetachedFull(props: LitPreviewCardDetachedFullProp
     popupContentClassName,
     positionerClassName,
     summaryClassName,
-    viewportClassName,
   } = props;
-  const handle = React.useMemo(() => PreviewCard.createHandle<PreviewCardPayload>(), []);
 
   const template = React.useCallback(
     () =>
-      html`${html`<p class=${paragraphClassName}>
-            Discover
-            ${renderPayloadTrigger({
-              handle,
-              href: 'https://en.wikipedia.org/wiki/Typography',
-              payload: 'typography',
-              className: linkClassName,
-              label: 'typography',
-            })}
-            ,
-            ${renderPayloadTrigger({
-              handle,
-              href: 'https://en.wikipedia.org/wiki/Design',
-              payload: 'design',
-              className: linkClassName,
-              label: 'design',
-            })}
-            , or
-            ${renderPayloadTrigger({
-              handle,
-              href: 'https://en.wikipedia.org/wiki/Art',
-              payload: 'art',
-              className: linkClassName,
-              label: 'art',
-            })}
-            .
-          </p>`}
-        ${PreviewCard.Root<PreviewCardPayload>({
-          handle,
-          children: ({ payload }) =>
-            PreviewCard.Portal({
-              children: PreviewCard.Positioner({
-                className: positionerClassName,
-                sideOffset: 8,
-                children: PreviewCard.Popup({
-                  className: popupClassName,
-                  children: [
-                    PreviewCard.Arrow({
-                      className: arrowClassName,
-                      children: arrowSvg({
-                        arrowFillClassName,
-                        arrowInnerStrokeClassName,
-                        arrowOuterStrokeClassName,
-                      }),
-                    }),
-                    PreviewCard.Viewport({
-                      className: viewportClassName,
-                      children:
-                        payload == null
-                          ? nothing
-                          : renderCardContent({
-                              imageClassName,
-                              popupContentClassName,
-                              summaryClassName,
-                              payload,
-                            }),
-                    }),
-                  ],
-                }),
-              }),
-            }),
-        })}`,
+      html`<p class=${paragraphClassName}>
+        Discover
+        <preview-card-root>
+          <preview-card-trigger class=${linkClassName} href="https://en.wikipedia.org/wiki/Typography">
+            typography
+          </preview-card-trigger>
+          <preview-card-portal>
+            <preview-card-positioner class=${positionerClassName} .sideOffset=${8}>
+              <preview-card-popup class=${popupClassName}>
+                <preview-card-arrow class=${arrowClassName}>
+                  ${arrowSvg({
+                    arrowFillClassName,
+                    arrowInnerStrokeClassName,
+                    arrowOuterStrokeClassName,
+                  })}
+                </preview-card-arrow>
+                ${renderCardContent({
+                  imageClassName,
+                  popupContentClassName,
+                  summaryClassName,
+                  payload: 'typography',
+                })}
+              </preview-card-popup>
+            </preview-card-positioner>
+          </preview-card-portal>
+        </preview-card-root>
+        ,
+        <preview-card-root>
+          <preview-card-trigger class=${linkClassName} href="https://en.wikipedia.org/wiki/Design">
+            design
+          </preview-card-trigger>
+          <preview-card-portal>
+            <preview-card-positioner class=${positionerClassName} .sideOffset=${8}>
+              <preview-card-popup class=${popupClassName}>
+                <preview-card-arrow class=${arrowClassName}>
+                  ${arrowSvg({
+                    arrowFillClassName,
+                    arrowInnerStrokeClassName,
+                    arrowOuterStrokeClassName,
+                  })}
+                </preview-card-arrow>
+                ${renderCardContent({
+                  imageClassName,
+                  popupContentClassName,
+                  summaryClassName,
+                  payload: 'design',
+                })}
+              </preview-card-popup>
+            </preview-card-positioner>
+          </preview-card-portal>
+        </preview-card-root>
+        , or
+        <preview-card-root>
+          <preview-card-trigger class=${linkClassName} href="https://en.wikipedia.org/wiki/Art">
+            art
+          </preview-card-trigger>
+          <preview-card-portal>
+            <preview-card-positioner class=${positionerClassName} .sideOffset=${8}>
+              <preview-card-popup class=${popupClassName}>
+                <preview-card-arrow class=${arrowClassName}>
+                  ${arrowSvg({
+                    arrowFillClassName,
+                    arrowInnerStrokeClassName,
+                    arrowOuterStrokeClassName,
+                  })}
+                </preview-card-arrow>
+                ${renderCardContent({
+                  imageClassName,
+                  popupContentClassName,
+                  summaryClassName,
+                  payload: 'art',
+                })}
+              </preview-card-popup>
+            </preview-card-positioner>
+          </preview-card-portal>
+        </preview-card-root>
+        .
+      </p>`,
     [
       arrowClassName,
       arrowFillClassName,
       arrowInnerStrokeClassName,
       arrowOuterStrokeClassName,
-      handle,
       imageClassName,
       linkClassName,
       paragraphClassName,
@@ -271,7 +259,6 @@ export function LitPreviewCardDetachedFull(props: LitPreviewCardDetachedFullProp
       popupContentClassName,
       positionerClassName,
       summaryClassName,
-      viewportClassName,
     ],
   );
 
@@ -291,7 +278,6 @@ export function LitPreviewCardDetachedControlled(props: LitPreviewCardDetachedCo
     arrowFillClassName,
     arrowInnerStrokeClassName,
     arrowOuterStrokeClassName,
-    buttonClassName,
     containerClassName,
     imageClassName,
     linkClassName,
@@ -301,133 +287,109 @@ export function LitPreviewCardDetachedControlled(props: LitPreviewCardDetachedCo
     positionerClassName,
     summaryClassName,
   } = props;
-  const handle = React.useMemo(() => PreviewCard.createHandle<PreviewCardPayload>(), []);
-  const [open, setOpen] = React.useState(false);
-  const [triggerId, setTriggerId] = React.useState<string | null>(null);
 
   const template = React.useCallback(
     () =>
-      html`${html`<div class=${containerClassName}>
-            <p class=${paragraphClassName}>
-              Discover
-              ${renderPayloadTrigger({
-                handle,
-                href: 'https://en.wikipedia.org/wiki/Typography',
-                id: 'trigger-1',
-                payload: 'typography',
-                className: linkClassName,
-                label: 'typography',
-              })}
-              ,
-              ${renderPayloadTrigger({
-                handle,
-                href: 'https://en.wikipedia.org/wiki/Industrial_design',
-                id: 'trigger-2',
-                payload: 'design',
-                className: linkClassName,
-                label: 'design',
-              })}
-              , or
-              ${renderPayloadTrigger({
-                handle,
-                href: 'https://en.wikipedia.org/wiki/Art',
-                id: 'trigger-3',
-                payload: 'art',
-                className: linkClassName,
-                label: 'art',
-              })}
-              .
-            </p>
-            <button
-              type="button"
-              class=${buttonClassName}
-              @click=${() => {
-                setTriggerId('trigger-2');
-                setOpen(true);
-              }}
-            >
-              Open programmatically
-            </button>
-          </div>`}
-        ${PreviewCard.Root<PreviewCardPayload>({
-          handle,
-          open,
-          triggerId,
-          onOpenChange(nextOpen, details) {
-            setOpen(nextOpen);
-            setTriggerId(details.trigger?.id ?? null);
-          },
-          children: ({ payload }) =>
-            PreviewCard.Portal({
-              children: PreviewCard.Positioner({
-                className: positionerClassName,
-                sideOffset: 8,
-                children: PreviewCard.Popup({
-                  className: popupClassName,
-                  children: [
-                    PreviewCard.Arrow({
-                      className: arrowClassName,
-                      children: arrowSvg({
-                        arrowFillClassName,
-                        arrowInnerStrokeClassName,
-                        arrowOuterStrokeClassName,
-                      }),
-                    }),
-                    payload == null
-                      ? nothing
-                      : renderCardContent({
-                          imageClassName,
-                          popupContentClassName,
-                          summaryClassName,
-                          payload,
-                        }),
-                  ],
-                }),
-              }),
-            }),
-        })}`,
+      html`<div class=${containerClassName}>
+        <p class=${paragraphClassName}>
+          Discover
+          <preview-card-root>
+            <preview-card-trigger class=${linkClassName} href="https://en.wikipedia.org/wiki/Typography" id="trigger-1">
+              typography
+            </preview-card-trigger>
+            <preview-card-portal>
+              <preview-card-positioner class=${positionerClassName} .sideOffset=${8}>
+                <preview-card-popup class=${popupClassName}>
+                  <preview-card-arrow class=${arrowClassName}>
+                    ${arrowSvg({
+                      arrowFillClassName,
+                      arrowInnerStrokeClassName,
+                      arrowOuterStrokeClassName,
+                    })}
+                  </preview-card-arrow>
+                  ${renderCardContent({
+                    imageClassName,
+                    popupContentClassName,
+                    summaryClassName,
+                    payload: 'typography',
+                  })}
+                </preview-card-popup>
+              </preview-card-positioner>
+            </preview-card-portal>
+          </preview-card-root>
+          ,
+          <preview-card-root>
+            <preview-card-trigger class=${linkClassName} href="https://en.wikipedia.org/wiki/Industrial_design" id="trigger-2">
+              design
+            </preview-card-trigger>
+            <preview-card-portal>
+              <preview-card-positioner class=${positionerClassName} .sideOffset=${8}>
+                <preview-card-popup class=${popupClassName}>
+                  <preview-card-arrow class=${arrowClassName}>
+                    ${arrowSvg({
+                      arrowFillClassName,
+                      arrowInnerStrokeClassName,
+                      arrowOuterStrokeClassName,
+                    })}
+                  </preview-card-arrow>
+                  ${renderCardContent({
+                    imageClassName,
+                    popupContentClassName,
+                    summaryClassName,
+                    payload: 'design',
+                  })}
+                </preview-card-popup>
+              </preview-card-positioner>
+            </preview-card-portal>
+          </preview-card-root>
+          , or
+          <preview-card-root>
+            <preview-card-trigger class=${linkClassName} href="https://en.wikipedia.org/wiki/Art" id="trigger-3">
+              art
+            </preview-card-trigger>
+            <preview-card-portal>
+              <preview-card-positioner class=${positionerClassName} .sideOffset=${8}>
+                <preview-card-popup class=${popupClassName}>
+                  <preview-card-arrow class=${arrowClassName}>
+                    ${arrowSvg({
+                      arrowFillClassName,
+                      arrowInnerStrokeClassName,
+                      arrowOuterStrokeClassName,
+                    })}
+                  </preview-card-arrow>
+                  ${renderCardContent({
+                    imageClassName,
+                    popupContentClassName,
+                    summaryClassName,
+                    payload: 'art',
+                  })}
+                </preview-card-popup>
+              </preview-card-positioner>
+            </preview-card-portal>
+          </preview-card-root>
+          .
+        </p>
+      </div>`,
     [
       arrowClassName,
       arrowFillClassName,
       arrowInnerStrokeClassName,
       arrowOuterStrokeClassName,
-      buttonClassName,
       containerClassName,
-      handle,
       imageClassName,
       linkClassName,
-      open,
       paragraphClassName,
       popupClassName,
       popupContentClassName,
       positionerClassName,
       summaryClassName,
-      triggerId,
     ],
   );
 
   return <LitTemplateHost template={template} />;
 }
 
-function renderPayloadTrigger(props: {
-  className: string;
-  handle: PreviewCardHandle<PreviewCardPayload>;
-  href: string;
-  id?: string | undefined;
-  label: string;
-  payload: PreviewCardPayload;
-}) {
-  const { className, handle, href, id, label, payload } = props;
-
-  return PreviewCard.Trigger({
-    className,
-    handle,
-    href,
-    id,
-    payload,
-    children: label,
-  });
-}
+type PreviewCardPayload = 'art' | 'design' | 'typography';
 
 function renderCardContent(props: {
   imageClassName: string;

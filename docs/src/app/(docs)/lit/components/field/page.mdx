@@ -9,20 +9,12 @@ import { DemoFieldHero } from './demos/hero';
 
 ## Anatomy
 
-```ts title="Anatomy"
-import { render } from 'lit';
-import { Field } from '@base-ui/lit/field';
-
-render(
-  Field.Root({
-    children: [
-      Field.Label({ children: 'Name' }),
-      Field.Control({ required: true }),
-      Field.Error({ match: 'valueMissing', children: 'Required' }),
-    ],
-  }),
-  mountNode,
-);
+```html title="Anatomy"
+<field-root>
+  <field-label>Name</field-label>
+  <field-control required></field-control>
+  <field-error match="valueMissing">Required</field-error>
+</field-root>
 ```
 
 ## Status

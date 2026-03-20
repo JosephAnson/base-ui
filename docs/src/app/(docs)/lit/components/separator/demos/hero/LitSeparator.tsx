@@ -1,9 +1,15 @@
 'use client';
 import * as React from 'react';
-import { nothing, render as renderTemplate } from 'lit';
-import { Separator } from '@base-ui/lit/separator';
+import { html, nothing, render as renderTemplate } from 'lit';
+import '@base-ui/lit/separator';
 
-export function LitSeparator(props: Separator.Props) {
+interface LitSeparatorProps {
+  className?: string | undefined;
+  orientation?: 'horizontal' | 'vertical' | undefined;
+}
+
+export function LitSeparator(props: LitSeparatorProps) {
+  const { className, orientation } = props;
   const hostRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -13,12 +19,15 @@ export function LitSeparator(props: Separator.Props) {
       return undefined;
     }
 
-    renderTemplate(Separator(props), host);
+    renderTemplate(
+      html`<separator-root class=${className ?? ''} orientation=${orientation ?? nothing}></separator-root>`,
+      host,
+    );
 
     return () => {
       renderTemplate(nothing, host);
     };
-  }, [props]);
+  }, [className, orientation]);
 
   return <div ref={hostRef} style={{ display: 'contents' }} />;
 }

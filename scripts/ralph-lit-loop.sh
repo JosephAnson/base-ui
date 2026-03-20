@@ -551,7 +551,7 @@ get_target_commit_paths() {
 
   cat <<EOF
 packages/lit/package.json
-packages/lit/migration-inventory.json
+.claude/plan/migration-inventory.json
 packages/lit/src/index.ts
 packages/lit/src/index.test.ts
 $lit_target_file

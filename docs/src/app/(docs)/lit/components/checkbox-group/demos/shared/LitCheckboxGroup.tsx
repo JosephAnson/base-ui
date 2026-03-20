@@ -1,12 +1,19 @@
 'use client';
 import * as React from 'react';
-import { nothing, render as renderTemplate, type TemplateResult } from 'lit';
-import type { CheckboxGroupProps } from '@base-ui/lit/checkbox-group';
-import { CheckboxGroup } from '@base-ui/lit/checkbox-group';
+import { html, nothing, render as renderTemplate, type TemplateResult } from 'lit';
+import '@base-ui/lit/checkbox-group';
 
 export interface LitCheckboxGroupProps {
   children?: TemplateResult | TemplateResult[] | undefined;
-  groupProps?: CheckboxGroupProps | undefined;
+  groupProps?: {
+    className?: string;
+    defaultValue?: string[];
+    allValues?: string[];
+    value?: string[];
+    onValueChange?: (value: string[]) => void;
+    'aria-labelledby'?: string;
+    style?: Record<string, string>;
+  } | undefined;
 }
 
 export function LitCheckboxGroup(props: LitCheckboxGroupProps) {
@@ -20,7 +27,18 @@ export function LitCheckboxGroup(props: LitCheckboxGroupProps) {
       return undefined;
     }
 
-    renderTemplate(CheckboxGroup({ ...groupProps, children }), host);
+    renderTemplate(
+      html`<checkbox-group
+        class=${groupProps?.className ?? ''}
+        aria-labelledby=${groupProps?.['aria-labelledby'] ?? nothing}
+        .defaultValue=${groupProps?.defaultValue}
+        .allValues=${groupProps?.allValues}
+        .value=${groupProps?.value}
+        .onValueChange=${groupProps?.onValueChange}
+        style=${groupProps?.style ? Object.entries(groupProps.style).map(([k, v]) => `${k}: ${v}`).join('; ') : nothing}
+      >${children}</checkbox-group>`,
+      host,
+    );
 
     return () => {
       renderTemplate(nothing, host);

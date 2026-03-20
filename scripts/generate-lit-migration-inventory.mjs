@@ -4,7 +4,7 @@ import process from 'node:process';
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const reactPackagePath = path.join(repoRoot, 'packages/react/package.json');
-const outputPath = path.join(repoRoot, 'packages/lit/migration-inventory.json');
+const outputPath = path.join(repoRoot, '.claude/plan/migration-inventory.json');
 
 function parseArgs(argv) {
   return {

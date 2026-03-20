@@ -1,0 +1,62 @@
+# TemporalAdapterProvider
+
+<Subtitle>Provides a pluggable date library adapter to temporal components.</Subtitle>
+<Meta
+  name="description"
+  content="A provider element for supplying date-fns, Luxon, or custom date library adapters to Base UI Lit temporal components."
+/>
+
+## Usage
+
+```html title="Anatomy"
+<temporal-adapter-provider>
+  <calendar-root>...</calendar-root>
+</temporal-adapter-provider>
+```
+
+Set the adapter programmatically:
+
+```ts title="Setting adapter"
+import { TemporalAdapterDateFns } from '@base-ui/lit/temporal-adapter-date-fns';
+
+const provider = document.querySelector('temporal-adapter-provider');
+provider.adapter = new TemporalAdapterDateFns();
+```
+
+### Reading context
+
+```ts title="Using getTemporalAdapter"
+import { getTemporalAdapter } from '@base-ui/lit/temporal-adapter-provider';
+
+const adapter = getTemporalAdapter(element);
+if (adapter) {
+  const now = adapter.now('system');
+  const formatted = adapter.format(now, 'localizedNumericDate');
+}
+```
+
+## API
+
+### `TemporalAdapterProviderElement`
+
+Custom element: `<temporal-adapter-provider>`
+
+| Property | Type | Default | Description |
+| --- | --- | --- | --- |
+| `adapter` | `TemporalAdapter` | `null` | The date library adapter. |
+
+### `getTemporalAdapter(element: Element): TemporalAdapter | null`
+
+Returns the adapter from the nearest `<temporal-adapter-provider>` ancestor.
+
+### `TemporalAdapter` interface
+
+The full interface defines 60+ methods for date creation, formatting, comparison, arithmetic, and timezone handling. See the source for the complete type definition.
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
+
+export const metadata = {
+  keywords: ['Lit TemporalAdapterProvider', 'Date adapter', 'Temporal', 'Base UI Lit'],
+};

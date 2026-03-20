@@ -1,9 +1,15 @@
 'use client';
 import * as React from 'react';
-import { nothing, render as renderTemplate } from 'lit';
-import { Input } from '@base-ui/lit/input';
+import { html, nothing, render as renderTemplate } from 'lit';
+import '@base-ui/lit/input';
 
-export function LitInput(props: Input.Props) {
+interface LitInputProps {
+  className?: string | undefined;
+  placeholder?: string | undefined;
+}
+
+export function LitInput(props: LitInputProps) {
+  const { className, placeholder } = props;
   const hostRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -13,12 +19,15 @@ export function LitInput(props: Input.Props) {
       return undefined;
     }
 
-    renderTemplate(Input(props), host);
+    renderTemplate(
+      html`<input-root><input class=${className ?? ''} placeholder=${placeholder ?? nothing} /></input-root>`,
+      host,
+    );
 
     return () => {
       renderTemplate(nothing, host);
     };
-  }, [props]);
+  }, [className, placeholder]);
 
   return <div ref={hostRef} style={{ display: 'contents' }} />;
 }

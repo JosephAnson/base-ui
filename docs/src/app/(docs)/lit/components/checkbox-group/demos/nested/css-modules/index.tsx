@@ -1,8 +1,8 @@
 'use client';
 import * as React from 'react';
 import { html } from 'lit';
-import { Checkbox } from '@base-ui/lit/checkbox';
-import { CheckboxGroup } from '@base-ui/lit/checkbox-group';
+import '@base-ui/lit/checkbox';
+import '@base-ui/lit/checkbox-group';
 import styles from 'docs/src/app/(docs)/react/components/checkbox-group/demos/nested/css-modules/index.module.css';
 import { LitCheckboxGroup } from '../../shared/LitCheckboxGroup';
 import { checkIcon, horizontalRuleIcon } from '../../shared/icons';
@@ -40,123 +40,122 @@ export default function PermissionsForm() {
     >
       {html`
         <label class=${styles.Item} id=${id} style="margin-left: -1rem;">
-          ${Checkbox.Root({
-            parent: true,
-            indeterminate: mainParentIsMixed,
-            className: styles.Checkbox,
-            children: Checkbox.Indicator({
-              className: styles.Indicator,
-              children: mainParentIsMixed
+          <checkbox-root
+            ?parent=${true}
+            ?indeterminate=${mainParentIsMixed}
+            class=${styles.Checkbox}
+          >
+            <checkbox-indicator class=${styles.Indicator}>
+              ${mainParentIsMixed
                 ? horizontalRuleIcon(styles.Icon)
-                : checkIcon(styles.Icon),
-            }),
-          })}
+                : checkIcon(styles.Icon)}
+            </checkbox-indicator>
+          </checkbox-root>
           User Permissions
         </label>
 
         <label class=${styles.Item}>
-          ${Checkbox.Root({
-            value: 'view-dashboard',
-            className: styles.Checkbox,
-            children: Checkbox.Indicator({
-              className: styles.Indicator,
-              children: checkIcon(styles.Icon),
-            }),
-          })}
+          <checkbox-root
+            value="view-dashboard"
+            class=${styles.Checkbox}
+          >
+            <checkbox-indicator class=${styles.Indicator}>
+              ${checkIcon(styles.Icon)}
+            </checkbox-indicator>
+          </checkbox-root>
           View Dashboard
         </label>
 
         <label class=${styles.Item}>
-          ${Checkbox.Root({
-            value: 'access-reports',
-            className: styles.Checkbox,
-            children: Checkbox.Indicator({
-              className: styles.Indicator,
-              children: checkIcon(styles.Icon),
-            }),
-          })}
+          <checkbox-root
+            value="access-reports"
+            class=${styles.Checkbox}
+          >
+            <checkbox-indicator class=${styles.Indicator}>
+              ${checkIcon(styles.Icon)}
+            </checkbox-indicator>
+          </checkbox-root>
           Access Reports
         </label>
 
-        ${CheckboxGroup({
-          'aria-labelledby': 'manage-users-caption',
-          allValues: userManagementPermissions,
-          className: styles.CheckboxGroup,
-          onValueChange(nextValue) {
+        <checkbox-group
+          aria-labelledby="manage-users-caption"
+          .allValues=${userManagementPermissions}
+          class=${styles.CheckboxGroup}
+          .onValueChange=${(nextValue: string[]) => {
             if (nextValue.length === userManagementPermissions.length) {
               setMainValue((previous) => Array.from(new Set([...previous, 'manage-users'])));
             } else {
-              setMainValue((previous) => previous.filter((value) => value !== 'manage-users'));
+              setMainValue((previous) => previous.filter((v) => v !== 'manage-users'));
             }
 
             setManagementValue(nextValue);
-          },
-          style: { marginLeft: '1rem' },
-          value: managementValue,
-          children: html`
-            <label class=${styles.Item} id="manage-users-caption" style="margin-left: -1rem;">
-              ${Checkbox.Root({
-                parent: true,
-                className: styles.Checkbox,
-                children: Checkbox.Indicator({
-                  className: styles.Indicator,
-                  children: managementParentIsMixed
-                    ? horizontalRuleIcon(styles.Icon)
-                    : checkIcon(styles.Icon),
-                }),
-              })}
-              Manage Users
-            </label>
+          }}
+          style="margin-left: 1rem;"
+          .value=${managementValue}
+        >
+          <label class=${styles.Item} id="manage-users-caption" style="margin-left: -1rem;">
+            <checkbox-root
+              ?parent=${true}
+              class=${styles.Checkbox}
+            >
+              <checkbox-indicator class=${styles.Indicator}>
+                ${managementParentIsMixed
+                  ? horizontalRuleIcon(styles.Icon)
+                  : checkIcon(styles.Icon)}
+              </checkbox-indicator>
+            </checkbox-root>
+            Manage Users
+          </label>
 
-            <label class=${styles.Item}>
-              ${Checkbox.Root({
-                value: 'create-user',
-                className: styles.Checkbox,
-                children: Checkbox.Indicator({
-                  className: styles.Indicator,
-                  children: checkIcon(styles.Icon),
-                }),
-              })}
-              Create User
-            </label>
+          <label class=${styles.Item}>
+            <checkbox-root
+              value="create-user"
+              class=${styles.Checkbox}
+            >
+              <checkbox-indicator class=${styles.Indicator}>
+                ${checkIcon(styles.Icon)}
+              </checkbox-indicator>
+            </checkbox-root>
+            Create User
+          </label>
 
-            <label class=${styles.Item}>
-              ${Checkbox.Root({
-                value: 'edit-user',
-                className: styles.Checkbox,
-                children: Checkbox.Indicator({
-                  className: styles.Indicator,
-                  children: checkIcon(styles.Icon),
-                }),
-              })}
-              Edit User
-            </label>
+          <label class=${styles.Item}>
+            <checkbox-root
+              value="edit-user"
+              class=${styles.Checkbox}
+            >
+              <checkbox-indicator class=${styles.Indicator}>
+                ${checkIcon(styles.Icon)}
+              </checkbox-indicator>
+            </checkbox-root>
+            Edit User
+          </label>
 
-            <label class=${styles.Item}>
-              ${Checkbox.Root({
-                value: 'delete-user',
-                className: styles.Checkbox,
-                children: Checkbox.Indicator({
-                  className: styles.Indicator,
-                  children: checkIcon(styles.Icon),
-                }),
-              })}
-              Delete User
-            </label>
+          <label class=${styles.Item}>
+            <checkbox-root
+              value="delete-user"
+              class=${styles.Checkbox}
+            >
+              <checkbox-indicator class=${styles.Indicator}>
+                ${checkIcon(styles.Icon)}
+              </checkbox-indicator>
+            </checkbox-root>
+            Delete User
+          </label>
 
-            <label class=${styles.Item}>
-              ${Checkbox.Root({
-                value: 'assign-roles',
-                className: styles.Checkbox,
-                children: Checkbox.Indicator({
-                  className: styles.Indicator,
-                  children: checkIcon(styles.Icon),
-                }),
-              })}
-              Assign Roles
-            </label>
-          `,
-        })}
+          <label class=${styles.Item}>
+            <checkbox-root
+              value="assign-roles"
+              class=${styles.Checkbox}
+            >
+              <checkbox-indicator class=${styles.Indicator}>
+                ${checkIcon(styles.Icon)}
+              </checkbox-indicator>
+            </checkbox-root>
+            Assign Roles
+          </label>
+        </checkbox-group>
       `}
     </LitCheckboxGroup>
   );
