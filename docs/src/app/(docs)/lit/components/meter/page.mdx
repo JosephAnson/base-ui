@@ -1,0 +1,31 @@
+# Meter
+
+<Subtitle>A semantic meter for bounded values.</Subtitle>
+<Meta name="description" content="A semantic meter for bounded values." />
+
+import { DemoMeterHero } from './demos/hero';
+
+<DemoMeterHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { Meter } from '@base-ui/lit/meter';
+
+render(
+  Meter.Root({
+    value: 72,
+    children: [Meter.Track({ children: Meter.Indicator() }), Meter.Value(), Meter.Label()],
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Meter', 'Meter', 'Base UI Lit', 'Range indicator'],
+};

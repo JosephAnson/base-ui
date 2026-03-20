@@ -1,0 +1,52 @@
+# Tooltip
+
+<Subtitle>A popup that appears when an element is hovered or focused.</Subtitle>
+<Meta name="description" content="A Lit tooltip component for Base UI." />
+
+import HeroDemo from './demos/hero/css-modules';
+import DetachedSimpleDemo from './demos/detached-triggers-simple/css-modules';
+import DetachedFullDemo from './demos/detached-triggers-full/css-modules';
+import DetachedControlledDemo from './demos/detached-triggers-controlled/css-modules';
+
+<HeroDemo />
+
+## Detached Triggers
+
+<DetachedSimpleDemo />
+
+## Multiple Triggers
+
+<DetachedFullDemo />
+
+## Controlled
+
+<DetachedControlledDemo />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { Tooltip } from '@base-ui/lit/tooltip';
+
+render(
+  Tooltip.Provider({
+    children: Tooltip.Root({
+      children: [
+        Tooltip.Trigger({ children: 'Open' }),
+        Tooltip.Portal({
+          children: Tooltip.Positioner({
+            children: Tooltip.Popup({
+              children: Tooltip.Arrow(),
+            }),
+          }),
+        }),
+      ],
+    }),
+  }),
+  mountNode,
+);
+```
+
+export const metadata = {
+  keywords: ['Lit Tooltip', 'Tooltip', 'Base UI Lit'],
+};

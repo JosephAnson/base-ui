@@ -1,0 +1,31 @@
+# Checkbox Group
+
+<Subtitle>A shared-state checkbox group for Lit templates.</Subtitle>
+<Meta name="description" content="A shared-state checkbox group for Lit templates." />
+
+import { DemoCheckboxGroupHero } from './demos/hero';
+
+<DemoCheckboxGroupHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { html, render } from 'lit';
+import { Checkbox } from '@base-ui/lit/checkbox';
+import { CheckboxGroup } from '@base-ui/lit/checkbox-group';
+
+render(
+  CheckboxGroup({
+    children: html` ${Checkbox.Root({ value: 'apple' })} ${Checkbox.Root({ value: 'orange' })} `,
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Checkbox Group', 'Checkbox Group', 'Base UI Lit'],
+};

@@ -1,0 +1,40 @@
+# Form
+
+<Subtitle>A native form element with consolidated error handling in Lit.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit form component with consolidated error handling."
+/>
+
+import { DemoFormHero } from './demos/hero';
+
+<DemoFormHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { Field } from '@base-ui/lit/field';
+import { Form } from '@base-ui/lit/form';
+
+render(
+  Form({
+    children: Field.Root({
+      children: [
+        Field.Label({ children: 'Homepage' }),
+        Field.Control({ required: true }),
+        Field.Error(),
+      ],
+    }),
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on a live example and the real package entrypoint.
+
+export const metadata = {
+  keywords: ['Lit Form', 'Form validation', 'Form submission', 'Base UI Lit'],
+};

@@ -1,0 +1,40 @@
+---
+title: mergeProps
+subtitle: Helpers for merging event handlers, classes, and styles in Lit props objects.
+description: Helpers for merging event handlers, classes, and styles in Lit props objects.
+---
+
+# mergeProps
+
+Helpers for merging event handlers, classes, and styles in Lit props objects.
+
+## Usage
+
+`mergeProps` follows the same left-to-right overwrite rules as `Object.assign`, while still composing event handlers and merging `className`, `class`, and `style`.
+
+```ts title="Merging props"
+import { mergeProps } from '@base-ui/lit/merge-props';
+
+const props = mergeProps(
+  {
+    className: 'Button',
+    onclick: () => console.log('internal'),
+  },
+  {
+    className: 'primary',
+    onclick: () => console.log('external'),
+  },
+);
+```
+
+For more than five prop bags, use `mergePropsN`:
+
+```ts title="Merging many prop objects"
+import { mergePropsN } from '@base-ui/lit/merge-props';
+
+const props = mergePropsN([baseProps, stateProps, userProps]);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.

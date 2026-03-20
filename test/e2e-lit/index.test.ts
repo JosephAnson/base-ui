@@ -214,6 +214,80 @@ describe('e2e', () => {
     });
   });
 
+  describe('accordion', () => {
+    it('supports keyboard activation and roving focus', async () => {
+      await renderFixture('accordion/Interactions');
+
+      await page.keyboard.press('Tab');
+      await expect(page.getByTestId('one')).toBeFocused();
+
+      await page.keyboard.press('Enter');
+      await expect(page.getByTestId('one')).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.getByText('Base UI is an unstyled component library.')).toBeVisible();
+
+      await page.keyboard.press('ArrowDown');
+      await expect(page.getByTestId('two')).toBeFocused();
+
+      await page.keyboard.press(' ');
+      await expect(page.getByTestId('two')).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.getByText('Read the quick start guide in the docs.')).toBeVisible();
+    });
+  });
+
+  describe('alert-dialog', () => {
+    it('keeps backdrop clicks inert', async () => {
+      await renderFixture('alert-dialog/Interactions');
+
+      await page.getByRole('button', { name: 'Discard draft' }).click();
+
+      const popup = page.getByRole('alertdialog');
+
+      await expect(popup).toBeVisible();
+      await expect(page.getByTestId('payload')).toHaveText('draft');
+
+      await page.getByTestId('backdrop').click({ force: true });
+      await expect(popup).toBeVisible();
+    });
+
+    it(
+      'renders the second detached trigger payload',
+      { timeout: 5000 },
+      async () => {
+      await renderFixture('alert-dialog/Interactions');
+
+      const popup = page.getByRole('alertdialog');
+
+      await page.getByRole('button', { name: 'Delete project' }).click();
+      await expect(popup).toBeVisible();
+      await expect(page.getByTestId('payload')).toHaveText('project');
+      await expect(page.getByText('Delete project?')).toBeVisible();
+      },
+    );
+  });
+
+  describe('collapsible', () => {
+    it('supports click and keyboard activation', async () => {
+      await renderFixture('collapsible/Interactions');
+
+      const trigger = page.getByRole('button', { name: 'Recovery keys' });
+
+      await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.getByText('alien-bean-pasta')).toBeHidden();
+
+      await trigger.click();
+      await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.getByText('alien-bean-pasta')).toBeVisible();
+
+      await trigger.focus();
+      await page.keyboard.press('Enter');
+      await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+      await page.keyboard.press('Space');
+      await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.getByText('horse-battery-staple')).toBeVisible();
+    });
+  });
+
   describe('radio', () => {
     it('loops focus by default', async () => {
       await renderFixture('Radio');

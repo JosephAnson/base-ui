@@ -33,6 +33,7 @@ export function LitField(props: LitFieldProps) {
           }),
           Field.Control({
             required: true,
+            defaultValue: '',
             placeholder: 'Required',
             className: inputClassName,
           }),

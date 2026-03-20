@@ -1,3 +1,4 @@
+'use client';
 import * as React from 'react';
 import { svg } from 'lit';
 import { LitToggle } from '../LitToggle';

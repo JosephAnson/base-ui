@@ -15,9 +15,30 @@ import { mdxToMarkdown } from './mdxToMarkdown.mjs';
 import { resolveUrl, isAbsoluteUrl } from './resolver.mjs';
 
 const PROJECT_ROOT = path.resolve(import.meta.dirname, '../..');
-const MDX_SOURCE_DIR = path.join(PROJECT_ROOT, 'src/app/(docs)/react');
 const OUTPUT_BASE_DIR = path.join(PROJECT_ROOT, 'public');
-const OUTPUT_REACT_DIR = path.join(OUTPUT_BASE_DIR, 'react');
+const DOC_TARGETS = [
+  {
+    framework: 'react',
+    sourceDir: path.join(PROJECT_ROOT, 'src/app/(docs)/react'),
+    outputDir: path.join(OUTPUT_BASE_DIR, 'react'),
+    sections: [
+      { key: 'reactOverview', path: 'overview', title: 'React Overview' },
+      { key: 'reactHandbook', path: 'handbook', title: 'React Handbook' },
+      { key: 'reactComponents', path: 'components', title: 'React Components' },
+      { key: 'reactUtils', path: 'utils', title: 'React Utilities' },
+    ],
+  },
+  {
+    framework: 'lit',
+    sourceDir: path.join(PROJECT_ROOT, 'src/app/(docs)/lit'),
+    outputDir: path.join(OUTPUT_BASE_DIR, 'lit'),
+    sections: [
+      { key: 'litOverview', path: 'overview', title: 'Lit Overview' },
+      { key: 'litComponents', path: 'components', title: 'Lit Components' },
+      { key: 'litUtils', path: 'utils', title: 'Lit Utilities' },
+    ],
+  },
+];
 
 const NETLIFY_DEPLOYMENT_URL =
   process.env.PULL_REQUEST === 'true' ? process.env.DEPLOY_PRIME_URL : process.env.URL;
@@ -92,41 +113,49 @@ async function generateLlmsTxt() {
   try {
     // Create output directories if they don't exist
     await fs.mkdir(OUTPUT_BASE_DIR, { recursive: true });
-    await fs.mkdir(OUTPUT_REACT_DIR, { recursive: true });
+    await Promise.all(DOC_TARGETS.map((target) => fs.mkdir(target.outputDir, { recursive: true })));
 
     const metadataByUrl = new Map();
     // Store metadata for each section as objects indexed by ID
     const metadataBySection = {
-      overview: {},
-      handbook: {},
-      components: {},
-      utils: {},
+      reactOverview: {},
+      reactHandbook: {},
+      reactComponents: {},
+      reactUtils: {},
+      litOverview: {},
+      litComponents: {},
+      litUtils: {},
     };
 
     // Counter for total files processed
     let totalFiles = 0;
 
-    const mdxFiles = await globby('**/*/page.mdx', {
-      cwd: MDX_SOURCE_DIR,
-      absolute: true,
-    });
+    const mdxFilesInfo = [];
+    for (const target of DOC_TARGETS) {
+      const mdxFiles = await globby('**/*/page.mdx', {
+        cwd: target.sourceDir,
+        absolute: true,
+      });
 
-    const mdxFilesInfo = mdxFiles.map((mdxFile) => {
-      const relativePath = path.relative(MDX_SOURCE_DIR, mdxFile);
-      const dirPath = path.dirname(relativePath);
-      const urlPath = `/${path.join('react', dirPath).replace(/\\/g, '/')}`;
-      const outputFilePath = path.join(OUTPUT_REACT_DIR, `${dirPath}.md`);
-      return { urlPath, mdxFile, outputFilePath };
-    });
+      mdxFilesInfo.push(
+        ...mdxFiles.map((mdxFile) => {
+          const relativePath = path.relative(target.sourceDir, mdxFile);
+          const dirPath = path.dirname(relativePath);
+          const urlPath = `/${path.join(target.framework, dirPath).replace(/\\/g, '/')}`;
+          const outputFilePath = path.join(target.outputDir, `${dirPath}.md`);
+          return { framework: target.framework, urlPath, mdxFile, outputFilePath };
+        }),
+      );
+    }
 
     const urlsWithMdVersion = new Set(mdxFilesInfo.map((info) => info.urlPath));
 
     // Process files from a specific section
-    const processSection = async (sectionName) => {
-      console.log(`Processing ${sectionName} section...`);
+    const processSection = async (sectionKey, framework, sectionName) => {
+      console.log(`Processing ${framework} ${sectionName} section...`);
 
-      for (const { urlPath, mdxFile, outputFilePath } of mdxFilesInfo) {
-        if (!urlPath.startsWith(`/react/${sectionName}/`)) {
+      for (const { framework: fileFramework, urlPath, mdxFile, outputFilePath } of mdxFilesInfo) {
+        if (fileFramework !== framework || !urlPath.startsWith(`/${framework}/${sectionName}/`)) {
           continue;
         }
 
@@ -180,7 +209,7 @@ async function generateLlmsTxt() {
         };
 
         // Store metadata for this file in the appropriate section
-        metadataBySection[sectionName][fileId] = pageMeta;
+        metadataBySection[sectionKey][fileId] = pageMeta;
         metadataByUrl.set(urlPath, pageMeta);
 
         // Increment the counter
@@ -191,17 +220,18 @@ async function generateLlmsTxt() {
     };
 
     // Process each section
-    await processSection('overview');
-    await processSection('handbook');
-    await processSection('components');
-    await processSection('utils');
+    for (const target of DOC_TARGETS) {
+      for (const section of target.sections) {
+        await processSection(section.key, target.framework, section.path);
+      }
+    }
 
     // Build shared preamble for both files
     const preamble = [
       '# Base UI',
       '',
-      'This is the documentation for the `@base-ui/react` package.',
-      'It contains a collection of components and utilities for building user interfaces in React.',
+      'This is the documentation for the `@base-ui/react` and `@base-ui/lit` packages.',
+      'It contains components and utilities for building user interfaces in React and Lit.',
       'The library is designed to be composable and styling agnostic.',
       'The Tailwind CSS examples are written for Tailwind CSS v4. If `package.json` uses Tailwind CSS v3, automatically convert unsupported styles to v3-compatible equivalents.',
       '',
@@ -218,10 +248,27 @@ async function generateLlmsTxt() {
     };
 
     // Define specific orders for sections
-    const overviewOrder = ['quick-start', 'accessibility', 'releases', 'about'];
-    const handbookOrder = ['styling', 'animation', 'composition'];
-    const componentsOrder = Object.keys(metadataBySection.components).sort();
-    const utilsOrder = Object.keys(metadataBySection.utils).sort();
+    const reactOverviewOrder = ['quick-start', 'accessibility', 'releases', 'about'];
+    const reactHandbookOrder = ['styling', 'animation', 'composition'];
+    const reactComponentsOrder = Object.keys(metadataBySection.reactComponents).sort();
+    const reactUtilsOrder = Object.keys(metadataBySection.reactUtils).sort();
+    const litComponentsOrder = [
+      'avatar',
+      'button',
+      'checkbox',
+      'checkbox-group',
+      'field',
+      'fieldset',
+      'input',
+      'meter',
+      'progress',
+      'radio',
+      'separator',
+      'switch',
+      'toggle',
+    ];
+    const litOverviewOrder = ['quick-start'];
+    const litUtilsOrder = ['merge-props', 'use-render'];
 
     // Helper function to map ordered IDs to their metadata objects
     const mapOrderToMetadata = (orderArray, metadataObject) => {
@@ -236,20 +283,32 @@ async function generateLlmsTxt() {
     const structure = {
       sections: [
         {
-          title: 'Overview',
-          pages: mapOrderToMetadata(overviewOrder, metadataBySection.overview),
+          title: 'React Overview',
+          pages: mapOrderToMetadata(reactOverviewOrder, metadataBySection.reactOverview),
         },
         {
-          title: 'Handbook',
-          pages: mapOrderToMetadata(handbookOrder, metadataBySection.handbook),
+          title: 'React Handbook',
+          pages: mapOrderToMetadata(reactHandbookOrder, metadataBySection.reactHandbook),
         },
         {
-          title: 'Components',
-          pages: mapOrderToMetadata(componentsOrder, metadataBySection.components),
+          title: 'React Components',
+          pages: mapOrderToMetadata(reactComponentsOrder, metadataBySection.reactComponents),
         },
         {
-          title: 'Utilities',
-          pages: mapOrderToMetadata(utilsOrder, metadataBySection.utils),
+          title: 'React Utilities',
+          pages: mapOrderToMetadata(reactUtilsOrder, metadataBySection.reactUtils),
+        },
+        {
+          title: 'Lit Overview',
+          pages: mapOrderToMetadata(litOverviewOrder, metadataBySection.litOverview),
+        },
+        {
+          title: 'Lit Components',
+          pages: mapOrderToMetadata(litComponentsOrder, metadataBySection.litComponents),
+        },
+        {
+          title: 'Lit Utilities',
+          pages: mapOrderToMetadata(litUtilsOrder, metadataBySection.litUtils),
         },
       ],
     };

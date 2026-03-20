@@ -1,0 +1,36 @@
+# Collapsible
+
+<Subtitle>A Lit collapsible panel controlled by a button.</Subtitle>
+<Meta
+  name="description"
+  content="A Lit collapsible component that displays a panel controlled by a button."
+/>
+
+import { DemoCollapsibleHero } from './demos/hero';
+
+<DemoCollapsibleHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { Collapsible } from '@base-ui/lit/collapsible';
+
+render(
+  Collapsible.Root({
+    children: [
+      Collapsible.Trigger({ children: 'Toggle section' }),
+      Collapsible.Panel({ children: 'Section content' }),
+    ],
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and the published package entrypoint.
+
+export const metadata = {
+  keywords: ['Lit Collapsible', 'Collapsible', 'Disclosure', 'Base UI Lit'],
+};

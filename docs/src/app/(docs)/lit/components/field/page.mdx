@@ -1,0 +1,34 @@
+# Field
+
+<Subtitle>Field primitives for labeling, descriptions, and validation.</Subtitle>
+<Meta name="description" content="Field primitives for labeling, descriptions, and validation." />
+
+import { DemoFieldHero } from './demos/hero';
+
+<DemoFieldHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { Field } from '@base-ui/lit/field';
+
+render(
+  Field.Root({
+    children: [
+      Field.Label({ children: 'Name' }),
+      Field.Control({ required: true }),
+      Field.Error({ match: 'valueMissing', children: 'Required' }),
+    ],
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Field', 'Form field', 'Base UI Lit', 'Validation'],
+};

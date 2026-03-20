@@ -1,0 +1,31 @@
+# Radio
+
+<Subtitle>Radio and radio group primitives for Lit templates.</Subtitle>
+<Meta name="description" content="Radio and radio group primitives for Lit templates." />
+
+import { DemoRadioHero } from './demos/hero';
+
+<DemoRadioHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { html, render } from 'lit';
+import { Radio } from '@base-ui/lit/radio';
+import { RadioGroup } from '@base-ui/lit/radio-group';
+
+render(
+  RadioGroup({
+    children: html`${Radio.Root({ value: 'system', children: Radio.Indicator() })}`,
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Radio', 'Radio Group', 'Base UI Lit'],
+};

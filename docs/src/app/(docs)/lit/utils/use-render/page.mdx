@@ -1,0 +1,45 @@
+# useRender
+
+<Subtitle>Utility for building renderable Lit primitives with overridable roots.</Subtitle>
+<Meta
+  name="description"
+  content="Utility for building renderable Lit primitives with overridable roots."
+/>
+
+The `useRender` utility lets Lit primitives expose a `render` override while keeping Base UI state attributes and merged props behavior.
+
+import { DemoUseRenderRender } from './demos/render';
+import { DemoUseRenderRenderCallback } from './demos/render-callback';
+
+## Examples
+
+<DemoUseRenderRender />
+
+The callback form receives the merged props bag and state so the caller can control exactly how the final root is assembled.
+
+<DemoUseRenderRenderCallback />
+
+## Merging props
+
+`useRender` is designed to work with `mergeProps`, so package primitives can combine their internal props with caller-supplied props before the final template is rendered.
+
+```ts title="Using useRender"
+import { html } from 'lit';
+import { mergeProps } from '@base-ui/lit/merge-props';
+import { useRender } from '@base-ui/lit/use-render';
+
+const template = useRender({
+  defaultTagName: 'button',
+  props: mergeProps({ className: 'Button', type: 'button' }, { children: 'Click me' }),
+  render: (props) =>
+    html`<button class=${String(props.className ?? '')}>${props.children}</button>`,
+});
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
+
+export const metadata = {
+  keywords: ['Lit useRender', 'useRender', 'Base UI Lit', 'Render override'],
+};

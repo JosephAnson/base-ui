@@ -1,0 +1,30 @@
+# Checkbox
+
+<Subtitle>An easily stylable checkbox for Lit templates.</Subtitle>
+<Meta name="description" content="An easily stylable checkbox for Lit templates." />
+
+import { DemoCheckboxHero } from './demos/hero';
+
+<DemoCheckboxHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { html, render } from 'lit';
+import { Checkbox } from '@base-ui/lit/checkbox';
+
+render(
+  Checkbox.Root({
+    children: Checkbox.Indicator({ children: html`<span>✓</span>` }),
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Checkbox', 'Checkbox', 'Base UI Lit', 'Form control'],
+};

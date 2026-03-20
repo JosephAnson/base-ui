@@ -1,0 +1,47 @@
+# Alert Dialog
+
+<Subtitle>A modal confirmation dialog for destructive actions in Lit.</Subtitle>
+<Meta
+  name="description"
+  content="A modal confirmation dialog for destructive actions in Lit."
+/>
+
+import { DemoAlertDialogHero } from './demos/hero';
+
+<DemoAlertDialogHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { AlertDialog } from '@base-ui/lit/alert-dialog';
+
+render(
+  AlertDialog.Root({
+    children: [
+      AlertDialog.Trigger({ children: 'Discard draft' }),
+      AlertDialog.Portal({
+        children: [
+          AlertDialog.Backdrop(),
+          AlertDialog.Popup({
+            children: [
+              AlertDialog.Title({ children: 'Discard draft?' }),
+              AlertDialog.Description({ children: "You can't undo this action." }),
+              AlertDialog.Close({ children: 'Cancel' }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on a live example and the real package entrypoint.
+
+export const metadata = {
+  keywords: ['Lit Alert Dialog', 'Alert Dialog', 'Base UI Lit', 'Confirmation dialog'],
+};

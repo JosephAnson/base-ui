@@ -1,0 +1,30 @@
+# Fieldset
+
+<Subtitle>Fieldset primitives for grouped controls in Lit.</Subtitle>
+<Meta name="description" content="Fieldset primitives for grouped controls in Lit." />
+
+import { DemoFieldsetHero } from './demos/hero';
+
+<DemoFieldsetHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { Fieldset } from '@base-ui/lit/fieldset';
+
+render(
+  Fieldset.Root({
+    children: [Fieldset.Legend({ children: 'Notifications' })],
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Fieldset', 'Fieldset', 'Base UI Lit'],
+};

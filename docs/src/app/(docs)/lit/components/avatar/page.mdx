@@ -1,0 +1,33 @@
+# Avatar
+
+<Subtitle>An avatar primitive for Lit templates.</Subtitle>
+<Meta name="description" content="An avatar primitive for Lit templates." />
+
+import { DemoAvatarHero } from './demos/hero';
+
+<DemoAvatarHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { html, render } from 'lit';
+import { Avatar } from '@base-ui/lit/avatar';
+
+render(
+  Avatar.Root({
+    children: html`
+      ${Avatar.Image({ src: '/avatar.jpg', alt: 'Ada Lovelace' })}
+      ${Avatar.Fallback({ children: 'AL' })}
+    `,
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Avatar', 'Avatar', 'Base UI Lit', 'Custom avatar'],
+};

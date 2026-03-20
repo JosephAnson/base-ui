@@ -1,0 +1,31 @@
+# Progress
+
+<Subtitle>A progress indicator for determinate loading states.</Subtitle>
+<Meta name="description" content="A progress indicator for determinate loading states." />
+
+import { DemoProgressHero } from './demos/hero';
+
+<DemoProgressHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { Progress } from '@base-ui/lit/progress';
+
+render(
+  Progress.Root({
+    value: 60,
+    children: [Progress.Track({ children: Progress.Indicator() }), Progress.Value()],
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Progress', 'Progress', 'Base UI Lit', 'Loading state'],
+};

@@ -1,0 +1,50 @@
+# Preview Card
+
+<Subtitle>A popup that appears when a link is hovered or focused, showing a visual preview.</Subtitle>
+<Meta name="description" content="A Lit preview card component for Base UI." />
+
+import HeroDemo from './demos/hero/css-modules';
+import DetachedSimpleDemo from './demos/detached-triggers-simple/css-modules';
+import DetachedFullDemo from './demos/detached-triggers-full/css-modules';
+import DetachedControlledDemo from './demos/detached-triggers-controlled/css-modules';
+
+<HeroDemo />
+
+## Detached Triggers
+
+<DetachedSimpleDemo />
+
+## Multiple Triggers
+
+<DetachedFullDemo />
+
+## Controlled
+
+<DetachedControlledDemo />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { PreviewCard } from '@base-ui/lit/preview-card';
+
+render(
+  PreviewCard.Root({
+    children: [
+      PreviewCard.Trigger({ href: '#', children: 'Typography' }),
+      PreviewCard.Portal({
+        children: PreviewCard.Positioner({
+          children: PreviewCard.Popup({
+            children: PreviewCard.Arrow(),
+          }),
+        }),
+      }),
+    ],
+  }),
+  mountNode,
+);
+```
+
+export const metadata = {
+  keywords: ['Lit Preview Card', 'Preview Card', 'Base UI Lit'],
+};

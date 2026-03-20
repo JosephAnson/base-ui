@@ -1,0 +1,30 @@
+# Switch
+
+<Subtitle>A two-state switch for Lit templates.</Subtitle>
+<Meta name="description" content="A two-state switch for Lit templates." />
+
+import { DemoSwitchHero } from './demos/hero';
+
+<DemoSwitchHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { Switch } from '@base-ui/lit/switch';
+
+render(
+  Switch.Root({
+    children: Switch.Thumb(),
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Switch', 'Switch', 'Base UI Lit', 'Toggle switch'],
+};

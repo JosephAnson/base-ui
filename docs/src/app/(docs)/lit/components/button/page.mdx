@@ -1,0 +1,32 @@
+# Button
+
+<Subtitle>A Lit button primitive with Base UI interaction behavior.</Subtitle>
+<Meta name="description" content="A Lit button primitive with Base UI interaction behavior." />
+
+import { DemoButtonHero } from './demos/hero';
+import { DemoButtonLoading } from './demos/loading';
+
+<DemoButtonHero />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { Button } from '@base-ui/lit/button';
+
+render(Button({ children: 'Save changes' }), mountNode);
+```
+
+## Examples
+
+### Loading states
+
+<DemoButtonLoading compact />
+
+## Status
+
+The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+
+export const metadata = {
+  keywords: ['Lit Button', 'Button', 'Base UI Lit', 'Accessible button'],
+};

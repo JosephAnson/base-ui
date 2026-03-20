@@ -6,6 +6,12 @@ import {
   getClosestFieldsetRoot,
   getFieldsetContextFromElement,
 } from '../fieldset/shared.ts';
+import {
+  FORM_STATE_CHANGE_EVENT,
+  getFormRuntimeOrNull,
+  type FormFieldEntry,
+  type FormRuntime,
+} from '../form/shared.ts';
 import { makeEventPreventable, mergeProps } from '../merge-props/index.ts';
 import type {
   BaseUIChangeEventDetails,
@@ -107,9 +113,7 @@ type FieldControlRenderProps = Omit<
   value?: FieldControlValue | undefined;
 };
 
-type FieldRootRenderProp =
-  | TemplateResult
-  | ComponentRenderFn<FieldRootRenderProps, FieldRootState>;
+type FieldRootRenderProp = TemplateResult | ComponentRenderFn<FieldRootRenderProps, FieldRootState>;
 type FieldLabelRenderProp =
   | TemplateResult
   | ComponentRenderFn<FieldLabelRenderProps, FieldLabelState>;
@@ -119,9 +123,7 @@ type FieldDescriptionRenderProp =
 type FieldErrorRenderProp =
   | TemplateResult
   | ComponentRenderFn<FieldErrorRenderProps, FieldErrorState>;
-type FieldItemRenderProp =
-  | TemplateResult
-  | ComponentRenderFn<FieldItemRenderProps, FieldItemState>;
+type FieldItemRenderProp = TemplateResult | ComponentRenderFn<FieldItemRenderProps, FieldItemState>;
 type FieldControlRenderProp =
   | TemplateResult
   | ComponentRenderFn<FieldControlRenderProps, FieldControlState>;
@@ -141,14 +143,12 @@ interface FieldRuntime {
   clearLabel(element: HTMLElement | null): void;
   getControlTargets(): FieldControlTargets;
   getFieldState(): FieldRootState;
+  getFormError(): string | string[] | null;
+  getValidationData(): FieldValidityData;
   getValidityState(): FieldValidityState;
   handleControlBlur(element: InputLikeElement): void;
   handleControlFocus(): void;
-  handleControlInput(
-    element: InputLikeElement,
-    currentValue: unknown,
-    nativeEvent: Event,
-  ): void;
+  handleControlInput(element: InputLikeElement, currentValue: unknown, nativeEvent: Event): void;
   handleControlKeyDown(element: InputLikeElement, key: string): void;
   registerControl(element: HTMLElement | null): void;
   registerDescription(id: string): void;
@@ -170,7 +170,11 @@ function isInputLikeElement(element: Element | null): element is InputLikeElemen
 }
 
 function isLabelableElement(element: Element | null): element is LabelableElement {
-  return isInputLikeElement(element) || element instanceof HTMLButtonElement || element instanceof HTMLElement;
+  return (
+    isInputLikeElement(element) ||
+    element instanceof HTMLButtonElement ||
+    element instanceof HTMLElement
+  );
 }
 
 function createGeneratedId(prefix: string) {
@@ -320,6 +324,14 @@ function createChangeEventDetails(
   };
 }
 
+function isDetachedChildPartError(error: unknown) {
+  return (
+    error instanceof Error &&
+    error.message.includes('ChildPart') &&
+    error.message.includes('no `parentNode`')
+  );
+}
+
 function getClosestFieldRoot(node: Node | null) {
   let current: Node | null = node;
 
@@ -343,7 +355,8 @@ function getFieldRuntime(root: Element | null): FieldRuntime | null {
     return null;
   }
 
-  return ((root as HTMLElement & { [FIELD_RUNTIME]?: FieldRuntime })[FIELD_RUNTIME] ?? null) as FieldRuntime | null;
+  return ((root as HTMLElement & { [FIELD_RUNTIME]?: FieldRuntime })[FIELD_RUNTIME] ??
+    null) as FieldRuntime | null;
 }
 
 function setFieldRuntime(root: HTMLElement | null, runtime: FieldRuntime | null) {
@@ -393,7 +406,9 @@ function createFieldStateAttributesMapping() {
 }
 
 function getNearestLabelableControl(root: HTMLElement): FieldControlTargets {
-  const registeredControl = root.querySelector('[data-base-ui-field-control]') as HTMLElement | null;
+  const registeredControl = root.querySelector(
+    '[data-base-ui-field-control]',
+  ) as HTMLElement | null;
 
   if (registeredControl != null) {
     const validityTarget = isInputLikeElement(registeredControl)
@@ -413,7 +428,9 @@ function getNearestLabelableControl(root: HTMLElement): FieldControlTargets {
 
   if (toggleRoot != null) {
     const hiddenInput =
-      toggleRoot.nextElementSibling instanceof HTMLInputElement ? toggleRoot.nextElementSibling : null;
+      toggleRoot.nextElementSibling instanceof HTMLInputElement
+        ? toggleRoot.nextElementSibling
+        : null;
 
     if (toggleRoot instanceof HTMLButtonElement) {
       return {
@@ -476,6 +493,7 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
   private validationTimer: number | null = null;
   private observer: MutationObserver | null = null;
   private form: HTMLFormElement | null = null;
+  private formRuntime: FormRuntime | null = null;
   private disabledCaptureCleanup: (() => void) | null = null;
 
   render(_componentProps: FieldRootProps) {
@@ -607,7 +625,7 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
   }
 
   getFieldState(): FieldRootState {
-    const invalid = this.latestProps?.invalid;
+    const invalid = this.getInvalid();
     const disabled = this.getDisabled();
     const dirty = this.latestProps?.dirty ?? this.dirtyState;
     const touched = this.latestProps?.touched ?? this.touchedState;
@@ -624,13 +642,17 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
   }
 
   getValidityState(): FieldValidityState {
-    const combined = getCombinedFieldValidityData(this.validityData, this.latestProps?.invalid);
+    const combined = getCombinedFieldValidityData(this.validityData, this.getInvalid());
 
     return {
       ...combined,
       validity: combined.state,
       transitionStatus: undefined,
     };
+  }
+
+  getValidationData() {
+    return this.validityData;
   }
 
   handleControlFocus() {
@@ -654,7 +676,7 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
       this.publishStateChange();
     }
 
-    if (this.latestProps?.validationMode === 'onBlur') {
+    if (this.getValidationMode() === 'onBlur') {
       void this.commit(getElementValue(element));
     }
   }
@@ -662,6 +684,7 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
   handleControlInput(element: InputLikeElement, currentValue: unknown, nativeEvent: Event) {
     this.captureInitialValue();
     this.updateFieldValueState(element, currentValue);
+    this.formRuntime?.clearErrors(this.getFieldName());
 
     const shouldValidateOnChange = this.shouldValidateOnChange();
 
@@ -919,7 +942,7 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
   }
 
   private shouldValidateOnChange() {
-    const validationMode = this.latestProps?.validationMode ?? 'onSubmit';
+    const validationMode = this.getValidationMode();
     return validationMode === 'onChange' || (validationMode === 'onSubmit' && this.submitAttempted);
   }
 
@@ -936,6 +959,30 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
 
   private getDisabled() {
     return Boolean(this.latestProps?.disabled) || this.getFieldsetContext()?.disabled === true;
+  }
+
+  private getValidationMode() {
+    return this.latestProps?.validationMode ?? this.formRuntime?.getValidationMode() ?? 'onSubmit';
+  }
+
+  private getFieldName() {
+    const { validityTarget } = this.getControlTargets();
+    return this.latestProps?.name ?? validityTarget?.name ?? undefined;
+  }
+
+  getFormError() {
+    const name = this.getFieldName();
+
+    if (name == null) {
+      return null;
+    }
+
+    const errors = this.formRuntime?.getErrors();
+    return errors != null && Object.hasOwn(errors, name) ? errors[name] : null;
+  }
+
+  private getInvalid() {
+    return this.latestProps?.invalid === true || this.getFormError() != null;
   }
 
   private getFieldsetContext() {
@@ -956,7 +1003,10 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
       this.handleFieldsetStateChange,
     );
     this.fieldsetRoot = element;
-    this.fieldsetRoot?.addEventListener(FIELDSET_STATE_CHANGE_EVENT, this.handleFieldsetStateChange);
+    this.fieldsetRoot?.addEventListener(
+      FIELDSET_STATE_CHANGE_EVENT,
+      this.handleFieldsetStateChange,
+    );
   }
 
   private handleFieldsetStateChange = () => {
@@ -966,7 +1016,15 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
   };
 
   private requestComponentUpdate() {
-    this.setValue(this.renderCurrent());
+    try {
+      this.setValue(this.renderCurrent());
+    } catch (error) {
+      if (isDetachedChildPartError(error)) {
+        return;
+      }
+
+      throw error;
+    }
   }
 
   private getMessageIds() {
@@ -1007,6 +1065,7 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
     queueMicrotask(() => {
       this.domSyncQueued = false;
       this.syncFormOwner();
+      this.syncFormRegistration();
       this.syncAssociations();
       this.publishStateChange();
     });
@@ -1047,6 +1106,10 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
   }
 
   private getFormValues() {
+    if (this.formRuntime != null) {
+      return this.formRuntime.getFormValues();
+    }
+
     const form = this.form;
 
     if (form == null) {
@@ -1127,9 +1190,7 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
       const resultOrPromise = validate(value, this.getFormValues());
 
       result =
-        typeof resultOrPromise === 'object' &&
-        resultOrPromise !== null &&
-        'then' in resultOrPromise
+        typeof resultOrPromise === 'object' && resultOrPromise !== null && 'then' in resultOrPromise
           ? await resultOrPromise
           : resultOrPromise;
 
@@ -1171,7 +1232,8 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
     this.validityData = {
       value,
       state: nextState,
-      error: defaultValidationMessage || (Array.isArray(result) ? (result[0] ?? '') : (result ?? '')),
+      error:
+        defaultValidationMessage || (Array.isArray(result) ? (result[0] ?? '') : (result ?? '')),
       errors: validationErrors,
       initialValue: this.validityData.initialValue,
     };
@@ -1179,9 +1241,11 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
     this.publishStateChange();
   }
 
-  private validateCurrentControl() {
+  private validateCurrentControl(submitAttempted = true) {
     this.markedDirty = true;
-    this.submitAttempted = true;
+    if (submitAttempted) {
+      this.submitAttempted = true;
+    }
     const { validityTarget } = this.getControlTargets();
     void this.commit(getElementValue(validityTarget));
   }
@@ -1189,18 +1253,31 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
   private syncFormOwner() {
     const { validityTarget } = this.getControlTargets();
     const nextForm = validityTarget?.form ?? this.root?.closest('form') ?? null;
+    const nextFormRuntime = getFormRuntimeOrNull(nextForm);
 
-    if (this.form === nextForm) {
+    if (this.form === nextForm && this.formRuntime === nextFormRuntime) {
       return;
     }
 
     this.detachForm();
     this.form = nextForm;
-    this.form?.addEventListener('submit', this.handleFormSubmit);
+    this.formRuntime = nextFormRuntime;
+
+    if (this.formRuntime == null) {
+      this.form?.addEventListener('submit', this.handleFormSubmit);
+      return;
+    }
+
+    this.form?.addEventListener(FORM_STATE_CHANGE_EVENT, this.handleFormStateChange);
   }
 
   private detachForm() {
     this.form?.removeEventListener('submit', this.handleFormSubmit);
+    this.form?.removeEventListener(FORM_STATE_CHANGE_EVENT, this.handleFormStateChange);
+    if (this.root != null && this.formRuntime != null) {
+      this.formRuntime.unregisterField(this.root);
+    }
+    this.formRuntime = null;
     this.form = null;
   }
 
@@ -1210,6 +1287,27 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
     const { validityTarget } = this.getControlTargets();
     void this.commit(getElementValue(validityTarget));
   };
+
+  private handleFormStateChange = () => {
+    this.requestComponentUpdate();
+    this.publishStateChange();
+  };
+
+  private syncFormRegistration() {
+    if (this.root == null || this.formRuntime == null) {
+      return;
+    }
+
+    const entry: FormFieldEntry = {
+      name: this.getFieldName(),
+      getControl: () => this.getControlTargets().focusTarget,
+      getValue: () => getElementValue(this.getControlTargets().validityTarget),
+      getValidityData: () => getCombinedFieldValidityData(this.validityData, this.getInvalid()),
+      validate: (submitAttempted = true) => this.validateCurrentControl(submitAttempted),
+    };
+
+    this.formRuntime.registerField(this.root, entry);
+  }
 
   private syncDisabledCapture() {
     this.disabledCaptureCleanup?.();
@@ -1229,7 +1327,13 @@ class FieldRootDirective extends AsyncDirective implements FieldRuntime {
       event.stopPropagation();
     };
 
-    const events: Array<keyof HTMLElementEventMap> = ['click', 'change', 'input', 'keydown', 'keyup'];
+    const events: Array<keyof HTMLElementEventMap> = [
+      'click',
+      'change',
+      'input',
+      'keydown',
+      'keyup',
+    ];
 
     events.forEach((eventName) => {
       this.root?.addEventListener(eventName, stopInteraction, true);
@@ -1368,6 +1472,7 @@ class FieldControlDirective extends AsyncDirective {
       },
       stateAttributesMapping: createFieldStateAttributesMapping(),
       props: {
+        'aria-invalid': fieldState.valid === false ? 'true' : undefined,
         'data-base-ui-field-control': '',
         autoFocus,
         disabled,
@@ -1439,7 +1544,15 @@ class FieldControlDirective extends AsyncDirective {
     }
 
     this.lastFieldStateKey = nextStateKey;
-    this.setValue(this.renderCurrent());
+    try {
+      this.setValue(this.renderCurrent());
+    } catch (error) {
+      if (isDetachedChildPartError(error)) {
+        return;
+      }
+
+      throw error;
+    }
   };
 
   private createRootRef(externalRef: HTMLProps<HTMLElement>['ref'] | undefined) {
@@ -1452,10 +1565,7 @@ class FieldControlDirective extends AsyncDirective {
     };
   }
 
-  private resolveRenderProp(
-    render: FieldControlRenderProp | undefined,
-    state: FieldRootState,
-  ) {
+  private resolveRenderProp(render: FieldControlRenderProp | undefined, state: FieldRootState) {
     if (typeof render !== 'function') {
       return render;
     }
@@ -1469,7 +1579,9 @@ class FieldControlDirective extends AsyncDirective {
 
   private getFieldName() {
     const runtime = this.getRuntime();
-    const rootProps = (runtime as FieldRootDirective | null)?.['latestProps'] as FieldRootProps | null;
+    const rootProps = (runtime as FieldRootDirective | null)?.[
+      'latestProps'
+    ] as FieldRootProps | null;
     return rootProps?.name;
   }
 
@@ -1554,7 +1666,15 @@ abstract class BaseFieldPartDirective<State, Props> extends AsyncDirective {
     }
 
     this.lastFieldStateKey = nextStateKey;
-    this.setValue(this.renderCurrent());
+    try {
+      this.setValue(this.renderCurrent());
+    } catch (error) {
+      if (isDetachedChildPartError(error)) {
+        return;
+      }
+
+      throw error;
+    }
   };
 }
 
@@ -1767,7 +1887,8 @@ class FieldErrorDirective extends BaseFieldPartDirective<FieldErrorState, FieldE
     }
 
     const runtime = this.getRuntime();
-    const fieldValidity = runtime?.getValidityState();
+    const fieldValidity = runtime?.getValidationData();
+    const formError = runtime?.getFormError();
     const fieldState = this.getFieldState();
     const id = this.latestProps.id as string | undefined;
     const match = this.latestProps.match;
@@ -1781,12 +1902,12 @@ class FieldErrorDirective extends BaseFieldPartDirective<FieldErrorState, FieldE
     delete elementProps.render;
 
     let rendered = false;
-    if (match === true) {
+    if (formError != null || match === true) {
       rendered = true;
     } else if (match) {
-      rendered = Boolean(fieldValidity?.validity[match]);
+      rendered = Boolean(fieldValidity?.state[match]);
     } else {
-      rendered = fieldValidity?.validity.valid === false;
+      rendered = fieldValidity?.state.valid === false;
     }
 
     if (!rendered) {
@@ -1799,21 +1920,28 @@ class FieldErrorDirective extends BaseFieldPartDirective<FieldErrorState, FieldE
     const content =
       children !== undefined
         ? children
-        : fieldValidity != null && fieldValidity.errors.length > 1
-          ? html`<ul>
-              ${fieldValidity.errors.map((message) => html`<li>${message}</li>`)}
-            </ul>`
-          : (fieldValidity?.error ?? '');
+        : formError != null
+          ? Array.isArray(formError)
+            ? html`<ul>
+                ${formError.map((message) => html`<li>${message}</li>`)}
+              </ul>`
+            : formError
+          : fieldValidity != null && fieldValidity.errors.length > 1
+            ? html`<ul>
+                ${fieldValidity.errors.map((message) => html`<li>${message}</li>`)}
+              </ul>`
+            : (fieldValidity?.error ?? '');
 
     return useRender<FieldErrorState, HTMLDivElement>({
       defaultTagName: 'div',
-      render: typeof render === 'function'
-        ? (props) =>
-            render(props, {
-              ...fieldState,
-              transitionStatus: undefined,
-            })
-        : render,
+      render:
+        typeof render === 'function'
+          ? (props) =>
+              render(props, {
+                ...fieldState,
+                transitionStatus: undefined,
+              })
+          : render,
       ref: (element) => {
         this.syncFieldRoot(getClosestFieldRoot(element) ?? getFallbackFieldRoot());
         if (this.id != null) {
@@ -1850,7 +1978,10 @@ class FieldErrorDirective extends BaseFieldPartDirective<FieldErrorState, FieldE
 
 const fieldErrorDirective = directive(FieldErrorDirective);
 
-class FieldValidityDirective extends BaseFieldPartDirective<FieldValidityState, FieldValidityProps> {
+class FieldValidityDirective extends BaseFieldPartDirective<
+  FieldValidityState,
+  FieldValidityProps
+> {
   render(_componentProps: FieldValidityProps) {
     return nothing;
   }
@@ -1950,7 +2081,13 @@ class FieldItemDirective extends BaseFieldPartDirective<FieldItemState, FieldIte
           event.stopImmediatePropagation();
         };
 
-        const events: Array<keyof HTMLElementEventMap> = ['click', 'change', 'input', 'keydown', 'keyup'];
+        const events: Array<keyof HTMLElementEventMap> = [
+          'click',
+          'change',
+          'input',
+          'keydown',
+          'keyup',
+        ];
         events.forEach((eventName) => {
           element.addEventListener(eventName, stopInteraction, true);
         });
@@ -2052,8 +2189,12 @@ export interface FieldRootState {
   focused: boolean;
 }
 
-export interface FieldRootProps
-  extends ComponentPropsWithChildren<'div', FieldRootState, unknown, FieldRootRenderProps> {
+export interface FieldRootProps extends ComponentPropsWithChildren<
+  'div',
+  FieldRootState,
+  unknown,
+  FieldRootRenderProps
+> {
   actionsRef?: { current: FieldRoot.Actions | null } | undefined;
   dirty?: boolean | undefined;
   disabled?: boolean | undefined;
@@ -2073,21 +2214,24 @@ export interface FieldRootProps
 
 export interface FieldLabelState extends FieldRootState {}
 
-export interface FieldLabelProps
-  extends ComponentPropsWithChildren<'label', FieldLabelState, unknown, FieldLabelRenderProps> {
+export interface FieldLabelProps extends ComponentPropsWithChildren<
+  'label',
+  FieldLabelState,
+  unknown,
+  FieldLabelRenderProps
+> {
   nativeLabel?: boolean | undefined;
   render?: FieldLabelRenderProp | undefined;
 }
 
 export interface FieldDescriptionState extends FieldRootState {}
 
-export interface FieldDescriptionProps
-  extends ComponentPropsWithChildren<
-    'p',
-    FieldDescriptionState,
-    unknown,
-    FieldDescriptionRenderProps
-  > {
+export interface FieldDescriptionProps extends ComponentPropsWithChildren<
+  'p',
+  FieldDescriptionState,
+  unknown,
+  FieldDescriptionRenderProps
+> {
   render?: FieldDescriptionRenderProp | undefined;
 }
 
@@ -2095,19 +2239,22 @@ export interface FieldErrorState extends FieldRootState {
   transitionStatus: TransitionStatus;
 }
 
-export interface FieldErrorProps
-  extends ComponentPropsWithChildren<'div', FieldErrorState, unknown, FieldErrorRenderProps> {
+export interface FieldErrorProps extends ComponentPropsWithChildren<
+  'div',
+  FieldErrorState,
+  unknown,
+  FieldErrorRenderProps
+> {
   match?: boolean | keyof ValidityState | undefined;
   render?: FieldErrorRenderProp | undefined;
 }
 
 export interface FieldControlState extends FieldRootState {}
 
-export interface FieldControlProps
-  extends Omit<
-    ComponentPropsWithChildren<'input', FieldControlState, unknown, FieldControlRenderProps>,
-    'defaultValue' | 'value'
-  > {
+export interface FieldControlProps extends Omit<
+  ComponentPropsWithChildren<'input', FieldControlState, unknown, FieldControlRenderProps>,
+  'defaultValue' | 'value'
+> {
   autoFocus?: boolean | undefined;
   defaultValue?: FieldControlValue | undefined;
   onValueChange?:
@@ -2119,8 +2266,12 @@ export interface FieldControlProps
 
 export interface FieldItemState extends FieldRootState {}
 
-export interface FieldItemProps
-  extends ComponentPropsWithChildren<'div', FieldItemState, unknown, FieldItemRenderProps> {
+export interface FieldItemProps extends ComponentPropsWithChildren<
+  'div',
+  FieldItemState,
+  unknown,
+  FieldItemRenderProps
+> {
   disabled?: boolean | undefined;
   render?: FieldItemRenderProp | undefined;
 }

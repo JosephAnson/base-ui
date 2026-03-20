@@ -1,0 +1,42 @@
+# Popover
+
+<Subtitle>An anchored popup for Lit templates.</Subtitle>
+<Meta name="description" content="An anchored popup for Lit templates." />
+
+import HeroDemo from './demos/hero/css-modules';
+import OpenOnHoverDemo from './demos/open-on-hover/css-modules';
+
+<HeroDemo />
+
+## Open On Hover
+
+<OpenOnHoverDemo />
+
+## Anatomy
+
+```ts title="Anatomy"
+import { render } from 'lit';
+import { Popover } from '@base-ui/lit/popover';
+
+render(
+  Popover.Root({
+    children: [
+      Popover.Trigger({ children: 'Open' }),
+      Popover.Portal({
+        children: Popover.Positioner({
+          children: Popover.Popup({ children: 'Content' }),
+        }),
+      }),
+    ],
+  }),
+  mountNode,
+);
+```
+
+## Status
+
+The Lit docs currently cover the shipping package surface with live examples and regression fixtures.
+
+export const metadata = {
+  keywords: ['Lit Popover', 'Popover', 'Base UI Lit'],
+};
