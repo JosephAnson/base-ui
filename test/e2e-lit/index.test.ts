@@ -1,8 +1,12 @@
-import { describe, it, beforeAll, afterAll, expect } from 'vitest';
+import { describe, it, beforeAll, afterAll } from 'vitest';
+import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
 import { chromium, expect, Page, Browser } from '@playwright/test';
 import '@mui/internal-test-utils/initPlaywrightMatchers';
 
 const BASE_URL = 'http://localhost:5174';
+const staticRoot = process.env.BASE_UI_LOCAL_BUILD_ROOT;
+const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH;
 
 function delay(duration: number): Promise<void> {
   return new Promise<void>((resolve) => {
@@ -41,27 +45,45 @@ async function attemptGoto(page: Page, url: string): Promise<boolean> {
 describe('e2e', () => {
   let browser: Browser;
   let page: Page;
+  let fixtureRunId = 0;
 
   async function renderFixture(fixturePath: string) {
-    await page.goto(`${BASE_URL}/e2e-fixtures/${fixturePath}#no-dev`);
+    fixtureRunId += 1;
+    await page.goto(`${BASE_URL}/e2e-fixtures/${fixturePath}?run=${fixtureRunId}#no-dev`);
     await page.waitForSelector('[data-testid="testcase"]:not([aria-busy="true"])');
   }
 
   beforeAll(async function beforeHook() {
     browser = await chromium.launch({
+      args: ['--disable-crash-reporter', '--disable-crashpad', '--font-render-hinting=none'],
+      executablePath,
       headless: true,
     });
     page = await browser.newPage();
+
+    await page.route(/./, async (route, request) => {
+      if (staticRoot != null && request.url().startsWith(BASE_URL)) {
+        await fulfillFromBuild(route, request.url());
+        return;
+      }
+
+      route.continue();
+    });
+
     const isServerRunning = await attemptGoto(page, `${BASE_URL}#no-dev`);
     if (!isServerRunning) {
       throw new Error(
-        `Unable to navigate to ${BASE_URL} after multiple attempts. Did you forget to run \`pnpm test:e2e:lit:server\` and \`pnpm test:e2e:lit:build\`?`,
+        `Unable to navigate to ${BASE_URL} after multiple attempts. ` +
+          'Did you forget to run `pnpm test:e2e:lit:server` and `pnpm test:e2e:lit:build`, ' +
+          'or set `BASE_UI_LOCAL_BUILD_ROOT` to the built fixture directory?',
       );
     }
   }, 20000);
 
   afterAll(async () => {
-    await browser.close();
+    if (browser != null) {
+      await browser.close();
+    }
   });
 
   describe('<Field />', () => {
@@ -162,6 +184,157 @@ describe('e2e', () => {
         await expect(errorThree).toBeHidden();
       });
     });
+  });
+
+  describe('button', () => {
+    it('supports keyboard activation for custom elements and keeps focusable disabled buttons inert', async () => {
+      await renderFixture('button/Keyboard');
+
+      const customButton = page.getByRole('button', { name: 'Custom action' });
+      const customCount = page.getByTestId('custom-count');
+      const disabledButton = page.getByRole('button', { name: 'Unavailable action' });
+      const disabledCount = page.getByTestId('disabled-count');
+
+      await page.keyboard.press('Tab');
+      await expect(customButton).toBeFocused();
+
+      await page.keyboard.press('Enter');
+      await expect(customCount).toHaveText('1');
+
+      await page.keyboard.press('Space');
+      await expect(customCount).toHaveText('2');
+
+      await page.keyboard.press('Tab');
+      await expect(disabledButton).toBeFocused();
+      await expect(disabledButton).toHaveAttribute('aria-disabled', 'true');
+
+      await page.keyboard.press('Enter');
+      await page.keyboard.press('Space');
+      await expect(disabledCount).toHaveText('0');
+    });
+  });
+
+  describe('radio', () => {
+    it('loops focus by default', async () => {
+      await renderFixture('Radio');
+
+      await page.keyboard.press('Tab');
+      await expect(page.getByTestId('one')).toBeFocused();
+
+      await page.keyboard.press('ArrowRight');
+      await expect(page.getByTestId('two')).toBeFocused();
+
+      await page.keyboard.press('ArrowLeft');
+      await expect(page.getByTestId('one')).toBeFocused();
+
+      await page.keyboard.press('ArrowLeft');
+      await expect(page.getByTestId('three')).toBeFocused();
+    });
+  });
+
+  describe('switch', () => {
+    it('supports label clicks and keyboard activation', async () => {
+      await renderFixture('switch/Interactions');
+
+      const switchElement = page.getByRole('switch');
+      const label = page.getByTestId('label');
+      const status = page.getByRole('status');
+
+      await expect(status).toHaveText('off');
+
+      await label.click();
+      await expect(status).toHaveText('on');
+
+      await switchElement.focus();
+      await page.keyboard.press('Space');
+      await expect(status).toHaveText('off');
+
+      await page.keyboard.press('Enter');
+      await expect(status).toHaveText('on');
+    });
+  });
+
+  describe('checkbox', () => {
+    it('supports label clicks and keyboard activation', async () => {
+      await renderFixture('checkbox/Interactions');
+
+      const checkbox = page.getByRole('checkbox');
+      const label = page.getByTestId('label');
+      const status = page.getByRole('status');
+
+      await expect(status).toHaveText('off');
+
+      await label.click();
+      await expect(status).toHaveText('on');
+
+      await checkbox.focus();
+      await page.keyboard.press('Space');
+      await expect(status).toHaveText('off');
+
+      await page.keyboard.press('Enter');
+      await expect(status).toHaveText('on');
+    });
+  });
+
+  describe('checkbox-group', () => {
+    it(
+      'supports parent mixed state, label clicks, and keyboard activation',
+      { timeout: 10000 },
+      async () => {
+        await renderFixture('checkbox-group/Interactions');
+
+        const parent = page.getByRole('checkbox', { name: 'Apples' });
+        const galaLabel = page.getByTestId('gala-label');
+        const status = page.getByRole('status');
+
+        await expect(status).toHaveText('none');
+
+        await galaLabel.click();
+        await expect(status).toHaveText('gala-apple');
+        await expect(parent).toHaveAttribute('aria-checked', 'mixed');
+
+        await parent.press('Space');
+        await expect(status).toHaveText('fuji-apple, gala-apple, granny-smith-apple');
+        await expect(parent).toHaveAttribute('aria-checked', 'true');
+
+        await parent.press('Enter');
+        await expect(status).toHaveText('none');
+        await expect(parent).toHaveAttribute('aria-checked', 'false');
+      },
+    );
+  });
+
+  describe('toggle', () => {
+    it(
+      'supports custom-element keyboard activation and keeps disabled toggles inert',
+      { timeout: 10000 },
+      async () => {
+        await renderFixture('toggle/Interactions');
+
+        const toggle = page.getByRole('button', { exact: true, name: 'Favorite' });
+        const pressedState = page.getByTestId('pressed-state');
+        const disabledToggle = page.getByRole('button', {
+          exact: true,
+          name: 'Disabled toggle',
+        });
+        const disabledCount = page.getByTestId('disabled-count');
+
+        await expect(pressedState).toHaveText('off');
+
+        await toggle.click();
+        await expect(pressedState).toHaveText('on');
+
+        await toggle.press('Space');
+        await expect(pressedState).toHaveText('off');
+
+        await toggle.press('Enter');
+        await expect(pressedState).toHaveText('on');
+
+        await disabledToggle.dispatchEvent('click');
+        await expect(disabledToggle).toHaveAttribute('aria-disabled', 'true');
+        await expect(disabledCount).toHaveText('0');
+      },
+    );
   });
 
   describe('<Radio />', () => {
@@ -294,3 +467,43 @@ describe('e2e', () => {
     });
   });
 });
+
+async function fulfillFromBuild(route: Parameters<typeof page.route>[1], requestUrl: string) {
+  const url = new URL(requestUrl);
+  const pathname = decodeURIComponent(url.pathname);
+  const relativePath = pathname === '/' ? 'index.html' : pathname.slice(1);
+  const filePath = path.join(staticRoot!, relativePath);
+  const fallbackPath = path.join(staticRoot!, 'index.html');
+
+  let responsePath = filePath;
+  try {
+    await fs.access(responsePath);
+  } catch {
+    responsePath = fallbackPath;
+  }
+
+  await route.fulfill({
+    body: await fs.readFile(responsePath),
+    contentType: getContentType(responsePath),
+    status: 200,
+  });
+}
+
+function getContentType(filePath: string) {
+  switch (path.extname(filePath)) {
+    case '.css':
+      return 'text/css';
+    case '.html':
+      return 'text/html';
+    case '.js':
+      return 'text/javascript';
+    case '.json':
+      return 'application/json';
+    case '.png':
+      return 'image/png';
+    case '.woff2':
+      return 'font/woff2';
+    default:
+      return 'application/octet-stream';
+  }
+}

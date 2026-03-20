@@ -1,5 +1,5 @@
 import type { TemplateResult } from 'lit';
-import { useRender } from '../use-render';
+import { useRender } from '../use-render/index.ts';
 
 export type Orientation = 'horizontal' | 'vertical';
 

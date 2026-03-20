@@ -1,7 +1,7 @@
 import { html, noChange, type TemplateResult } from 'lit';
 // eslint-disable-next-line import/extensions
 import { AsyncDirective, directive } from 'lit/async-directive.js';
-import { useRender as renderElement } from '../use-render';
+import { useRender as renderElement } from '../use-render/index.ts';
 
 const METER_ROOT_ATTRIBUTE = 'data-base-ui-meter-root';
 const METER_CONTEXT_ATTRIBUTE = 'data-base-ui-meter-context';
@@ -58,8 +58,8 @@ function MeterRoot(componentProps: MeterRootProps): TemplateResult {
       'aria-valuenow': value,
       'aria-valuetext': ariaValueText,
       children: html`${children}<span role="presentation" style=${NVDA_FORCE_ANNOUNCEMENT_STYLE}
-        >x</span
-      >`,
+          >x</span
+        >`,
       ...elementProps,
     },
   });
@@ -130,7 +130,7 @@ class MeterTrackDirective extends AsyncDirective {
 }
 
 class MeterLabelDirective extends AsyncDirective {
-  private generatedId = `base-ui-meter-label-${meterLabelId += 1}`;
+  private generatedId = `base-ui-meter-label-${(meterLabelId += 1)}`;
   private renderedRoot: Element | null = null;
   private renderedId: string | null = null;
 
@@ -440,8 +440,10 @@ export interface MeterTrackProps extends ComponentPropsWithChildren<'div', Meter
 
 export interface MeterIndicatorState extends MeterRootState {}
 
-export interface MeterIndicatorProps
-  extends ComponentPropsWithChildren<'div', MeterIndicatorState> {}
+export interface MeterIndicatorProps extends ComponentPropsWithChildren<
+  'div',
+  MeterIndicatorState
+> {}
 
 export interface MeterValueState extends MeterRootState {}
 

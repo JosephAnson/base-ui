@@ -1,7 +1,7 @@
 {
   "sourcePackage": "@base-ui/react",
   "targetPackage": "@base-ui/lit",
-  "generatedAt": "2026-03-19T23:42:50.507Z",
+  "generatedAt": "2026-03-20T08:25:50.833Z",
   "entrypointCount": 44,
   "entrypoints": [
     {

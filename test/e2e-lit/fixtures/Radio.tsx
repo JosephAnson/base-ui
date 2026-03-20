@@ -1,35 +1,63 @@
 import * as React from 'react';
-import { Radio } from '@base-ui/react/radio';
-import { RadioGroup } from '@base-ui/react/radio-group';
+import { useIsoLayoutEffect } from '@base-ui/utils/useIsoLayoutEffect';
+import { html, nothing, render as renderTemplate } from 'lit';
+import { Radio } from '@base-ui/lit/radio';
+import { RadioGroup } from '@base-ui/lit/radio-group';
 import styles from './Radio.module.css';
 
 export default function ExampleRadioGroup() {
-  return (
-    <RadioGroup aria-labelledby="apples-caption" defaultValue="fuji-apple" className={styles.Root}>
-      <div className={styles.Caption} id="apples-caption">
-        Best apple
-      </div>
+  const hostRef = React.useRef<HTMLDivElement | null>(null);
 
-      <label className={styles.Label}>
-        <Radio.Root data-testid="one" value="fuji-apple" className={styles.RadioRoot}>
-          <Radio.Indicator className={styles.Indicator} />
-        </Radio.Root>
-        Fuji
-      </label>
+  useIsoLayoutEffect(() => {
+    const host = hostRef.current;
 
-      <label className={styles.Label}>
-        <Radio.Root data-testid="two" value="gala-apple" className={styles.RadioRoot}>
-          <Radio.Indicator className={styles.Indicator} />
-        </Radio.Root>
-        Gala
-      </label>
+    if (host == null) {
+      return undefined;
+    }
 
-      <label className={styles.Label}>
-        <Radio.Root data-testid="three" value="granny-smith-apple" className={styles.RadioRoot}>
-          <Radio.Indicator className={styles.Indicator} />
-        </Radio.Root>
-        Granny Smith
-      </label>
-    </RadioGroup>
-  );
+    renderTemplate(
+      RadioGroup({
+        'aria-labelledby': 'apples-caption',
+        className: styles.Root,
+        defaultValue: 'fuji-apple',
+        children: [
+          html`<div class=${styles.Caption} id="apples-caption">Best apple</div>`,
+          html`<label class=${styles.Label}>
+            ${Radio.Root({
+              className: styles.RadioRoot,
+              'data-testid': 'one',
+              value: 'fuji-apple',
+              children: Radio.Indicator({ className: styles.Indicator }),
+            })}
+            Fuji
+          </label>`,
+          html`<label class=${styles.Label}>
+            ${Radio.Root({
+              className: styles.RadioRoot,
+              'data-testid': 'two',
+              value: 'gala-apple',
+              children: Radio.Indicator({ className: styles.Indicator }),
+            })}
+            Gala
+          </label>`,
+          html`<label class=${styles.Label}>
+            ${Radio.Root({
+              className: styles.RadioRoot,
+              'data-testid': 'three',
+              value: 'granny-smith-apple',
+              children: Radio.Indicator({ className: styles.Indicator }),
+            })}
+            Granny Smith
+          </label>`,
+        ],
+      }),
+      host,
+    );
+
+    return () => {
+      renderTemplate(nothing, host);
+    };
+  }, []);
+
+  return <div ref={hostRef} style={{ display: 'contents' }} />;
 }

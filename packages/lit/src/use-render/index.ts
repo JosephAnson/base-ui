@@ -7,9 +7,9 @@ import {
 } from 'lit';
 // eslint-disable-next-line import/extensions
 import { AsyncDirective, directive } from 'lit/async-directive.js';
-import type { HTMLProps, ComponentRenderFn } from '../types';
+import type { HTMLProps, ComponentRenderFn } from '../types/index.ts';
 
-export type { HTMLProps, ComponentRenderFn } from '../types';
+export type { HTMLProps, ComponentRenderFn } from '../types/index.ts';
 
 type RefObject<T> = {
   current: T | null;
@@ -127,12 +127,11 @@ export function useRender<
   })}` as useRender.ReturnValue<Enabled>;
 }
 
-export type UseRenderRenderProp<State = {}> =
-  | TemplateResult
-  | ComponentRenderFn<HTMLProps, State>;
+export type UseRenderRenderProp<State = {}> = TemplateResult | ComponentRenderFn<HTMLProps, State>;
 
-export type UseRenderElementProps<ElementType extends IntrinsicElementTagName> =
-  HTMLProps<IntrinsicElementForTag<ElementType>>;
+export type UseRenderElementProps<ElementType extends IntrinsicElementTagName> = HTMLProps<
+  IntrinsicElementForTag<ElementType>
+>;
 
 export type UseRenderComponentProps<
   ElementType extends IntrinsicElementTagName,
@@ -367,7 +366,10 @@ function resolveRenderProps<
 >(
   params: UseRenderParameters<State, RenderedElementType, Enabled>,
 ): HTMLProps<RenderedElementType> {
-  const stateProps = getStateAttributesProps(params.state ?? ({} as State), params.stateAttributesMapping);
+  const stateProps = getStateAttributesProps(
+    params.state ?? ({} as State),
+    params.stateAttributesMapping,
+  );
   const explicitProps = (params.props ?? {}) as HTMLProps<RenderedElementType>;
   const mergedProps = {
     ...stateProps,
@@ -749,11 +751,7 @@ function assignRef<T>(ref: Ref<T>, instance: T | null) {
 }
 
 function isEventHandler(name: string, value: unknown) {
-  return (
-    name.startsWith('on') &&
-    name.length > 2 &&
-    typeof value === 'function'
-  );
+  return name.startsWith('on') && name.length > 2 && typeof value === 'function';
 }
 
 function getEventName(name: string) {
@@ -826,9 +824,7 @@ function normalizeStylePropertyName(name: string) {
   return name.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
 }
 
-function supportsInlineStyle(
-  element: Element,
-): element is Element & ElementCSSInlineStyle {
+function supportsInlineStyle(element: Element): element is Element & ElementCSSInlineStyle {
   return 'style' in element;
 }
 

@@ -1,7 +1,7 @@
 import { html, noChange, type TemplateResult } from 'lit';
 // eslint-disable-next-line import/extensions
 import { AsyncDirective, directive } from 'lit/async-directive.js';
-import { useRender as renderElement } from '../use-render';
+import { useRender as renderElement } from '../use-render/index.ts';
 
 const PROGRESS_ROOT_ATTRIBUTE = 'data-base-ui-progress-root';
 const PROGRESS_CONTEXT_ATTRIBUTE = 'data-base-ui-progress-context';

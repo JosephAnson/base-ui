@@ -1,4 +1,4 @@
-import type { BaseUIEvent, HTMLProps } from '../types';
+import type { BaseUIEvent, HTMLProps } from '../types/index.ts';
 
 type IntrinsicElementTagName = keyof HTMLElementTagNameMap | keyof SVGElementTagNameMap;
 type UppercaseAsciiLetter =
@@ -94,10 +94,7 @@ type FallbackEventHandlerProps<T extends ElementType> = Omit<
   keyof CamelCaseEventHandlerProps<T>
 >;
 
-type PropsOf<T extends ElementType> = Omit<
-  KnownPropsOf<T>,
-  'className' | 'style'
-> &
+type PropsOf<T extends ElementType> = Omit<KnownPropsOf<T>, 'className' | 'style'> &
   Omit<HTMLProps<ElementForType<T>>, keyof RemoveIndexSignature<HTMLProps<ElementForType<T>>>> &
   CamelCaseEventHandlerProps<T> &
   FallbackEventHandlerProps<T> & {
@@ -246,7 +243,10 @@ function mutablyMergeInto(
         break;
       case 'class': {
         const classNameKey = resolveClassNameKey(mergedProps, propName);
-        const className = mergeClassNames(getClassNameValue(mergedProps), externalPropValue as string);
+        const className = mergeClassNames(
+          getClassNameValue(mergedProps),
+          externalPropValue as string,
+        );
 
         delete mergedProps.class;
         delete mergedProps.className;
