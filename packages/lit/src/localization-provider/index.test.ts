@@ -1,6 +1,12 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
 import { render, html } from 'lit';
-import { getLocalizationContext, LocalizationProviderElement } from './index.ts';
+import {
+  getLocalizationContext,
+  LocalizationProviderElement,
+  type LocalizationContext,
+  type LocalizationProvider,
+  type LocalizationProviderProps,
+} from './index';
 
 describe('localization-provider', () => {
   let container: HTMLDivElement;
@@ -13,6 +19,10 @@ describe('localization-provider', () => {
 
   afterEach(() => {
     container?.remove();
+  });
+
+  it('exposes namespace aliases for props', () => {
+    expectTypeOf<LocalizationProviderProps>().toEqualTypeOf<LocalizationProvider.Props>();
   });
 
   it('registers the custom element', () => {
@@ -28,11 +38,28 @@ describe('localization-provider', () => {
   it('getLocalizationContext returns empty object when no provider', () => {
     mount(html`<div id="target"></div>`);
     const ctx = getLocalizationContext(container.querySelector('#target')!);
+    expectTypeOf(ctx).toEqualTypeOf<LocalizationContext>();
     expect(ctx).toEqual({});
   });
 
-  it('getLocalizationContext returns locale from the provider', () => {
+  it('getLocalizationContext returns temporalLocale from the provider', () => {
     const mockLocale = { code: 'fr' };
+    mount(html`
+      <localization-provider>
+        <div id="target"></div>
+      </localization-provider>
+    `);
+    const provider = container.querySelector(
+      'localization-provider',
+    ) as LocalizationProviderElement;
+    provider.temporalLocale = mockLocale;
+
+    const ctx = getLocalizationContext(container.querySelector('#target')!);
+    expect(ctx.temporalLocale).toBe(mockLocale);
+  });
+
+  it('supports locale as a compatibility alias', () => {
+    const mockLocale = { code: 'de' };
     mount(html`
       <localization-provider>
         <div id="target"></div>
@@ -43,8 +70,10 @@ describe('localization-provider', () => {
     ) as LocalizationProviderElement;
     provider.locale = mockLocale;
 
-    const ctx = getLocalizationContext(container.querySelector('#target')!);
-    expect(ctx.temporalLocale).toBe(mockLocale);
+    expect(provider.temporalLocale).toBe(mockLocale);
+    expect(getLocalizationContext(container.querySelector('#target')!).temporalLocale).toBe(
+      mockLocale,
+    );
   });
 
   it('returns undefined locale when provider has no locale set', () => {

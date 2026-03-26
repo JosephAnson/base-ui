@@ -1,6 +1,12 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
 import { render, html } from 'lit';
-import { getDirection, DirectionProviderElement, type TextDirection } from './index.ts';
+import {
+  getDirection,
+  DirectionProviderElement,
+  DirectionProvider,
+  type DirectionProviderProps,
+  type DirectionProviderState,
+} from './index';
 
 describe('direction-provider', () => {
   let container: HTMLDivElement;
@@ -57,6 +63,11 @@ describe('direction-provider', () => {
   });
 
   describe('DirectionProviderElement', () => {
+    it('exposes namespace aliases for props and state', () => {
+      expectTypeOf<DirectionProviderProps>().toEqualTypeOf<DirectionProvider.Props>();
+      expectTypeOf<DirectionProviderState>().toEqualTypeOf<DirectionProvider.State>();
+    });
+
     it('registers the custom element', () => {
       expect(customElements.get('direction-provider')).toBe(DirectionProviderElement);
     });
@@ -67,22 +78,40 @@ describe('direction-provider', () => {
       expect(el.style.display).toBe('contents');
     });
 
-    it('defaults dir to "ltr"', () => {
+    it('defaults direction to "ltr"', () => {
       mount(html`<direction-provider></direction-provider>`);
       const el = container.querySelector('direction-provider') as DirectionProviderElement;
+      expect(el.direction).toBe('ltr');
       expect(el.dir).toBe('ltr');
+      expect(el.getAttribute('dir')).toBe('ltr');
     });
 
-    it('sets dir attribute on the element', () => {
+    it('sets the direction attribute on the element and mirrors dir', async () => {
+      mount(html`<direction-provider direction="rtl"></direction-provider>`);
+      const el = container.querySelector('direction-provider') as DirectionProviderElement;
+
+      await el.updateComplete;
+
+      expect(el.direction).toBe('rtl');
+      expect(el.dir).toBe('rtl');
+      expect(el.getAttribute('direction')).toBe('rtl');
+      expect(el.getAttribute('dir')).toBe('rtl');
+    });
+
+    it('maps a legacy dir attribute to the public direction property', async () => {
       mount(html`<direction-provider dir="rtl"></direction-provider>`);
       const el = container.querySelector('direction-provider') as DirectionProviderElement;
-      expect(el.dir).toBe('rtl');
+
+      await el.updateComplete;
+
+      expect(el.direction).toBe('rtl');
+      expect(el.getAttribute('direction')).toBe('rtl');
       expect(el.getAttribute('dir')).toBe('rtl');
     });
 
     it('children resolve direction from the provider', () => {
       mount(html`
-        <direction-provider dir="rtl">
+        <direction-provider direction="rtl">
           <div id="child"></div>
         </direction-provider>
       `);
@@ -92,8 +121,8 @@ describe('direction-provider', () => {
 
     it('nested providers override parent direction', () => {
       mount(html`
-        <direction-provider dir="rtl">
-          <direction-provider dir="ltr">
+        <direction-provider direction="rtl">
+          <direction-provider direction="ltr">
             <div id="inner"></div>
           </direction-provider>
           <div id="outer"></div>

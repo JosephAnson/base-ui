@@ -1,9 +1,17 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import '../field/index.ts';
-import './index.ts';
-import type { FormRootElement, FormActions } from './index.ts';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import '../field';
+import {
+  Form,
+  FormRootElement,
+  type FormActions,
+  type FormProps,
+  type FormRoot,
+  type FormState,
+  type FormSubmitEventDetails,
+  type FormValidationMode,
+} from './index';
 
 describe('form', () => {
   const containers = new Set<HTMLDivElement>();
@@ -26,43 +34,66 @@ describe('form', () => {
   }
 
   async function waitForUpdate() {
-    for (let i = 0; i < 8; i++) {
-      await new Promise((r) => setTimeout(r, 0));
-    }
+    await flushTimers(8);
   }
 
-  function submit(container: HTMLElement) {
-    const form = container.querySelector('form') as HTMLFormElement;
+  function flushTimers(count: number) {
+    return Array.from({ length: count }).reduce<Promise<void>>((promise) => {
+      return promise.then(
+        () =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, 0);
+          }),
+      );
+    }, Promise.resolve());
+  }
+
+  function submit(view: HTMLElement) {
+    const form = view.querySelector('form') as HTMLFormElement;
     form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
   }
 
+  it('exposes runtime and namespace aliases', () => {
+    expect(Form).toBe(FormRootElement);
+    expectTypeOf<FormProps>().toEqualTypeOf<Form.Props>();
+    expectTypeOf<FormProps>().toEqualTypeOf<FormRoot.Props>();
+    expectTypeOf<FormState>().toEqualTypeOf<Form.State>();
+    expectTypeOf<FormState>().toEqualTypeOf<FormRoot.State>();
+    expectTypeOf<FormActions>().toEqualTypeOf<Form.Actions>();
+    expectTypeOf<FormActions>().toEqualTypeOf<FormRoot.Actions>();
+    expectTypeOf<FormSubmitEventDetails>().toEqualTypeOf<Form.SubmitEventDetails>();
+    expectTypeOf<FormSubmitEventDetails>().toEqualTypeOf<FormRoot.SubmitEventDetails>();
+    expectTypeOf<FormValidationMode>().toEqualTypeOf<Form.ValidationMode>();
+    expectTypeOf<FormValidationMode>().toEqualTypeOf<FormRoot.ValidationMode>();
+  });
+
   it('renders form-root as a custom element', async () => {
-    const container = render(html`
+    const view = render(html`
       <form-root>
         <form></form>
       </form-root>
     `);
     await waitForUpdate();
 
-    const root = container.querySelector('form-root') as FormRootElement;
+    const root = view.querySelector('form-root') as FormRootElement;
     expect(root).toBeInTheDocument();
     expect(root).toHaveAttribute('data-base-ui-form-context');
   });
 
   it('sets novalidate on the nested form by default', async () => {
-    const container = render(html`
+    const view = render(html`
       <form-root>
         <form data-testid="default-form"></form>
       </form-root>
     `);
     await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="default-form"]')).toHaveAttribute('novalidate');
+    expect(view.querySelector('[data-testid="default-form"]')).toHaveAttribute('novalidate');
   });
 
   it('blocks submission when a field is invalid', async () => {
     const onSubmit = vi.fn();
-    const container = render(html`
+    const view = render(html`
       <form-root .onSubmit=${onSubmit}>
         <form>
           <field-root .validate=${() => 'Required'}>
@@ -75,15 +106,15 @@ describe('form', () => {
     `);
     await waitForUpdate();
 
-    submit(container);
+    submit(view);
     await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="error"]')).toHaveTextContent('Required');
+    expect(view.querySelector('[data-testid="error"]')).toHaveTextContent('Required');
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it('shows external errors on field-error and clears on input', async () => {
-    const container = render(html`
+    const view = render(html`
       <form-root .errors=${{ username: 'Name is required' }}>
         <form>
           <field-root .name=${'username'}>
@@ -95,21 +126,20 @@ describe('form', () => {
     `);
     await waitForUpdate();
 
-    const error = container.querySelector('[data-testid="error"]') as HTMLElement;
+    const error = view.querySelector('[data-testid="error"]') as HTMLElement;
     expect(error).toHaveTextContent('Name is required');
 
-    // Typing should clear the external error
-    const input = container.querySelector('input') as HTMLInputElement;
+    const input = view.querySelector('input') as HTMLInputElement;
     input.value = 'John';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="error"]')).toHaveAttribute('hidden');
+    expect(view.querySelector('[data-testid="error"]')).toHaveAttribute('hidden');
   });
 
   it('runs onFormSubmit with collected form values', async () => {
     const onFormSubmit = vi.fn();
-    const container = render(html`
+    const view = render(html`
       <form-root .onFormSubmit=${onFormSubmit}>
         <form>
           <field-root .name=${'username'}>
@@ -124,12 +154,11 @@ describe('form', () => {
     `);
     await waitForUpdate();
 
-    // Set values on the inputs
-    const inputs = container.querySelectorAll('input') as NodeListOf<HTMLInputElement>;
+    const inputs = view.querySelectorAll('input') as NodeListOf<HTMLInputElement>;
     inputs[0].value = 'alice132';
     inputs[1].value = '42';
 
-    submit(container);
+    submit(view);
     await waitForUpdate();
 
     expect(onFormSubmit).toHaveBeenCalledTimes(1);
@@ -142,7 +171,7 @@ describe('form', () => {
 
   it('inherits validationMode from form-root', async () => {
     const validate = vi.fn(() => 'field error');
-    const container = render(html`
+    const view = render(html`
       <form-root .validationMode=${'onBlur'}>
         <form>
           <field-root .name=${'username'} .validate=${validate}>
@@ -154,26 +183,23 @@ describe('form', () => {
     `);
     await waitForUpdate();
 
-    const input = container.querySelector('input') as HTMLInputElement;
-
-    // Input change should NOT trigger validation in onBlur mode
+    const input = view.querySelector('input') as HTMLInputElement;
     input.value = 'a';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     await waitForUpdate();
 
     expect(validate).not.toHaveBeenCalled();
 
-    // Blur should trigger validation
     input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
     await waitForUpdate();
 
     expect(validate).toHaveBeenCalledTimes(1);
-    expect(container.querySelector('[data-testid="error"]')).toHaveTextContent('field error');
+    expect(view.querySelector('[data-testid="error"]')).toHaveTextContent('field error');
   });
 
   it('revalidates on change after a submit attempt in onSubmit mode', async () => {
     const validate = vi.fn((value: unknown) => (value ? null : 'field error'));
-    const container = render(html`
+    const view = render(html`
       <form-root>
         <form>
           <field-root .name=${'username'} .validate=${validate}>
@@ -186,26 +212,24 @@ describe('form', () => {
     `);
     await waitForUpdate();
 
-    // Submit with empty input → validation error
-    submit(container);
+    submit(view);
     await waitForUpdate();
 
     expect(validate).toHaveBeenCalledTimes(1);
-    expect(container.querySelector('[data-testid="error"]')).toHaveTextContent('field error');
+    expect(view.querySelector('[data-testid="error"]')).toHaveTextContent('field error');
 
-    // Now typing should re-validate (because submit was attempted)
-    const input = container.querySelector('input') as HTMLInputElement;
+    const input = view.querySelector('input') as HTMLInputElement;
     input.value = 'alice';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     await waitForUpdate();
 
     expect(validate.mock.calls.length).toBeGreaterThan(1);
-    expect(container.querySelector('[data-testid="error"]')).toHaveAttribute('hidden');
+    expect(view.querySelector('[data-testid="error"]')).toHaveAttribute('hidden');
   });
 
   it('supports imperative validation via actionsRef', async () => {
     const actionsRef = { current: null as FormActions | null };
-    const container = render(html`
+    const view = render(html`
       <form-root .actionsRef=${actionsRef}>
         <form>
           <field-root .name=${'username'} .validate=${() => 'Username required'}>
@@ -221,15 +245,13 @@ describe('form', () => {
     `);
     await waitForUpdate();
 
-    // Validate single field
     actionsRef.current?.validate('email');
     await waitForUpdate();
 
-    const inputs = container.querySelectorAll('input');
+    const inputs = view.querySelectorAll('input');
     expect(inputs[1]).toHaveAttribute('aria-invalid', 'true');
     expect(inputs[0]).not.toHaveAttribute('aria-invalid');
 
-    // Validate all fields
     actionsRef.current?.validate();
     await waitForUpdate();
 

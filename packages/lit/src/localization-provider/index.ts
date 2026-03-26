@@ -1,4 +1,4 @@
-import { BaseHTMLElement } from '../utils/index.ts';
+import { BaseHTMLElement } from '../utils';
 
 /**
  * Localization context values.
@@ -8,18 +8,23 @@ export interface LocalizationContext {
   temporalLocale?: object | undefined;
 }
 
+export interface LocalizationProviderProps {
+  /**
+   * The locale to use in temporal components.
+   */
+  temporalLocale?: object | undefined;
+}
+
 /**
  * Finds the nearest `<localization-provider>` ancestor and returns its context.
  * Falls back to `{}` when no provider is found.
  */
 export function getLocalizationContext(element: Element): LocalizationContext {
-  const provider = element.closest(
-    'localization-provider',
-  ) as LocalizationProviderElement | null;
+  const provider = element.closest('localization-provider') as LocalizationProviderElement | null;
   if (!provider) {
     return {};
   }
-  return { temporalLocale: provider.locale };
+  return { temporalLocale: provider.temporalLocale };
 }
 
 /**
@@ -31,7 +36,17 @@ export function getLocalizationContext(element: Element): LocalizationContext {
  */
 export class LocalizationProviderElement extends BaseHTMLElement {
   /** A date-fns Locale object or compatible locale configuration. */
-  locale: object | undefined;
+  temporalLocale: object | undefined;
+
+  /** @deprecated Use `temporalLocale` instead. */
+  get locale(): object | undefined {
+    return this.temporalLocale;
+  }
+
+  /** @deprecated Use `temporalLocale` instead. */
+  set locale(value: object | undefined) {
+    this.temporalLocale = value;
+  }
 
   connectedCallback() {
     this.style.display = 'contents';
@@ -43,9 +58,7 @@ if (!customElements.get('localization-provider')) {
 }
 
 export namespace LocalizationProvider {
-  export interface Props {
-    locale?: object;
-  }
+  export type Props = LocalizationProviderProps;
 }
 
 declare global {

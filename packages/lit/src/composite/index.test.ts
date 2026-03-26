@@ -13,7 +13,7 @@ import {
   ARROW_RIGHT,
   HOME,
   END,
-} from './index.ts';
+} from './index';
 
 function makeItems(count: number, disabledSet?: Set<number>): HTMLElement[] {
   return Array.from({ length: count }, (_, i) => {
@@ -210,6 +210,27 @@ describe('composite', () => {
       expect(result).toBe(1);
     });
 
+    it('supports both orientation with RTL-aware horizontal keys', () => {
+      const items = makeItems(5);
+      const forwardResult = navigateList({
+        currentIndex: 0,
+        items,
+        event: keyEvent(ARROW_LEFT),
+        orientation: 'both',
+        direction: 'rtl',
+      });
+      const backwardResult = navigateList({
+        currentIndex: 2,
+        items,
+        event: keyEvent(ARROW_RIGHT),
+        orientation: 'both',
+        direction: 'rtl',
+      });
+
+      expect(forwardResult).toBe(1);
+      expect(backwardResult).toBe(1);
+    });
+
     it('Home key navigates to the first item', () => {
       const items = makeItems(5);
       const result = navigateList({
@@ -218,6 +239,25 @@ describe('composite', () => {
         event: keyEvent(HOME),
       });
       expect(result).toBe(0);
+    });
+
+    it('ignores Home and End when enableHomeAndEndKeys is false', () => {
+      const items = makeItems(5);
+      const homeResult = navigateList({
+        currentIndex: 3,
+        items,
+        event: keyEvent(HOME),
+        enableHomeAndEndKeys: false,
+      });
+      const endResult = navigateList({
+        currentIndex: 1,
+        items,
+        event: keyEvent(END),
+        enableHomeAndEndKeys: false,
+      });
+
+      expect(homeResult).toBe(-1);
+      expect(endResult).toBe(-1);
     });
 
     it('End key navigates to the last item', () => {
@@ -258,6 +298,19 @@ describe('composite', () => {
         event: keyEvent(ARROW_DOWN),
       });
       expect(result).toBe(2);
+    });
+
+    it('allows DOM-disabled items when disabledIndices is explicitly empty', () => {
+      const items = makeItems(3, new Set([1]));
+      const result = navigateList({
+        currentIndex: 0,
+        items,
+        event: keyEvent(ARROW_DOWN),
+        loop: true,
+        disabledIndices: [],
+      });
+
+      expect(result).toBe(1);
     });
 
     it('stays at boundary without loop', () => {
@@ -429,6 +482,59 @@ describe('composite', () => {
       expect(result).toBe(4);
     });
 
+    it('wraps vertically to the same column with loop enabled', () => {
+      const items = makeItems(9);
+      const result = navigateGrid({
+        currentIndex: 7,
+        items,
+        event: keyEvent(ARROW_DOWN),
+        cols: 3,
+        loop: true,
+      });
+
+      expect(result).toBe(1);
+    });
+
+    it('wraps horizontally backward within a row when loop is enabled', () => {
+      const items = makeItems(9);
+      const result = navigateGrid({
+        currentIndex: 3,
+        items,
+        event: keyEvent(ARROW_LEFT),
+        cols: 3,
+        loop: true,
+      });
+
+      expect(result).toBe(5);
+    });
+
+    it('supports both-orientation RTL movement in grids', () => {
+      const items = makeItems(9);
+      const result = navigateGrid({
+        currentIndex: 3,
+        items,
+        event: keyEvent(ARROW_LEFT),
+        cols: 3,
+        direction: 'rtl',
+        orientation: 'both',
+      });
+
+      expect(result).toBe(4);
+    });
+
+    it('allows DOM-disabled grid items when disabledIndices is explicitly empty', () => {
+      const items = makeItems(9, new Set([4]));
+      const result = navigateGrid({
+        currentIndex: 3,
+        items,
+        event: keyEvent(ARROW_RIGHT),
+        cols: 3,
+        disabledIndices: [],
+      });
+
+      expect(result).toBe(4);
+    });
+
     it('Home navigates to first item', () => {
       const items = makeItems(9);
       const result = navigateGrid({
@@ -449,6 +555,27 @@ describe('composite', () => {
         cols: 3,
       });
       expect(result).toBe(8);
+    });
+
+    it('ignores Home and End in grids when enableHomeAndEndKeys is false', () => {
+      const items = makeItems(9);
+      const homeResult = navigateGrid({
+        currentIndex: 5,
+        items,
+        event: keyEvent(HOME),
+        cols: 3,
+        enableHomeAndEndKeys: false,
+      });
+      const endResult = navigateGrid({
+        currentIndex: 2,
+        items,
+        event: keyEvent(END),
+        cols: 3,
+        enableHomeAndEndKeys: false,
+      });
+
+      expect(homeResult).toBe(-1);
+      expect(endResult).toBe(-1);
     });
 
     it('returns -1 for unrelated keys', () => {

@@ -1,5 +1,5 @@
 import { ReactiveElement } from 'lit';
-import { BaseHTMLElement, ensureId } from '../utils/index.ts';
+import { BaseHTMLElement, ensureId } from '../utils';
 import {
   FIELDSET_CONTEXT_ATTRIBUTE,
   FIELDSET_CONTEXT_ERROR,
@@ -10,7 +10,7 @@ import {
   setFieldsetRuntime,
   type FieldsetContext,
   type FieldsetRuntime,
-} from './shared.ts';
+} from './shared';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -32,6 +32,16 @@ export interface FieldsetLegendState {
   disabled: boolean;
 }
 
+export interface FieldsetRootProps {
+  /**
+   * Whether the component should ignore user interaction.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+}
+
+export interface FieldsetLegendProps {}
+
 // ─── FieldsetRootElement ─────────────────────────────────────────────────────────
 
 /**
@@ -47,8 +57,8 @@ export class FieldsetRootElement extends ReactiveElement implements FieldsetRunt
 
   declare disabled: boolean;
 
-  private _legendId: string | undefined;
-  private _lastPublishedStateKey: string | null = null;
+  private legendIdValue: string | undefined;
+  private lastPublishedStateKey: string | null = null;
 
   constructor() {
     super();
@@ -68,35 +78,37 @@ export class FieldsetRootElement extends ReactiveElement implements FieldsetRunt
     this.syncAttributes();
 
     queueMicrotask(() => {
-      this._syncLegendFromDom();
-      this._publishStateChange();
+      this.syncLegendFromDom();
+      this.publishStateChange();
     });
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
     setFieldsetRuntime(this, null);
-    this._lastPublishedStateKey = null;
+    this.lastPublishedStateKey = null;
   }
 
   protected override updated() {
     this.syncAttributes();
-    this._publishStateChange();
+    this.publishStateChange();
   }
 
   getContext(): FieldsetContext {
     return {
       disabled: this.disabled,
-      legendId: this._legendId,
+      legendId: this.legendIdValue,
     };
   }
 
   setLegendId(id: string | undefined) {
-    if (this._legendId === id) return;
+    if (this.legendIdValue === id) {
+      return;
+    }
 
-    this._legendId = id;
+    this.legendIdValue = id;
     this.syncAttributes();
-    this._publishStateChange();
+    this.publishStateChange();
   }
 
   getState(): FieldsetRootState {
@@ -108,34 +120,37 @@ export class FieldsetRootElement extends ReactiveElement implements FieldsetRunt
   private syncAttributes() {
     this.toggleAttribute('data-disabled', this.disabled);
 
-    if (this._legendId) {
-      this.setAttribute(FIELDSET_LEGEND_ID_ATTRIBUTE, this._legendId);
-      this.setAttribute('aria-labelledby', this._legendId);
+    if (this.legendIdValue) {
+      this.setAttribute(FIELDSET_LEGEND_ID_ATTRIBUTE, this.legendIdValue);
+      this.setAttribute('aria-labelledby', this.legendIdValue);
     } else {
       this.removeAttribute(FIELDSET_LEGEND_ID_ATTRIBUTE);
       this.removeAttribute('aria-labelledby');
     }
   }
 
-  private _publishStateChange() {
+  private publishStateChange() {
     const nextStateKey = JSON.stringify(this.getContext());
 
-    if (nextStateKey === this._lastPublishedStateKey) return;
+    if (nextStateKey === this.lastPublishedStateKey) {
+      return;
+    }
 
-    this._lastPublishedStateKey = nextStateKey;
+    this.lastPublishedStateKey = nextStateKey;
     this.dispatchEvent(new CustomEvent(FIELDSET_STATE_CHANGE_EVENT));
   }
 
-  private _syncLegendFromDom() {
+  private syncLegendFromDom() {
     const legends = this.querySelectorAll<HTMLElement>(`[${FIELDSET_LEGEND_ATTRIBUTE}]`);
     const nextLegendId =
-      Array.from(legends).find(
-        (legend) => getClosestFieldsetRoot(legend) === this,
-      )?.id ?? undefined;
+      Array.from(legends).find((legend) => getClosestFieldsetRoot(legend) === this)?.id ??
+      undefined;
 
-    if (this._legendId === nextLegendId) return;
+    if (this.legendIdValue === nextLegendId) {
+      return;
+    }
 
-    this._legendId = nextLegendId;
+    this.legendIdValue = nextLegendId;
     this.syncAttributes();
   }
 }
@@ -153,8 +168,8 @@ if (!customElements.get('fieldset-root')) {
  * Documentation: [Base UI Fieldset](https://base-ui.com/react/components/fieldset)
  */
 export class FieldsetLegendElement extends BaseHTMLElement {
-  private _root: FieldsetRootElement | null = null;
-  private _handler = () => this._syncDataAttributes();
+  private rootElement: FieldsetRootElement | null = null;
+  private stateHandler = () => this.syncDataAttributes();
 
   connectedCallback() {
     const root = getClosestFieldsetRoot(this);
@@ -163,35 +178,37 @@ export class FieldsetLegendElement extends BaseHTMLElement {
       return;
     }
 
-    this._root = root as FieldsetRootElement;
+    this.rootElement = root as FieldsetRootElement;
     this.setAttribute(FIELDSET_LEGEND_ATTRIBUTE, '');
 
     // Auto-generate an ID if none exists
     ensureId(this, 'base-ui-fieldset-legend');
 
     // Register legend ID with the root
-    if (this._root && 'setLegendId' in this._root) {
-      (this._root as FieldsetRootElement).setLegendId(this.id);
+    if (this.rootElement) {
+      this.rootElement.setLegendId(this.id);
     }
 
-    this._root.addEventListener(FIELDSET_STATE_CHANGE_EVENT, this._handler);
-    this._syncDataAttributes();
+    this.rootElement.addEventListener(FIELDSET_STATE_CHANGE_EVENT, this.stateHandler);
+    this.syncDataAttributes();
   }
 
   disconnectedCallback() {
-    this._root?.removeEventListener(FIELDSET_STATE_CHANGE_EVENT, this._handler);
+    this.rootElement?.removeEventListener(FIELDSET_STATE_CHANGE_EVENT, this.stateHandler);
 
     // Unregister legend ID
-    if (this._root && 'setLegendId' in this._root) {
-      (this._root as FieldsetRootElement).setLegendId(undefined);
+    if (this.rootElement) {
+      this.rootElement.setLegendId(undefined);
     }
 
-    this._root = null;
+    this.rootElement = null;
   }
 
-  private _syncDataAttributes() {
-    if (!this._root) return;
-    const context = this._root.getContext();
+  private syncDataAttributes() {
+    if (!this.rootElement) {
+      return;
+    }
+    const context = this.rootElement.getContext();
     this.toggleAttribute('data-disabled', context.disabled);
   }
 }
@@ -200,13 +217,20 @@ if (!customElements.get('fieldset-legend')) {
   customElements.define('fieldset-legend', FieldsetLegendElement);
 }
 
+export const Fieldset = {
+  Root: FieldsetRootElement,
+  Legend: FieldsetLegendElement,
+} as const;
+
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
 export namespace FieldsetRoot {
+  export type Props = FieldsetRootProps;
   export type State = FieldsetRootState;
 }
 
 export namespace FieldsetLegend {
+  export type Props = FieldsetLegendProps;
   export type State = FieldsetLegendState;
 }
 

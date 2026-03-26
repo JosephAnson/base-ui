@@ -1,5 +1,5 @@
 import { ReactiveElement } from 'lit';
-import { BaseHTMLElement, ensureId } from '../utils/index.ts';
+import { BaseHTMLElement, ensureId } from '../utils';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -37,9 +37,69 @@ export interface SwitchThumbState extends SwitchRootState {}
 export interface SwitchRootChangeEventDetails {
   event: Event;
   cancel(): void;
+  allowPropagation(): void;
   readonly isCanceled: boolean;
+  readonly isPropagationAllowed: boolean;
   reason: 'none';
 }
+
+export interface SwitchRootProps {
+  /**
+   * Whether the switch is currently active.
+   * This is the controlled counterpart of `defaultChecked`.
+   */
+  checked?: boolean | undefined;
+  /**
+   * Whether the switch is initially active.
+   * This is the uncontrolled counterpart of `checked`.
+   * @default false
+   */
+  defaultChecked?: boolean | undefined;
+  /**
+   * Whether the component should ignore user interaction.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * Identifies the field when a form is submitted.
+   */
+  name?: string | undefined;
+  /**
+   * Identifies the form that owns the hidden input.
+   * Useful when the switch is rendered outside the form.
+   */
+  form?: string | undefined;
+  /**
+   * Event handler called when the switch is activated or deactivated.
+   */
+  onCheckedChange?:
+    | ((checked: boolean, eventDetails: SwitchRootChangeEventDetails) => void)
+    | undefined;
+  /**
+   * Whether the user should be unable to activate or deactivate the switch.
+   * @default false
+   */
+  readOnly?: boolean | undefined;
+  /**
+   * Whether the user must activate the switch before submitting a form.
+   * @default false
+   */
+  required?: boolean | undefined;
+  /**
+   * The value submitted with the form when the switch is on.
+   * By default, switch submits the "on" value, matching native checkbox behavior.
+   */
+  value?: string | undefined;
+  /**
+   * The value submitted with the form when the switch is off.
+   * By default, unchecked switches do not submit any value, matching native checkbox behavior.
+   */
+  uncheckedValue?: string | undefined;
+}
+
+export interface SwitchThumbProps {}
+
+export type SwitchRootChangeEventReason = SwitchRootChangeEventDetails['reason'];
 
 // ─── SwitchRootElement ──────────────────────────────────────────────────────────
 
@@ -56,20 +116,21 @@ export class SwitchRootElement extends ReactiveElement {
     readOnly: { type: Boolean, attribute: 'read-only' },
     required: { type: Boolean },
     name: { type: String },
+    form: { type: String },
     value: { type: String },
     uncheckedValue: { type: String, attribute: 'unchecked-value' },
   };
 
-  private _checked: boolean | undefined;
+  private checkedValue: boolean | undefined;
 
   /** Whether the switch is currently active. When defined, switch is controlled. */
   get checked(): boolean | undefined {
-    return this._checked;
+    return this.checkedValue;
   }
 
   set checked(val: boolean | undefined) {
-    const old = this._checked;
-    this._checked = val;
+    const old = this.checkedValue;
+    this.checkedValue = val;
     if (old !== val) {
       this.requestUpdate();
     }
@@ -80,6 +141,7 @@ export class SwitchRootElement extends ReactiveElement {
   declare readOnly: boolean;
   declare required: boolean;
   declare name: string | undefined;
+  declare form: string | undefined;
   declare value: string | undefined;
   declare uncheckedValue: string | undefined;
 
@@ -88,10 +150,12 @@ export class SwitchRootElement extends ReactiveElement {
     | ((checked: boolean, eventDetails: SwitchRootChangeEventDetails) => void)
     | undefined;
 
-  private _internalChecked = false;
-  private _initialized = false;
-  private _input: HTMLInputElement | null = null;
-  private _uncheckedInput: HTMLInputElement | null = null;
+  private internalChecked = false;
+  private initialized = false;
+  private inputElement: HTMLInputElement | null = null;
+  private uncheckedInputElement: HTMLInputElement | null = null;
+  private explicitLabels = new Set<HTMLLabelElement>();
+  private idObserver: MutationObserver | null = null;
 
   constructor() {
     super();
@@ -108,27 +172,35 @@ export class SwitchRootElement extends ReactiveElement {
   override connectedCallback() {
     super.connectedCallback();
 
-    if (!this._initialized) {
-      this._initialized = true;
-      this._internalChecked = this.checked ?? this.defaultChecked;
+    if (!this.initialized) {
+      this.initialized = true;
+      this.internalChecked = this.checked ?? this.defaultChecked;
     }
 
-    this._ensureHiddenInput();
-    this.addEventListener('click', this._handleClick);
-    this.addEventListener('keydown', this._handleKeyDown);
-    this.addEventListener('keyup', this._handleKeyUp);
+    this.ensureHiddenInput();
+    this.addEventListener('click', this.handleClick);
+    this.addEventListener('keydown', this.handleKeyDown);
+    this.addEventListener('keyup', this.handleKeyUp);
+    this.idObserver = new MutationObserver(() => {
+      this.syncAssociatedLabels();
+      this.syncAriaLabelledBy();
+    });
+    this.idObserver.observe(this, { attributes: true, attributeFilter: ['id'] });
     this.syncAttributes();
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    this.removeEventListener('click', this._handleClick);
-    this.removeEventListener('keydown', this._handleKeyDown);
-    this.removeEventListener('keyup', this._handleKeyUp);
-    this._input?.remove();
-    this._input = null;
-    this._uncheckedInput?.remove();
-    this._uncheckedInput = null;
+    this.removeEventListener('click', this.handleClick);
+    this.removeEventListener('keydown', this.handleKeyDown);
+    this.removeEventListener('keyup', this.handleKeyUp);
+    this.idObserver?.disconnect();
+    this.idObserver = null;
+    this.cleanupAssociatedLabels();
+    this.inputElement?.remove();
+    this.inputElement = null;
+    this.uncheckedInputElement?.remove();
+    this.uncheckedInputElement = null;
   }
 
   protected override updated() {
@@ -136,7 +208,7 @@ export class SwitchRootElement extends ReactiveElement {
   }
 
   getChecked(): boolean {
-    return this.checked ?? this._internalChecked;
+    return this.checked ?? this.internalChecked;
   }
 
   getState(): SwitchRootState {
@@ -148,69 +220,87 @@ export class SwitchRootElement extends ReactiveElement {
     };
   }
 
-  private _ensureHiddenInput() {
-    if (!this._input) {
-      this._input = document.createElement('input');
-      this._input.type = 'checkbox';
-      this._input.tabIndex = -1;
-      this._input.setAttribute('aria-hidden', 'true');
-      this._input.addEventListener('change', this._handleInputChange);
-      this._input.addEventListener('focus', () => this.focus());
-      this.appendChild(this._input);
+  private ensureHiddenInput() {
+    if (!this.inputElement) {
+      this.inputElement = document.createElement('input');
+      this.inputElement.type = 'checkbox';
+      this.inputElement.tabIndex = -1;
+      this.inputElement.setAttribute('aria-hidden', 'true');
+      this.inputElement.addEventListener('change', this.handleInputChange);
+      this.inputElement.addEventListener('focus', () => this.focus());
+      this.inputElement.addEventListener('click', (event) => {
+        if (this.disabled || this.readOnly) {
+          event.preventDefault();
+        }
+      });
+      this.appendChild(this.inputElement);
     }
   }
 
-  private _syncHiddenInput() {
-    if (!this._input) return;
+  private syncHiddenInput() {
+    if (!this.inputElement) {
+      return;
+    }
 
     const isChecked = this.getChecked();
-    this._input.checked = isChecked;
-    this._input.disabled = this.disabled;
-    this._input.required = this.required;
+    this.inputElement.checked = isChecked;
+    this.inputElement.disabled = this.disabled;
+    this.inputElement.required = this.required;
 
     if (this.name) {
-      this._input.name = this.name;
-      this._input.style.cssText = VISUALLY_HIDDEN_INPUT_STYLE;
+      this.inputElement.name = this.name;
+      this.inputElement.style.cssText = VISUALLY_HIDDEN_INPUT_STYLE;
     } else {
-      this._input.removeAttribute('name');
-      this._input.style.cssText = VISUALLY_HIDDEN_STYLE;
+      this.inputElement.removeAttribute('name');
+      this.inputElement.style.cssText = VISUALLY_HIDDEN_STYLE;
+    }
+
+    if (this.form) {
+      this.inputElement.setAttribute('form', this.form);
+    } else {
+      this.inputElement.removeAttribute('form');
     }
 
     if (this.value !== undefined) {
-      this._input.value = this.value;
+      this.inputElement.value = this.value;
     } else {
-      this._input.removeAttribute('value');
+      this.inputElement.removeAttribute('value');
     }
 
     // Manage unchecked hidden input
     if (!isChecked && this.name && this.uncheckedValue !== undefined) {
-      if (!this._uncheckedInput) {
-        this._uncheckedInput = document.createElement('input');
-        this._uncheckedInput.type = 'hidden';
-        this.appendChild(this._uncheckedInput);
+      if (!this.uncheckedInputElement) {
+        this.uncheckedInputElement = document.createElement('input');
+        this.uncheckedInputElement.type = 'hidden';
+        this.appendChild(this.uncheckedInputElement);
       }
-      this._uncheckedInput.name = this.name;
-      this._uncheckedInput.value = this.uncheckedValue;
-    } else if (this._uncheckedInput) {
-      this._uncheckedInput.remove();
-      this._uncheckedInput = null;
+      this.uncheckedInputElement.name = this.name;
+      this.uncheckedInputElement.value = this.uncheckedValue;
+      if (this.form) {
+        this.uncheckedInputElement.setAttribute('form', this.form);
+      } else {
+        this.uncheckedInputElement.removeAttribute('form');
+      }
+    } else if (this.uncheckedInputElement) {
+      this.uncheckedInputElement.remove();
+      this.uncheckedInputElement = null;
     }
   }
 
-  private _syncAriaLabelledBy() {
-    const control = this._input;
+  private syncAriaLabelledBy() {
+    const control = this.inputElement;
     if (!control || !('labels' in control)) {
       this.removeAttribute('aria-labelledby');
       return;
     }
 
-    const labels = Array.from(control.labels ?? []);
+    const labels = [...Array.from(control.labels ?? []), ...this.getExplicitLabels()];
     if (labels.length === 0) {
       this.removeAttribute('aria-labelledby');
       return;
     }
 
-    const labelIds = labels
+    const labelIds = [...new Set(labels)]
       .map((label) => ensureId(label, 'base-ui-switch-label'))
       .filter(Boolean);
 
@@ -255,64 +345,107 @@ export class SwitchRootElement extends ReactiveElement {
     this.toggleAttribute('data-readonly', this.readOnly);
     this.toggleAttribute('data-required', this.required);
 
-    this._syncHiddenInput();
+    this.syncHiddenInput();
+    this.syncAssociatedLabels();
 
     queueMicrotask(() => {
-      this._syncAriaLabelledBy();
+      this.syncAriaLabelledBy();
       this.dispatchEvent(new CustomEvent(STATE_CHANGE_EVENT, { bubbles: false }));
     });
   }
 
-  private _toggle(event: Event) {
-    if (this.disabled || this.readOnly) return;
+  private toggle(event: Event) {
+    if (this.disabled || this.readOnly) {
+      return;
+    }
 
     const nextChecked = !this.getChecked();
     const eventDetails = createChangeEventDetails(event);
     this.onCheckedChange?.(nextChecked, eventDetails);
 
-    if (eventDetails.isCanceled) return;
+    if (eventDetails.isCanceled) {
+      return;
+    }
 
     if (this.checked === undefined) {
-      this._internalChecked = nextChecked;
+      this.internalChecked = nextChecked;
     }
 
     this.syncAttributes();
     this.requestUpdate();
   }
 
-  private _handleClick = (event: MouseEvent) => {
-    if (this.disabled || this.readOnly) {
+  private handleClick = (event: MouseEvent) => {
+    if (event.target === this.inputElement) {
+      return;
+    }
+
+    if (this.disabled) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+
+    if (this.readOnly) {
       event.preventDefault();
       return;
     }
+
     event.preventDefault();
-    this._toggle(event);
+    this.toggle(event);
   };
 
-  private _handleKeyDown = (event: KeyboardEvent) => {
-    if (this.disabled) return;
-    if (event.target !== this) return;
+  private handleKeyDown = (event: KeyboardEvent) => {
+    if (this.disabled) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+
+    if (event.target !== this) {
+      return;
+    }
 
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault();
     }
 
+    if (this.readOnly) {
+      return;
+    }
+
     if (event.key === 'Enter') {
-      this._toggle(event);
+      this.toggle(event);
     }
   };
 
-  private _handleKeyUp = (event: KeyboardEvent) => {
-    if (this.disabled) return;
-    if (event.target !== this) return;
+  private handleKeyUp = (event: KeyboardEvent) => {
+    if (this.disabled) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+
+    if (event.target !== this) {
+      return;
+    }
+
+    if (this.readOnly) {
+      if (event.key === ' ') {
+        event.preventDefault();
+      }
+      return;
+    }
 
     if (event.key === ' ') {
-      this._toggle(event);
+      this.toggle(event);
     }
   };
 
-  private _handleInputChange = (event: Event) => {
-    if (event.defaultPrevented) return;
+  private handleInputChange = (event: Event) => {
+    if (event.defaultPrevented) {
+      return;
+    }
 
     const input = event.currentTarget as HTMLInputElement;
 
@@ -331,11 +464,61 @@ export class SwitchRootElement extends ReactiveElement {
     }
 
     if (this.checked === undefined) {
-      this._internalChecked = nextChecked;
+      this.internalChecked = nextChecked;
     }
 
     this.syncAttributes();
     this.requestUpdate();
+  };
+
+  private getExplicitLabels(): HTMLLabelElement[] {
+    if (!this.id) {
+      return [];
+    }
+
+    const escapedId = globalThis.CSS?.escape?.(this.id) ?? this.id;
+    return Array.from(
+      this.ownerDocument.querySelectorAll<HTMLLabelElement>(`label[for="${escapedId}"]`),
+    );
+  }
+
+  private syncAssociatedLabels() {
+    const nextLabels = new Set(this.getExplicitLabels());
+
+    this.explicitLabels.forEach((label) => {
+      if (!nextLabels.has(label)) {
+        label.removeEventListener('click', this.handleExplicitLabelClick);
+      }
+    });
+
+    nextLabels.forEach((label) => {
+      if (!this.explicitLabels.has(label)) {
+        label.addEventListener('click', this.handleExplicitLabelClick);
+      }
+    });
+
+    this.explicitLabels = nextLabels;
+  }
+
+  private cleanupAssociatedLabels() {
+    this.explicitLabels.forEach((label) => {
+      label.removeEventListener('click', this.handleExplicitLabelClick);
+    });
+    this.explicitLabels.clear();
+  }
+
+  private handleExplicitLabelClick = (event: MouseEvent) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (this.disabled || this.readOnly) {
+      return;
+    }
+
+    this.toggle(event);
   };
 }
 
@@ -350,28 +533,31 @@ if (!customElements.get('switch-root')) {
  * Renders a `<switch-thumb>` custom element.
  */
 export class SwitchThumbElement extends BaseHTMLElement {
-  private _root: SwitchRootElement | null = null;
-  private _handler = () => this._syncAttributes();
+  private rootElement: SwitchRootElement | null = null;
+  private stateHandler = () => this.syncAttributes();
 
   connectedCallback() {
-    this._root = this.closest('switch-root') as SwitchRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('switch-root') as SwitchRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
-    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
-    queueMicrotask(() => this._syncAttributes());
+    this.rootElement.addEventListener(STATE_CHANGE_EVENT, this.stateHandler);
+    queueMicrotask(() => this.syncAttributes());
   }
 
   disconnectedCallback() {
-    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
-    this._root = null;
+    this.rootElement?.removeEventListener(STATE_CHANGE_EVENT, this.stateHandler);
+    this.rootElement = null;
   }
 
-  private _syncAttributes() {
-    if (!this._root) return;
-    const state = this._root.getState();
+  private syncAttributes() {
+    if (!this.rootElement) {
+      return;
+    }
+
+    const state = this.rootElement.getState();
 
     this.toggleAttribute('data-checked', state.checked);
     this.toggleAttribute('data-unchecked', !state.checked);
@@ -385,18 +571,30 @@ if (!customElements.get('switch-thumb')) {
   customElements.define('switch-thumb', SwitchThumbElement);
 }
 
+export const Switch = {
+  Root: SwitchRootElement,
+  Thumb: SwitchThumbElement,
+} as const;
+
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
 function createChangeEventDetails(event: Event): SwitchRootChangeEventDetails {
   let isCanceled = false;
+  let isPropagationAllowed = false;
 
   return {
+    allowPropagation() {
+      isPropagationAllowed = true;
+    },
     cancel() {
       isCanceled = true;
     },
     event,
     get isCanceled() {
       return isCanceled;
+    },
+    get isPropagationAllowed() {
+      return isPropagationAllowed;
     },
     reason: 'none',
   };
@@ -405,11 +603,14 @@ function createChangeEventDetails(event: Event): SwitchRootChangeEventDetails {
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
 export namespace SwitchRoot {
+  export type Props = SwitchRootProps;
   export type State = SwitchRootState;
+  export type ChangeEventReason = SwitchRootChangeEventReason;
   export type ChangeEventDetails = SwitchRootChangeEventDetails;
 }
 
 export namespace SwitchThumb {
+  export type Props = SwitchThumbProps;
   export type State = SwitchThumbState;
 }
 

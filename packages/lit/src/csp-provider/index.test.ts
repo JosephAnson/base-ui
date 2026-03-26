@@ -1,6 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
 import { render, html } from 'lit';
-import { getCSPContext, CSPProviderElement } from './index.ts';
+import {
+  CSPProviderElement,
+  getCSPContext,
+  type CSPContextValue,
+  type CSPProvider,
+  type CSPProviderProps,
+  type CSPProviderState,
+} from './index';
 
 describe('csp-provider', () => {
   let container: HTMLDivElement;
@@ -16,6 +23,11 @@ describe('csp-provider', () => {
   });
 
   describe('CSPProviderElement', () => {
+    it('exposes namespace aliases for props and state', () => {
+      expectTypeOf<CSPProviderProps>().toEqualTypeOf<CSPProvider.Props>();
+      expectTypeOf<CSPProviderState>().toEqualTypeOf<CSPProvider.State>();
+    });
+
     it('registers the custom element', () => {
       expect(customElements.get('csp-provider')).toBe(CSPProviderElement);
     });
@@ -49,6 +61,7 @@ describe('csp-provider', () => {
     it('returns default context when no provider exists', () => {
       mount(html`<div id="target"></div>`);
       const target = container.querySelector('#target')!;
+      expectTypeOf(getCSPContext(target)).toEqualTypeOf<CSPContextValue>();
       expect(getCSPContext(target)).toEqual({ disableStyleElements: false });
     });
 

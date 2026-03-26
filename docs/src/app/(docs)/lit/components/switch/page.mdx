@@ -1,13 +1,22 @@
 # Switch
 
-<Subtitle>A two-state switch for Lit templates.</Subtitle>
-<Meta name="description" content="A two-state switch for Lit templates." />
+<Subtitle>A control that indicates whether a setting is on or off.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit switch component that indicates whether a setting is on or off."
+/>
 
 import { DemoSwitchHero } from './demos/hero';
 
 <DemoSwitchHero />
 
+## Usage guidelines
+
+- **Form controls must have an accessible name**: Use a wrapping `<label>` or an explicit `for`/`id` pair so the switch is announced correctly.
+
 ## Anatomy
+
+Import the custom elements:
 
 ```html title="Anatomy"
 <switch-root>
@@ -15,10 +24,91 @@ import { DemoSwitchHero } from './demos/hero';
 </switch-root>
 ```
 
-## Status
+## Examples
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### Labeling a switch
+
+An enclosing `<label>` is the simplest labeling pattern:
+
+```html title="Wrapping a label around a switch"
+<label>
+  <switch-root>
+    <switch-thumb></switch-thumb>
+  </switch-root>
+  Notifications
+</label>
+```
+
+You can also use an explicit `for`/`id` association:
+
+```html title="Sibling label pattern"
+<label for="notifications-switch">Notifications</label>
+<switch-root id="notifications-switch">
+  <switch-thumb></switch-thumb>
+</switch-root>
+```
+
+### Form integration
+
+Use `name`, `value`, `unchecked-value`, and `form` to match native checkbox submission behavior:
+
+```html title="Switch in a form"
+<form id="preferences-form">
+  <button type="submit">Save</button>
+</form>
+
+<switch-root
+  id="notifications-switch"
+  form="preferences-form"
+  name="notifications"
+  unchecked-value="off"
+>
+  <switch-thumb></switch-thumb>
+</switch-root>
+```
+
+## API reference
+
+### SwitchRootElement
+
+Custom element: `<switch-root>`
+
+| Attribute          | Type                       | Default | Description                                                     |
+| ------------------ | -------------------------- | ------- | --------------------------------------------------------------- |
+| `default-checked`  | `boolean`                  | `false` | Whether the switch is initially active.                         |
+| `disabled`         | `boolean`                  | `false` | Whether the component should ignore user interaction.           |
+| `read-only`        | `boolean`                  | `false` | Whether the user should be unable to activate or deactivate it. |
+| `required`         | `boolean`                  | `false` | Whether the switch must be active before submitting a form.     |
+| `name`             | `string`                   | —       | Identifies the field when a form is submitted.                  |
+| `form`             | `string`                   | —       | Identifies the form that owns the hidden input.                 |
+| `value`            | `string`                   | `"on"`  | The value submitted when the switch is on.                      |
+| `unchecked-value`  | `string`                   | —       | The value submitted when the switch is off.                     |
+| `.checked`         | `boolean \| undefined`     | —       | The controlled checked state.                                   |
+| `.onCheckedChange` | `(checked, details)=>void` | —       | Callback fired when the checked state changes.                  |
+
+### SwitchThumbElement
+
+Custom element: `<switch-thumb>`
+
+The thumb mirrors the root state with data attributes for styling.
+
+### Data attributes
+
+Both `<switch-root>` and `<switch-thumb>` receive:
+
+- `data-checked`
+- `data-unchecked`
+- `data-disabled`
+- `data-readonly`
+- `data-required`
 
 export const metadata = {
-  keywords: ['Lit Switch', 'Switch', 'Base UI Lit', 'Toggle switch'],
+  keywords: [
+    'Lit Switch',
+    'Toggle Switch Component',
+    'On Off Switch',
+    'Accessible Switch',
+    'Form Toggle Control',
+    'Base UI Lit',
+  ],
 };

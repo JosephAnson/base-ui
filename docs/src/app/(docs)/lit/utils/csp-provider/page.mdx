@@ -1,6 +1,8 @@
 # CSPProvider
 
-<Subtitle>Provides a CSP nonce for inline styles and controls style element injection.</Subtitle>
+<Subtitle>
+  Provides a default Content Security Policy configuration for Base UI components.
+</Subtitle>
 <Meta
   name="description"
   content="A provider element for Content Security Policy nonce support in Base UI Lit components."
@@ -36,18 +38,14 @@ const { nonce, disableStyleElements } = getCSPContext(element);
 
 Custom element: `<csp-provider>`
 
-| Attribute | Type | Default | Description |
-| --- | --- | --- | --- |
-| `nonce` | `string` | `''` | CSP nonce for inline styles. |
+| Attribute                | Type      | Default | Description                                 |
+| ------------------------ | --------- | ------- | ------------------------------------------- |
+| `nonce`                  | `string`  | `''`    | CSP nonce for inline styles.                |
 | `disable-style-elements` | `boolean` | `false` | Whether to disable `<style>` tag injection. |
 
 ### `getCSPContext(element: Element): CSPContextValue`
 
 Returns `{ nonce, disableStyleElements }` from the nearest `<csp-provider>` ancestor.
-
-## Status
-
-The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
 
 export const metadata = {
   keywords: ['Lit CSPProvider', 'CSP', 'Content Security Policy', 'Base UI Lit'],

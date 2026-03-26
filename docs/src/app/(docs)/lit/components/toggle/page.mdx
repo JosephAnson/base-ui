@@ -1,7 +1,10 @@
 # Toggle
 
-<Subtitle>A pressable toggle primitive.</Subtitle>
-<Meta name="description" content="A pressable toggle primitive." />
+<Subtitle>A two-state button that can be on or off.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit toggle component that displays a two-state button that can be on or off."
+/>
 
 import { DemoToggleHero } from './demos/hero';
 
@@ -9,14 +12,32 @@ import { DemoToggleHero } from './demos/hero';
 
 ## Anatomy
 
+Import the custom element and use it as a single part:
+
 ```html title="Anatomy"
 <toggle-root>Bold</toggle-root>
 ```
 
-## Status
+## API reference
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### ToggleRootElement
+
+Custom element: `<toggle-root>`
+
+| Attribute         | Type      | Default      | Description                                        |
+| ----------------- | --------- | ------------ | -------------------------------------------------- |
+| `pressed`         | `boolean` | uncontrolled | Controlled pressed state.                          |
+| `default-pressed` | `boolean` | `false`      | Initial pressed state in uncontrolled mode.        |
+| `disabled`        | `boolean` | `false`      | Whether the toggle should ignore user interaction. |
+| `value`           | `string`  | `undefined`  | Identifier used inside a toggle group.             |
 
 export const metadata = {
-  keywords: ['Lit Toggle', 'Toggle', 'Base UI Lit', 'Pressed state'],
+  keywords: [
+    'Lit Toggle',
+    'Toggle Button Component',
+    'Two State Button',
+    'Pressed State Button',
+    'Accessible Toggle',
+    'Base UI Lit',
+  ],
 };

@@ -1,8 +1,14 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import './index.ts';
-import '../toggle/index.ts';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import './index';
+import '../toggle/index';
+import type {
+  ToggleGroupRoot,
+  ToggleGroupRootChangeEventDetails,
+  ToggleGroupRootProps,
+  ToggleGroupRootState,
+} from './index';
 
 describe('ToggleGroupRootElement', () => {
   const containers = new Set<HTMLDivElement>();
@@ -33,27 +39,27 @@ describe('ToggleGroupRootElement', () => {
   }
 
   function click(element: Element) {
-    element.dispatchEvent(
-      new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }),
-    );
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
   }
 
   function keydown(element: Element, key: string) {
-    element.dispatchEvent(
-      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key }),
-    );
+    element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key }));
   }
 
   function keyup(element: Element, key: string) {
-    element.dispatchEvent(
-      new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key }),
-    );
+    element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key }));
   }
+
+  it('exposes namespace aliases for props, state, and change event details', () => {
+    expectTypeOf<ToggleGroupRootProps>().toEqualTypeOf<ToggleGroupRoot.Props>();
+    expectTypeOf<ToggleGroupRootState>().toEqualTypeOf<ToggleGroupRoot.State>();
+    expectTypeOf<ToggleGroupRootChangeEventDetails>().toEqualTypeOf<ToggleGroupRoot.ChangeEventDetails>();
+  });
 
   // ── Rendering ──────────────────────────────────────────────────────────
 
   it('renders a group with role and data attributes', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root>
         <toggle-root value="a">A</toggle-root>
         <toggle-root value="b">B</toggle-root>
@@ -61,7 +67,7 @@ describe('ToggleGroupRootElement', () => {
     `);
     await flush();
 
-    const group = container.querySelector('[role="group"]');
+    const group = view.querySelector('[role="group"]');
     expect(group).not.toBeNull();
     expect(group).toHaveAttribute('data-orientation', 'horizontal');
     expect(group).not.toHaveAttribute('data-disabled');
@@ -69,31 +75,31 @@ describe('ToggleGroupRootElement', () => {
   });
 
   it('sets data-disabled when disabled', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root disabled>
         <toggle-root value="a">A</toggle-root>
       </toggle-group-root>
     `);
     await flush();
 
-    expect(container.querySelector('toggle-group-root')).toHaveAttribute('data-disabled');
+    expect(view.querySelector('toggle-group-root')).toHaveAttribute('data-disabled');
   });
 
   it('sets data-multiple when multiple mode', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root multiple>
         <toggle-root value="a">A</toggle-root>
       </toggle-group-root>
     `);
     await flush();
 
-    expect(container.querySelector('toggle-group-root')).toHaveAttribute('data-multiple');
+    expect(view.querySelector('toggle-group-root')).toHaveAttribute('data-multiple');
   });
 
   // ── Single selection (default) ─────────────────────────────────────────
 
   it('toggles items in single-select mode', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root>
         <toggle-root value="a" data-testid="a">A</toggle-root>
         <toggle-root value="b" data-testid="b">B</toggle-root>
@@ -101,8 +107,8 @@ describe('ToggleGroupRootElement', () => {
     `);
     await flush();
 
-    const a = container.querySelector('[data-testid="a"]') as HTMLElement;
-    const b = container.querySelector('[data-testid="b"]') as HTMLElement;
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
+    const b = view.querySelector('[data-testid="b"]') as HTMLElement;
 
     // Press A
     click(a);
@@ -125,7 +131,7 @@ describe('ToggleGroupRootElement', () => {
   // ── Multiple selection ─────────────────────────────────────────────────
 
   it('allows multiple items to be pressed simultaneously', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root multiple>
         <toggle-root value="a" data-testid="a">A</toggle-root>
         <toggle-root value="b" data-testid="b">B</toggle-root>
@@ -134,9 +140,9 @@ describe('ToggleGroupRootElement', () => {
     `);
     await flush();
 
-    const a = container.querySelector('[data-testid="a"]') as HTMLElement;
-    const b = container.querySelector('[data-testid="b"]') as HTMLElement;
-    const c = container.querySelector('[data-testid="c"]') as HTMLElement;
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
+    const b = view.querySelector('[data-testid="b"]') as HTMLElement;
+    const c = view.querySelector('[data-testid="c"]') as HTMLElement;
 
     click(a);
     click(b);
@@ -156,7 +162,7 @@ describe('ToggleGroupRootElement', () => {
   // ── Default value (uncontrolled) ───────────────────────────────────────
 
   it('initializes with defaultValue', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root .defaultValue=${['b']}>
         <toggle-root value="a" data-testid="a">A</toggle-root>
         <toggle-root value="b" data-testid="b">B</toggle-root>
@@ -164,15 +170,15 @@ describe('ToggleGroupRootElement', () => {
     `);
     await flush();
 
-    expect(container.querySelector('[data-testid="a"]')).toHaveAttribute('aria-pressed', 'false');
-    expect(container.querySelector('[data-testid="b"]')).toHaveAttribute('aria-pressed', 'true');
+    expect(view.querySelector('[data-testid="a"]')).toHaveAttribute('aria-pressed', 'false');
+    expect(view.querySelector('[data-testid="b"]')).toHaveAttribute('aria-pressed', 'true');
   });
 
   // ── Controlled value ──────────────────────────────────────────────────
 
   it('respects controlled value', async () => {
     const onChange = vi.fn();
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root .value=${['a']} .onValueChange=${onChange}>
         <toggle-root value="a" data-testid="a">A</toggle-root>
         <toggle-root value="b" data-testid="b">B</toggle-root>
@@ -180,8 +186,8 @@ describe('ToggleGroupRootElement', () => {
     `);
     await flush();
 
-    const a = container.querySelector('[data-testid="a"]') as HTMLElement;
-    const b = container.querySelector('[data-testid="b"]') as HTMLElement;
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
+    const b = view.querySelector('[data-testid="b"]') as HTMLElement;
 
     expect(a).toHaveAttribute('aria-pressed', 'true');
     expect(b).toHaveAttribute('aria-pressed', 'false');
@@ -190,7 +196,10 @@ describe('ToggleGroupRootElement', () => {
     click(b);
     await flush();
 
-    expect(onChange).toHaveBeenCalledWith(['b'], expect.any(Event));
+    expect(onChange).toHaveBeenCalledWith(
+      ['b'],
+      expect.objectContaining({ reason: 'none', event: expect.any(Event) }),
+    );
     // Still controlled by the prop
     expect(a).toHaveAttribute('aria-pressed', 'true');
     expect(b).toHaveAttribute('aria-pressed', 'false');
@@ -200,7 +209,7 @@ describe('ToggleGroupRootElement', () => {
 
   it('fires onValueChange with correct values', async () => {
     const onChange = vi.fn();
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root multiple .onValueChange=${onChange}>
         <toggle-root value="x" data-testid="x">X</toggle-root>
         <toggle-root value="y" data-testid="y">Y</toggle-root>
@@ -208,31 +217,61 @@ describe('ToggleGroupRootElement', () => {
     `);
     await flush();
 
-    click(container.querySelector('[data-testid="x"]') as HTMLElement);
+    click(view.querySelector('[data-testid="x"]') as HTMLElement);
     await flush();
-    expect(onChange).toHaveBeenCalledWith(['x'], expect.any(Event));
+    expect(onChange).toHaveBeenCalledWith(
+      ['x'],
+      expect.objectContaining({ reason: 'none', event: expect.any(Event) }),
+    );
 
-    click(container.querySelector('[data-testid="y"]') as HTMLElement);
+    click(view.querySelector('[data-testid="y"]') as HTMLElement);
     await flush();
-    expect(onChange).toHaveBeenCalledWith(['x', 'y'], expect.any(Event));
+    expect(onChange).toHaveBeenCalledWith(
+      ['x', 'y'],
+      expect.objectContaining({ reason: 'none', event: expect.any(Event) }),
+    );
 
     // Deselect x
-    click(container.querySelector('[data-testid="x"]') as HTMLElement);
+    click(view.querySelector('[data-testid="x"]') as HTMLElement);
     await flush();
-    expect(onChange).toHaveBeenCalledWith(['y'], expect.any(Event));
+    expect(onChange).toHaveBeenCalledWith(
+      ['y'],
+      expect.objectContaining({ reason: 'none', event: expect.any(Event) }),
+    );
+  });
+
+  it('does not change internal value when onValueChange cancels the update', async () => {
+    const onChange = vi.fn((_: string[], details: ToggleGroupRootChangeEventDetails) => {
+      details.cancel();
+    });
+    const view = render(html`
+      <toggle-group-root .onValueChange=${onChange}>
+        <toggle-root value="a" data-testid="a">A</toggle-root>
+        <toggle-root value="b" data-testid="b">B</toggle-root>
+      </toggle-group-root>
+    `);
+    await flush();
+
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
+
+    click(a);
+    await flush();
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(a).toHaveAttribute('aria-pressed', 'false');
   });
 
   // ── Disabled ──────────────────────────────────────────────────────────
 
   it('prevents toggle interactions when group is disabled', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root disabled>
         <toggle-root value="a" data-testid="a">A</toggle-root>
       </toggle-group-root>
     `);
     await flush();
 
-    const a = container.querySelector('[data-testid="a"]') as HTMLElement;
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
     expect(a).toHaveAttribute('data-disabled');
 
     click(a);
@@ -243,7 +282,7 @@ describe('ToggleGroupRootElement', () => {
   // ── Keyboard navigation ───────────────────────────────────────────────
 
   it('navigates between items with arrow keys (horizontal)', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root>
         <toggle-root value="a" data-testid="a">A</toggle-root>
         <toggle-root value="b" data-testid="b">B</toggle-root>
@@ -252,9 +291,9 @@ describe('ToggleGroupRootElement', () => {
     `);
     await flush();
 
-    const a = container.querySelector('[data-testid="a"]') as HTMLElement;
-    const b = container.querySelector('[data-testid="b"]') as HTMLElement;
-    const c = container.querySelector('[data-testid="c"]') as HTMLElement;
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
+    const b = view.querySelector('[data-testid="b"]') as HTMLElement;
+    const c = view.querySelector('[data-testid="c"]') as HTMLElement;
 
     a.focus();
     keydown(a, 'ArrowRight');
@@ -272,7 +311,7 @@ describe('ToggleGroupRootElement', () => {
   });
 
   it('navigates with arrow keys (vertical)', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root .orientation=${'vertical'}>
         <toggle-root value="a" data-testid="a">A</toggle-root>
         <toggle-root value="b" data-testid="b">B</toggle-root>
@@ -280,8 +319,8 @@ describe('ToggleGroupRootElement', () => {
     `);
     await flush();
 
-    const a = container.querySelector('[data-testid="a"]') as HTMLElement;
-    const b = container.querySelector('[data-testid="b"]') as HTMLElement;
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
+    const b = view.querySelector('[data-testid="b"]') as HTMLElement;
 
     a.focus();
     keydown(a, 'ArrowDown');
@@ -296,7 +335,7 @@ describe('ToggleGroupRootElement', () => {
   // ── Roving tabindex ───────────────────────────────────────────────────
 
   it('manages roving tabindex across items', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root>
         <toggle-root value="a" data-testid="a">A</toggle-root>
         <toggle-root value="b" data-testid="b">B</toggle-root>
@@ -305,9 +344,9 @@ describe('ToggleGroupRootElement', () => {
     `);
     await flush();
 
-    const a = container.querySelector('[data-testid="a"]') as HTMLElement;
-    const b = container.querySelector('[data-testid="b"]') as HTMLElement;
-    const c = container.querySelector('[data-testid="c"]') as HTMLElement;
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
+    const b = view.querySelector('[data-testid="b"]') as HTMLElement;
+    const c = view.querySelector('[data-testid="c"]') as HTMLElement;
 
     // First item should be tabbable by default
     expect(a.tabIndex).toBe(0);
@@ -327,7 +366,7 @@ describe('ToggleGroupRootElement', () => {
   // ── Toggle pressed via keyboard ───────────────────────────────────────
 
   it('toggles items with Enter and Space keys', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root>
         <toggle-root value="a" data-testid="a">A</toggle-root>
         <toggle-root value="b" data-testid="b">B</toggle-root>
@@ -335,7 +374,7 @@ describe('ToggleGroupRootElement', () => {
     `);
     await flush();
 
-    const a = container.querySelector('[data-testid="a"]') as HTMLElement;
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
     a.focus();
 
     // Enter toggles
@@ -353,7 +392,7 @@ describe('ToggleGroupRootElement', () => {
   // ── Home/End keys ─────────────────────────────────────────────────────
 
   it('navigates to first/last items with Home/End keys', async () => {
-    const container = render(html`
+    const view = render(html`
       <toggle-group-root>
         <toggle-root value="a" data-testid="a">A</toggle-root>
         <toggle-root value="b" data-testid="b">B</toggle-root>
@@ -362,8 +401,8 @@ describe('ToggleGroupRootElement', () => {
     `);
     await flush();
 
-    const a = container.querySelector('[data-testid="a"]') as HTMLElement;
-    const c = container.querySelector('[data-testid="c"]') as HTMLElement;
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
+    const c = view.querySelector('[data-testid="c"]') as HTMLElement;
 
     a.focus();
     keydown(a, 'End');

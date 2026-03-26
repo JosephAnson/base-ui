@@ -64,6 +64,20 @@ export function formatNumber(
 }
 
 /**
+ * Formats a number while preserving as much precision as possible.
+ */
+export function formatNumberMaxPrecision(
+  value: number | null,
+  locale?: Intl.LocalesArgument,
+  options?: Intl.NumberFormatOptions,
+): string {
+  return formatNumber(value, locale, {
+    ...options,
+    maximumFractionDigits: 20,
+  });
+}
+
+/**
  * Formats a progress/meter value. When no custom format is provided,
  * formats as a percentage (value/100). Otherwise uses the custom format directly.
  */

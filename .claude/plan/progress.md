@@ -1,15 +1,21 @@
 # Parity Verification Progress
 
-Reset to the starting state. Follow the workflow and component order in `.claude/plan/README.md`.
+Restarted under the strict parity workflow in `.claude/plan/README.md`.
+
+Rules for every target:
+- Do not move to the next component until the current one passes the full workflow.
+- Every meaningful React test case must be ported, adapted for Lit, or explicitly marked not applicable.
+- Browser blackbox validation against the React docs page is required before a component is marked complete.
+- Earlier target-level passes are provisional only and do not count as verified progress.
 
 ## Tier 0: Foundation
-- [ ] `utils` (#1)
-- [ ] `types` (#2)
-- [ ] `direction-provider` (#3)
-- [ ] `labelable-provider` (#4)
+- [x] `utils` (#1)
+- [x] `types` (#2)
+- [x] `direction-provider` (#3)
+- [x] `labelable-provider` (#4)
 
 ## Tier 1: Simple Standalone
-- [ ] `separator` (#5)
+- [x] `separator` (#5)
 - [ ] `button` (#6)
 - [ ] `toggle` (#7)
 - [ ] `toggle-group` (#8)
@@ -69,5 +75,5 @@ Reset to the starting state. Follow the workflow and component order in `.claude
 - [ ] `unstable-use-media-query` (#52)
 
 ## Summary
-- Status: not started
-- Verified entries: 0 / 52
+- Status: restarted from beginning under strict validation gate
+- Verified entries: 5 / 52

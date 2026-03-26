@@ -1,9 +1,14 @@
 # Toggle Group
 
-<Subtitle>A group of toggle buttons for selecting one or more options.</Subtitle>
-<Meta name="description" content="A group of toggle buttons for selecting one or more options." />
+<Subtitle>Provides shared state to a series of toggle buttons.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit toggle group component that provides shared state to a series of toggle buttons."
+/>
 
 ## Anatomy
+
+Import the custom element and compose it with `toggle-root` items:
 
 ```html title="Anatomy"
 <toggle-group-root>
@@ -13,10 +18,40 @@
 </toggle-group-root>
 ```
 
-## Status
+## Examples
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### Multiple
+
+Add the `multiple` attribute to allow pressing more than one toggle at a time.
+
+```html title="Multiple selection"
+<toggle-group-root multiple>
+  <toggle-root value="bold">Bold</toggle-root>
+  <toggle-root value="italic">Italic</toggle-root>
+  <toggle-root value="underline">Underline</toggle-root>
+</toggle-group-root>
+```
+
+## API reference
+
+### ToggleGroupRootElement
+
+Custom element: `<toggle-group-root>`
+
+| Attribute     | Type                         | Default        | Description                                               |
+| ------------- | ---------------------------- | -------------- | --------------------------------------------------------- |
+| `disabled`    | `boolean`                    | `false`        | Whether the toggle group should ignore user interaction.  |
+| `multiple`    | `boolean`                    | `false`        | Whether more than one toggle can be pressed at a time.    |
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | The orientation used for keyboard navigation.             |
+| `loop-focus`  | `boolean`                    | `true`         | Whether focus wraps from the last item back to the first. |
 
 export const metadata = {
-  keywords: ['Lit Toggle Group', 'Toggle Group', 'Base UI Lit', 'Toggle buttons'],
+  keywords: [
+    'Lit Toggle Group',
+    'Toggle Button Group',
+    'Segmented Control',
+    'Multi Select Toggle Buttons',
+    'Accessible Toggle Group',
+    'Base UI Lit',
+  ],
 };

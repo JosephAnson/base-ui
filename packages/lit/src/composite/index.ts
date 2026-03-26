@@ -1,4 +1,4 @@
-import type { TextDirection } from '../direction-provider/index.ts';
+import type { TextDirection } from '../direction-provider';
 
 // ─── Key Constants ────────────────────────────────────────────────────────────
 
@@ -27,15 +27,15 @@ export interface CompositeNavigationOptions {
   /** The keyboard event. */
   event: KeyboardEvent;
   /** Orientation of the list. */
-  orientation?: CompositeOrientation;
+  orientation?: CompositeOrientation | undefined;
   /** Text direction for RTL-aware arrow key swapping. */
-  direction?: TextDirection;
+  direction?: TextDirection | undefined;
   /** Whether to loop focus when reaching list boundaries. */
-  loop?: boolean;
+  loop?: boolean | undefined;
   /** Indices (or predicate) for disabled items to skip. */
-  disabledIndices?: DisabledIndices;
+  disabledIndices?: DisabledIndices | undefined;
   /** Whether Home/End keys are enabled. */
-  enableHomeAndEndKeys?: boolean;
+  enableHomeAndEndKeys?: boolean | undefined;
 }
 
 export interface CompositeGridOptions extends CompositeNavigationOptions {
@@ -87,10 +87,10 @@ export function findNonDisabledIndex(
     disabledIndices,
     amount = 1,
   }: {
-    startingIndex?: number;
-    decrement?: boolean;
-    disabledIndices?: DisabledIndices;
-    amount?: number;
+    startingIndex?: number | undefined;
+    decrement?: boolean | undefined;
+    disabledIndices?: DisabledIndices | undefined;
+    amount?: number | undefined;
   } = {},
 ): number {
   let index = startingIndex;
@@ -168,22 +168,19 @@ export function navigateList(options: CompositeNavigationOptions): number {
   const horizontalForward = isRtl ? ARROW_LEFT : ARROW_RIGHT;
   const horizontalBackward = isRtl ? ARROW_RIGHT : ARROW_LEFT;
 
-  const forwardKey =
-    orientation === 'vertical' ? ARROW_DOWN : horizontalForward;
-  const backwardKey =
-    orientation === 'vertical' ? ARROW_UP : horizontalBackward;
+  let forwardKeys: string[];
+  let backwardKeys: string[];
 
-  const forwardKeys = orientation === 'vertical'
-    ? [ARROW_DOWN]
-    : orientation === 'horizontal'
-      ? [horizontalForward]
-      : [ARROW_DOWN, horizontalForward];
-
-  const backwardKeys = orientation === 'vertical'
-    ? [ARROW_UP]
-    : orientation === 'horizontal'
-      ? [horizontalBackward]
-      : [ARROW_UP, horizontalBackward];
+  if (orientation === 'vertical') {
+    forwardKeys = [ARROW_DOWN];
+    backwardKeys = [ARROW_UP];
+  } else if (orientation === 'horizontal') {
+    forwardKeys = [horizontalForward];
+    backwardKeys = [horizontalBackward];
+  } else {
+    forwardKeys = [ARROW_DOWN, horizontalForward];
+    backwardKeys = [ARROW_UP, horizontalBackward];
+  }
 
   const allNavKeys = new Set([...forwardKeys, ...backwardKeys]);
   if (enableHomeAndEndKeys) {

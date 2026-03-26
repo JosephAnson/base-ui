@@ -1,4 +1,4 @@
-import type { BaseUIEvent, HTMLProps } from '../types/index.ts';
+import type { BaseUIEvent, HTMLProps } from '../types';
 
 type IntrinsicElementTagName = keyof HTMLElementTagNameMap | keyof SVGElementTagNameMap;
 type UppercaseAsciiLetter =
@@ -166,7 +166,11 @@ export function mergeProps<T extends ElementType>(
 ): PropsOf<T>;
 export function mergeProps<T extends ElementType>(a: InputProps<T>, b: InputProps<T>): PropsOf<T>;
 export function mergeProps(a: any, b: any, c?: any, d?: any, e?: any) {
-  let merged = { ...resolvePropsGetter(a, EMPTY_PROPS) };
+  if (!c && !d && !e && !a) {
+    return createInitialMergedProps(b);
+  }
+
+  let merged = createInitialMergedProps(a);
 
   if (b) {
     merged = mergeOne(merged, b);
@@ -202,10 +206,16 @@ export function mergePropsN<T extends ElementType>(props: InputProps<T>[]): Prop
     return EMPTY_PROPS as PropsOf<T>;
   }
   if (props.length === 1) {
-    return resolvePropsGetter(props[0] as InputProps<any>, EMPTY_PROPS) as PropsOf<T>;
+    const firstProps = props[0];
+
+    if (isPropsGetter(firstProps)) {
+      return resolvePropsGetter(firstProps, EMPTY_PROPS) as PropsOf<T>;
+    }
+
+    return copyPropsWithWrappedEventHandlers(firstProps) as PropsOf<T>;
   }
 
-  let merged = { ...resolvePropsGetter(props[0] as InputProps<any>, EMPTY_PROPS) };
+  let merged = createInitialMergedProps(props[0]);
 
   for (let index = 1; index < props.length; index += 1) {
     merged = mergeOne(merged, props[index] as InputProps<any>);
@@ -220,6 +230,26 @@ function mergeOne(merged: Record<string, any>, inputProps: InputProps<any>) {
   }
 
   return mutablyMergeInto(merged, inputProps);
+}
+
+function createInitialMergedProps<T extends ElementType>(inputProps: InputProps<T>) {
+  if (isPropsGetter(inputProps)) {
+    return { ...resolvePropsGetter(inputProps, EMPTY_PROPS) };
+  }
+
+  return copyPropsWithWrappedEventHandlers(inputProps);
+}
+
+function copyPropsWithWrappedEventHandlers(inputProps: Record<string, any> | undefined) {
+  const copiedProps = { ...inputProps };
+
+  for (const propName in copiedProps) {
+    if (isEventHandler(propName, copiedProps[propName])) {
+      copiedProps[propName] = wrapEventHandler(copiedProps[propName]);
+    }
+  }
+
+  return copiedProps;
 }
 
 function mutablyMergeInto(
@@ -354,7 +384,7 @@ function mergeEventHandlers(ourHandler: Function | undefined, theirHandler: Func
     return ourHandler;
   }
   if (!ourHandler) {
-    return theirHandler;
+    return wrapEventHandler(theirHandler);
   }
 
   return function mergedEventHandler(this: unknown, event: unknown) {
@@ -375,6 +405,20 @@ function mergeEventHandlers(ourHandler: Function | undefined, theirHandler: Func
     const result = theirHandler.call(this, event);
     ourHandler.call(this, event);
     return result;
+  };
+}
+
+function wrapEventHandler(handler: Function | undefined) {
+  if (!handler) {
+    return handler;
+  }
+
+  return function wrappedEventHandler(this: unknown, event: unknown) {
+    if (isPreventableEvent(event)) {
+      makeEventPreventable(event as BaseUIEvent<Event>);
+    }
+
+    return handler.call(this, event);
   };
 }
 

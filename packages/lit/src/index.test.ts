@@ -89,6 +89,7 @@ import {
   type CollapsiblePanelProps as RootCollapsiblePanelProps,
   type CollapsiblePanelState as RootCollapsiblePanelState,
   type CollapsibleRootChangeEventDetails as RootCollapsibleRootChangeEventDetails,
+  type CollapsibleRootChangeEventReason as RootCollapsibleRootChangeEventReason,
   type CollapsibleRootProps as RootCollapsibleRootProps,
   type CollapsibleRootState as RootCollapsibleRootState,
   type CollapsibleTriggerProps as RootCollapsibleTriggerProps,
@@ -107,6 +108,7 @@ import {
   type BaseUIChangeEventDetails as RootBaseUIChangeEventDetails,
   type BaseUIEvent as RootBaseUIEvent,
   type BaseUIGenericEventDetails as RootBaseUIGenericEventDetails,
+  type ButtonRootProps as RootButtonRootProps,
   type ButtonRootState as RootButtonRootState,
   type ComponentRenderFn as RootComponentRenderFn,
   Field as rootField,
@@ -157,10 +159,15 @@ import {
   type NumberFieldDecrementState as RootNumberFieldDecrementState,
   type NumberFieldScrubAreaState as RootNumberFieldScrubAreaState,
   type NumberFieldScrubAreaCursorState as RootNumberFieldScrubAreaCursorState,
+  type MeterIndicatorProps as RootMeterIndicatorProps,
   type MeterIndicatorState as RootMeterIndicatorState,
+  type MeterLabelProps as RootMeterLabelProps,
   type MeterLabelState as RootMeterLabelState,
+  type MeterRootProps as RootMeterRootProps,
   type MeterRootState as RootMeterRootState,
+  type MeterTrackProps as RootMeterTrackProps,
   type MeterTrackState as RootMeterTrackState,
+  type MeterValueProps as RootMeterValueProps,
   type MeterValueState as RootMeterValueState,
   Popover as rootPopover,
   PreviewCard as rootPreviewCard,
@@ -178,11 +185,16 @@ import {
   type RadioIndicatorState as RootRadioIndicatorState,
   type RadioRootProps as RootRadioRootProps,
   type RadioRootState as RootRadioRootState,
+  type ProgressIndicatorProps as RootProgressIndicatorProps,
   type ProgressIndicatorState as RootProgressIndicatorState,
+  type ProgressLabelProps as RootProgressLabelProps,
   type ProgressLabelState as RootProgressLabelState,
+  type ProgressRootProps as RootProgressRootProps,
   type ProgressRootState as RootProgressRootState,
   type ProgressStatus as RootProgressStatus,
+  type ProgressTrackProps as RootProgressTrackProps,
   type ProgressTrackState as RootProgressTrackState,
+  type ProgressValueProps as RootProgressValueProps,
   type ProgressValueState as RootProgressValueState,
   ScrollAreaRootElement as rootScrollAreaRootElement,
   type ScrollAreaRootState as RootScrollAreaRootState,
@@ -205,6 +217,7 @@ import {
   type SelectChangeEventReason as RootSelectChangeEventReason,
   type SelectChangeEventDetails as RootSelectChangeEventDetails,
   SeparatorRootElement as rootSeparatorRootElement,
+  type SeparatorRootProps as RootSeparatorRootProps,
   type SeparatorRootState as RootSeparatorRootState,
   SliderRootElement as rootSliderRootElement,
   type SliderRootState as RootSliderRootState,
@@ -220,6 +233,8 @@ import {
   type SliderCommitEventDetails as RootSliderCommitEventDetails,
   type SliderOrientation as RootSliderOrientation,
   Switch as rootSwitch,
+  type SwitchRootChangeEventDetails as RootSwitchRootChangeEventDetails,
+  type SwitchRootChangeEventReason as RootSwitchRootChangeEventReason,
   type SwitchRootProps as RootSwitchRootProps,
   type SwitchRootState as RootSwitchRootState,
   type SwitchThumbProps as RootSwitchThumbProps,
@@ -241,6 +256,8 @@ import {
   type ToastCloseState as RootToastCloseState,
   type ToastActionState as RootToastActionState,
   ToggleRootElement as rootToggleRootElement,
+  type ToggleRootChangeEventDetails as RootToggleRootChangeEventDetails,
+  type ToggleRootProps as RootToggleRootProps,
   type ToggleRootState as RootToggleRootState,
   ToolbarRootElement as rootToolbarRootElement,
   type ToolbarRootState as RootToolbarRootState,
@@ -250,10 +267,16 @@ import {
   type ToolbarInputState as RootToolbarInputState,
   type ToolbarSeparatorState as RootToolbarSeparatorState,
   ToggleGroupRootElement as rootToggleGroupRootElement,
+  type ToggleGroupRootChangeEventDetails as RootToggleGroupRootChangeEventDetails,
+  type ToggleGroupRootProps as RootToggleGroupRootProps,
   type ToggleGroupRootState as RootToggleGroupRootState,
+  Avatar as rootAvatar,
   AvatarRootElement as rootAvatarRootElement,
+  type AvatarRootProps as RootAvatarRootProps,
   type AvatarRootState as RootAvatarRootState,
+  type AvatarImageProps as RootAvatarImageProps,
   type AvatarImageState as RootAvatarImageState,
+  type AvatarFallbackProps as RootAvatarFallbackProps,
   type AvatarFallbackState as RootAvatarFallbackState,
   type ImageLoadingStatus as RootImageLoadingStatus,
   mergeClassNames as rootMergeClassNames,
@@ -263,6 +286,8 @@ import {
   // New shared utilities & providers
   getDirection as rootGetDirection,
   DirectionProviderElement as rootDirectionProviderElement,
+  type DirectionProviderProps as RootDirectionProviderProps,
+  type DirectionProviderState as RootDirectionProviderState,
   type TextDirection as RootTextDirection,
   navigateList as rootNavigateList,
   navigateGrid as rootNavigateGrid,
@@ -275,14 +300,19 @@ import {
   CSPProviderElement as rootCSPProviderElement,
   getCSPContext as rootGetCSPContext,
   type CSPContextValue as RootCSPContextValue,
+  type CSPProviderProps as RootCSPProviderProps,
+  type CSPProviderState as RootCSPProviderState,
   LabelableProviderElement as rootLabelableProviderElement,
   getLabelableContext as rootGetLabelableContext,
   focusElementWithVisible as rootFocusElementWithVisible,
   LocalizationProviderElement as rootLocalizationProviderElement,
   getLocalizationContext as rootGetLocalizationContext,
+  type LocalizationContext as RootLocalizationContext,
+  type LocalizationProviderProps as RootLocalizationProviderProps,
   TemporalAdapterProviderElement as rootTemporalAdapterProviderElement,
   getTemporalAdapter as rootGetTemporalAdapter,
   applyButtonBehavior as rootApplyButtonBehavior,
+  type ButtonBehaviorOptions as RootButtonBehaviorOptions,
   syncButtonAttributes as rootSyncButtonAttributes,
   removeButtonBehavior as rootRemoveButtonBehavior,
 } from '@base-ui/lit';
@@ -330,12 +360,17 @@ import { ToastProviderElement as subpathToastProviderElement } from '@base-ui/li
 import { ToggleRootElement as subpathToggleRootElement } from '@base-ui/lit/toggle';
 import { ToolbarRootElement as subpathToolbarRootElement } from '@base-ui/lit/toolbar';
 import { ToggleGroupRootElement as subpathToggleGroupRootElement } from '@base-ui/lit/toggle-group';
-import { AvatarRootElement as subpathAvatarRootElement } from '@base-ui/lit/avatar';
+import {
+  Avatar as subpathAvatar,
+  AvatarRootElement as subpathAvatarRootElement,
+} from '@base-ui/lit/avatar';
 import { useRender as subpathUseRender } from '@base-ui/lit/use-render';
 // New shared utilities & providers — subpath imports
 import {
   getDirection as subpathGetDirection,
   DirectionProviderElement as subpathDirectionProviderElement,
+  type DirectionProviderProps as SubpathDirectionProviderProps,
+  type DirectionProviderState as SubpathDirectionProviderState,
 } from '@base-ui/lit/direction-provider';
 import {
   navigateList as subpathNavigateList,
@@ -345,6 +380,9 @@ import {
 import {
   CSPProviderElement as subpathCSPProviderElement,
   getCSPContext as subpathGetCSPContext,
+  type CSPProviderProps as SubpathCSPProviderProps,
+  type CSPProviderState as SubpathCSPProviderState,
+  type CSPContextValue as SubpathCSPContextValue,
 } from '@base-ui/lit/csp-provider';
 import {
   LabelableProviderElement as subpathLabelableProviderElement,
@@ -353,6 +391,8 @@ import {
 import {
   LocalizationProviderElement as subpathLocalizationProviderElement,
   getLocalizationContext as subpathGetLocalizationContext,
+  type LocalizationContext as SubpathLocalizationContext,
+  type LocalizationProviderProps as SubpathLocalizationProviderProps,
 } from '@base-ui/lit/localization-provider';
 import {
   TemporalAdapterProviderElement as subpathTemporalAdapterProviderElement,
@@ -360,6 +400,7 @@ import {
 } from '@base-ui/lit/temporal-adapter-provider';
 import {
   applyButtonBehavior as subpathApplyButtonBehavior,
+  type ButtonBehaviorOptions as SubpathButtonBehaviorOptions,
   syncButtonAttributes as subpathSyncButtonAttributes,
   removeButtonBehavior as subpathRemoveButtonBehavior,
 } from '@base-ui/lit/use-button';
@@ -392,6 +433,7 @@ import type {
   AlertDialogViewportState as SubpathAlertDialogViewportState,
 } from '@base-ui/lit/alert-dialog';
 import type {
+  ButtonRootProps as SubpathButtonRootProps,
   ButtonRootState as SubpathButtonRootState,
 } from '@base-ui/lit/button';
 import type {
@@ -424,6 +466,7 @@ import type {
   CollapsiblePanelProps as SubpathCollapsiblePanelProps,
   CollapsiblePanelState as SubpathCollapsiblePanelState,
   CollapsibleRootChangeEventDetails as SubpathCollapsibleRootChangeEventDetails,
+  CollapsibleRootChangeEventReason as SubpathCollapsibleRootChangeEventReason,
   CollapsibleRootProps as SubpathCollapsibleRootProps,
   CollapsibleRootState as SubpathCollapsibleRootState,
   CollapsibleTriggerProps as SubpathCollapsibleTriggerProps,
@@ -529,10 +572,15 @@ import type {
   NumberFieldScrubAreaCursorState as SubpathNumberFieldScrubAreaCursorState,
 } from '@base-ui/lit/number-field';
 import type {
+  MeterIndicatorProps as SubpathMeterIndicatorProps,
   MeterIndicatorState as SubpathMeterIndicatorState,
+  MeterLabelProps as SubpathMeterLabelProps,
   MeterLabelState as SubpathMeterLabelState,
+  MeterRootProps as SubpathMeterRootProps,
   MeterRootState as SubpathMeterRootState,
+  MeterTrackProps as SubpathMeterTrackProps,
   MeterTrackState as SubpathMeterTrackState,
+  MeterValueProps as SubpathMeterValueProps,
   MeterValueState as SubpathMeterValueState,
 } from '@base-ui/lit/meter';
 import type {
@@ -542,11 +590,16 @@ import type {
   PopoverViewportProps as SubpathPopoverViewportProps,
 } from '@base-ui/lit/popover';
 import type {
+  ProgressIndicatorProps as SubpathProgressIndicatorProps,
   ProgressIndicatorState as SubpathProgressIndicatorState,
+  ProgressLabelProps as SubpathProgressLabelProps,
   ProgressLabelState as SubpathProgressLabelState,
+  ProgressRootProps as SubpathProgressRootProps,
   ProgressRootState as SubpathProgressRootState,
   ProgressStatus as SubpathProgressStatus,
+  ProgressTrackProps as SubpathProgressTrackProps,
   ProgressTrackState as SubpathProgressTrackState,
+  ProgressValueProps as SubpathProgressValueProps,
   ProgressValueState as SubpathProgressValueState,
 } from '@base-ui/lit/progress';
 import type {
@@ -583,6 +636,7 @@ import type {
   SelectChangeEventDetails as SubpathSelectChangeEventDetails,
 } from '@base-ui/lit/select';
 import type {
+  SeparatorRootProps as SubpathSeparatorRootProps,
   SeparatorRootState as SubpathSeparatorRootState,
 } from '@base-ui/lit/separator';
 import type {
@@ -600,6 +654,8 @@ import type {
   SliderOrientation as SubpathSliderOrientation,
 } from '@base-ui/lit/slider';
 import type {
+  SwitchRootChangeEventDetails as SubpathSwitchRootChangeEventDetails,
+  SwitchRootChangeEventReason as SubpathSwitchRootChangeEventReason,
   SwitchRootProps as SubpathSwitchRootProps,
   SwitchRootState as SubpathSwitchRootState,
   SwitchThumbProps as SubpathSwitchThumbProps,
@@ -623,6 +679,8 @@ import type {
   ToastActionState as SubpathToastActionState,
 } from '@base-ui/lit/toast';
 import type {
+  ToggleRootChangeEventDetails as SubpathToggleRootChangeEventDetails,
+  ToggleRootProps as SubpathToggleRootProps,
   ToggleRootState as SubpathToggleRootState,
 } from '@base-ui/lit/toggle';
 import type {
@@ -634,6 +692,8 @@ import type {
   ToolbarSeparatorState as SubpathToolbarSeparatorState,
 } from '@base-ui/lit/toolbar';
 import type {
+  ToggleGroupRootChangeEventDetails as SubpathToggleGroupRootChangeEventDetails,
+  ToggleGroupRootProps as SubpathToggleGroupRootProps,
   ToggleGroupRootState as SubpathToggleGroupRootState,
 } from '@base-ui/lit/toggle-group';
 import type {
@@ -643,13 +703,27 @@ import type {
   AutocompleteChangeEventDetails as SubpathAutocompleteChangeEventDetails,
 } from '@base-ui/lit/autocomplete';
 import type {
+  AvatarFallbackProps as SubpathAvatarFallbackProps,
   AvatarRootState as SubpathAvatarRootState,
+  AvatarImageProps as SubpathAvatarImageProps,
   AvatarImageState as SubpathAvatarImageState,
+  AvatarRootProps as SubpathAvatarRootProps,
   AvatarFallbackState as SubpathAvatarFallbackState,
   ImageLoadingStatus as SubpathImageLoadingStatus,
 } from '@base-ui/lit/avatar';
 
 describe('@base-ui/lit', () => {
+  it('does not re-export internal utils from the package root', async () => {
+    const module = await import('@base-ui/lit');
+
+    expect('BaseHTMLElement' in module).toBe(false);
+    expect('ensureId' in module).toBe(false);
+    expect('getFormatter' in module).toBe(false);
+    expect('formatNumber' in module).toBe(false);
+    expect('formatNumberValue' in module).toBe(false);
+    expect('valueToPercent' in module).toBe(false);
+  });
+
   it('re-exports merge-props from the package root', async () => {
     const module = await import('@base-ui/lit');
 
@@ -925,6 +999,8 @@ describe('@base-ui/lit', () => {
   it('re-exports avatar from the package root', async () => {
     const module = await import('@base-ui/lit');
 
+    expect(module.Avatar).toBe(subpathAvatar);
+    expect(rootAvatar).toBe(subpathAvatar);
     expect(module.AvatarRootElement).toBe(subpathAvatarRootElement);
     expect(rootAvatarRootElement).toBe(subpathAvatarRootElement);
   });
@@ -943,47 +1019,40 @@ describe('@base-ui/lit', () => {
     expectTypeOf<RootBaseUIGenericEventDetails<'keyboard', { active: boolean }>>().toEqualTypeOf<
       TypesBaseUIGenericEventDetails<'keyboard', { active: boolean }>
     >();
+    expectTypeOf<RootDirectionProviderProps>().toEqualTypeOf<SubpathDirectionProviderProps>();
+    expectTypeOf<RootDirectionProviderState>().toEqualTypeOf<SubpathDirectionProviderState>();
+    expectTypeOf<RootTextDirection>().toEqualTypeOf<RootDirectionProviderProps['direction']>();
+    expectTypeOf<RootCSPContextValue>().toEqualTypeOf<SubpathCSPContextValue>();
+    expectTypeOf<RootCSPProviderProps>().toEqualTypeOf<SubpathCSPProviderProps>();
+    expectTypeOf<RootCSPProviderState>().toEqualTypeOf<SubpathCSPProviderState>();
+    expectTypeOf<RootLocalizationContext>().toEqualTypeOf<SubpathLocalizationContext>();
+    expectTypeOf<RootLocalizationProviderProps>().toEqualTypeOf<SubpathLocalizationProviderProps>();
     expectTypeOf<RootAlertDialogRootProps>().toEqualTypeOf<SubpathAlertDialogRootProps>();
     expectTypeOf<RootAlertDialogRootState>().toEqualTypeOf<SubpathAlertDialogRootState>();
-    expectTypeOf<RootAlertDialogRootChangeEventDetails>().toEqualTypeOf<
-      SubpathAlertDialogRootChangeEventDetails
-    >();
+    expectTypeOf<RootAlertDialogRootChangeEventDetails>().toEqualTypeOf<SubpathAlertDialogRootChangeEventDetails>();
     expectTypeOf<RootAlertDialogTriggerProps>().toEqualTypeOf<SubpathAlertDialogTriggerProps>();
-    expectTypeOf<RootAlertDialogTriggerState>().toEqualTypeOf<
-      SubpathAlertDialogTriggerState
-    >();
+    expectTypeOf<RootAlertDialogTriggerState>().toEqualTypeOf<SubpathAlertDialogTriggerState>();
     expectTypeOf<RootAlertDialogPortalProps>().toEqualTypeOf<SubpathAlertDialogPortalProps>();
     expectTypeOf<RootAlertDialogPortalState>().toEqualTypeOf<SubpathAlertDialogPortalState>();
     expectTypeOf<RootAlertDialogPopupProps>().toEqualTypeOf<SubpathAlertDialogPopupProps>();
     expectTypeOf<RootAlertDialogPopupState>().toEqualTypeOf<SubpathAlertDialogPopupState>();
-    expectTypeOf<RootAlertDialogBackdropProps>().toEqualTypeOf<
-      SubpathAlertDialogBackdropProps
-    >();
-    expectTypeOf<RootAlertDialogBackdropState>().toEqualTypeOf<
-      SubpathAlertDialogBackdropState
-    >();
+    expectTypeOf<RootAlertDialogBackdropProps>().toEqualTypeOf<SubpathAlertDialogBackdropProps>();
+    expectTypeOf<RootAlertDialogBackdropState>().toEqualTypeOf<SubpathAlertDialogBackdropState>();
     expectTypeOf<RootAlertDialogTitleProps>().toEqualTypeOf<SubpathAlertDialogTitleProps>();
     expectTypeOf<RootAlertDialogTitleState>().toEqualTypeOf<SubpathAlertDialogTitleState>();
-    expectTypeOf<RootAlertDialogDescriptionProps>().toEqualTypeOf<
-      SubpathAlertDialogDescriptionProps
-    >();
-    expectTypeOf<RootAlertDialogDescriptionState>().toEqualTypeOf<
-      SubpathAlertDialogDescriptionState
-    >();
+    expectTypeOf<RootAlertDialogDescriptionProps>().toEqualTypeOf<SubpathAlertDialogDescriptionProps>();
+    expectTypeOf<RootAlertDialogDescriptionState>().toEqualTypeOf<SubpathAlertDialogDescriptionState>();
     expectTypeOf<RootAlertDialogCloseProps>().toEqualTypeOf<SubpathAlertDialogCloseProps>();
     expectTypeOf<RootAlertDialogCloseState>().toEqualTypeOf<SubpathAlertDialogCloseState>();
-    expectTypeOf<RootAlertDialogViewportProps>().toEqualTypeOf<
-      SubpathAlertDialogViewportProps
-    >();
-    expectTypeOf<RootAlertDialogViewportState>().toEqualTypeOf<
-      SubpathAlertDialogViewportState
-    >();
+    expectTypeOf<RootAlertDialogViewportProps>().toEqualTypeOf<SubpathAlertDialogViewportProps>();
+    expectTypeOf<RootAlertDialogViewportState>().toEqualTypeOf<SubpathAlertDialogViewportState>();
     // Autocomplete (custom element)
     expectTypeOf<RootAutocompleteRootState>().toEqualTypeOf<SubpathAutocompleteRootState>();
     expectTypeOf<RootAutocompleteFilterMode>().toEqualTypeOf<SubpathAutocompleteFilterMode>();
     expectTypeOf<RootAutocompleteChangeEventReason>().toEqualTypeOf<SubpathAutocompleteChangeEventReason>();
     expectTypeOf<RootAutocompleteChangeEventDetails>().toEqualTypeOf<SubpathAutocompleteChangeEventDetails>();
     // Button (custom element)
+    expectTypeOf<RootButtonRootProps>().toEqualTypeOf<SubpathButtonRootProps>();
     expectTypeOf<RootButtonRootState>().toEqualTypeOf<SubpathButtonRootState>();
     // Calendar (custom element)
     expectTypeOf<RootCalendarRootState>().toEqualTypeOf<SubpathCalendarRootState>();
@@ -1009,6 +1078,7 @@ describe('@base-ui/lit', () => {
     expectTypeOf<RootCollapsibleRootProps>().toEqualTypeOf<SubpathCollapsibleRootProps>();
     expectTypeOf<RootCollapsibleRootState>().toEqualTypeOf<SubpathCollapsibleRootState>();
     expectTypeOf<RootCollapsibleRootChangeEventDetails>().toEqualTypeOf<SubpathCollapsibleRootChangeEventDetails>();
+    expectTypeOf<RootCollapsibleRootChangeEventReason>().toEqualTypeOf<SubpathCollapsibleRootChangeEventReason>();
     expectTypeOf<RootCollapsibleTriggerProps>().toEqualTypeOf<SubpathCollapsibleTriggerProps>();
     expectTypeOf<RootCollapsibleTriggerState>().toEqualTypeOf<SubpathCollapsibleTriggerState>();
     expectTypeOf<RootCollapsiblePanelProps>().toEqualTypeOf<SubpathCollapsiblePanelProps>();
@@ -1118,6 +1188,7 @@ describe('@base-ui/lit', () => {
     expectTypeOf<RootSelectChangeEventReason>().toEqualTypeOf<SubpathSelectChangeEventReason>();
     expectTypeOf<RootSelectChangeEventDetails>().toEqualTypeOf<SubpathSelectChangeEventDetails>();
     // Separator (custom element)
+    expectTypeOf<RootSeparatorRootProps>().toEqualTypeOf<SubpathSeparatorRootProps>();
     expectTypeOf<RootSeparatorRootState>().toEqualTypeOf<SubpathSeparatorRootState>();
     // Slider (custom element)
     expectTypeOf<RootSliderRootState>().toEqualTypeOf<SubpathSliderRootState>();
@@ -1134,6 +1205,8 @@ describe('@base-ui/lit', () => {
     expectTypeOf<RootSliderOrientation>().toEqualTypeOf<SubpathSliderOrientation>();
     expectTypeOf<RootSwitchRootProps>().toEqualTypeOf<SubpathSwitchRootProps>();
     expectTypeOf<RootSwitchRootState>().toEqualTypeOf<SubpathSwitchRootState>();
+    expectTypeOf<RootSwitchRootChangeEventReason>().toEqualTypeOf<SubpathSwitchRootChangeEventReason>();
+    expectTypeOf<RootSwitchRootChangeEventDetails>().toEqualTypeOf<SubpathSwitchRootChangeEventDetails>();
     expectTypeOf<RootSwitchThumbProps>().toEqualTypeOf<SubpathSwitchThumbProps>();
     expectTypeOf<RootSwitchThumbState>().toEqualTypeOf<SubpathSwitchThumbState>();
     // Tabs (custom element)
@@ -1152,9 +1225,13 @@ describe('@base-ui/lit', () => {
     expectTypeOf<RootToastCloseState>().toEqualTypeOf<SubpathToastCloseState>();
     expectTypeOf<RootToastActionState>().toEqualTypeOf<SubpathToastActionState>();
     // Toggle (custom element)
+    expectTypeOf<RootToggleRootProps>().toEqualTypeOf<SubpathToggleRootProps>();
     expectTypeOf<RootToggleRootState>().toEqualTypeOf<SubpathToggleRootState>();
+    expectTypeOf<RootToggleRootChangeEventDetails>().toEqualTypeOf<SubpathToggleRootChangeEventDetails>();
     // ToggleGroup (custom element)
+    expectTypeOf<RootToggleGroupRootProps>().toEqualTypeOf<SubpathToggleGroupRootProps>();
     expectTypeOf<RootToggleGroupRootState>().toEqualTypeOf<SubpathToggleGroupRootState>();
+    expectTypeOf<RootToggleGroupRootChangeEventDetails>().toEqualTypeOf<SubpathToggleGroupRootChangeEventDetails>();
     // Toolbar (custom element)
     expectTypeOf<RootToolbarRootState>().toEqualTypeOf<SubpathToolbarRootState>();
     expectTypeOf<RootToolbarGroupState>().toEqualTypeOf<SubpathToolbarGroupState>();
@@ -1163,21 +1240,31 @@ describe('@base-ui/lit', () => {
     expectTypeOf<RootToolbarInputState>().toEqualTypeOf<SubpathToolbarInputState>();
     expectTypeOf<RootToolbarSeparatorState>().toEqualTypeOf<SubpathToolbarSeparatorState>();
     // Meter (custom element)
+    expectTypeOf<RootMeterRootProps>().toEqualTypeOf<SubpathMeterRootProps>();
     expectTypeOf<RootMeterRootState>().toEqualTypeOf<SubpathMeterRootState>();
+    expectTypeOf<RootMeterTrackProps>().toEqualTypeOf<SubpathMeterTrackProps>();
     expectTypeOf<RootMeterTrackState>().toEqualTypeOf<SubpathMeterTrackState>();
+    expectTypeOf<RootMeterIndicatorProps>().toEqualTypeOf<SubpathMeterIndicatorProps>();
     expectTypeOf<RootMeterIndicatorState>().toEqualTypeOf<SubpathMeterIndicatorState>();
+    expectTypeOf<RootMeterLabelProps>().toEqualTypeOf<SubpathMeterLabelProps>();
     expectTypeOf<RootMeterLabelState>().toEqualTypeOf<SubpathMeterLabelState>();
+    expectTypeOf<RootMeterValueProps>().toEqualTypeOf<SubpathMeterValueProps>();
     expectTypeOf<RootMeterValueState>().toEqualTypeOf<SubpathMeterValueState>();
     expectTypeOf<RootPopoverRootProps>().toEqualTypeOf<SubpathPopoverRootProps>();
     expectTypeOf<RootPopoverRootChangeEventDetails>().toEqualTypeOf<SubpathPopoverRootChangeEventDetails>();
     expectTypeOf<RootPopoverTriggerProps>().toEqualTypeOf<SubpathPopoverTriggerProps>();
     expectTypeOf<RootPopoverViewportProps>().toEqualTypeOf<SubpathPopoverViewportProps>();
     // Progress (custom element)
+    expectTypeOf<RootProgressRootProps>().toEqualTypeOf<SubpathProgressRootProps>();
     expectTypeOf<RootProgressRootState>().toEqualTypeOf<SubpathProgressRootState>();
     expectTypeOf<RootProgressStatus>().toEqualTypeOf<SubpathProgressStatus>();
+    expectTypeOf<RootProgressTrackProps>().toEqualTypeOf<SubpathProgressTrackProps>();
     expectTypeOf<RootProgressTrackState>().toEqualTypeOf<SubpathProgressTrackState>();
+    expectTypeOf<RootProgressIndicatorProps>().toEqualTypeOf<SubpathProgressIndicatorProps>();
     expectTypeOf<RootProgressIndicatorState>().toEqualTypeOf<SubpathProgressIndicatorState>();
+    expectTypeOf<RootProgressLabelProps>().toEqualTypeOf<SubpathProgressLabelProps>();
     expectTypeOf<RootProgressLabelState>().toEqualTypeOf<SubpathProgressLabelState>();
+    expectTypeOf<RootProgressValueProps>().toEqualTypeOf<SubpathProgressValueProps>();
     expectTypeOf<RootProgressValueState>().toEqualTypeOf<SubpathProgressValueState>();
     expectTypeOf<RootRadioRootProps>().toEqualTypeOf<SubpathRadioRootProps>();
     expectTypeOf<RootRadioRootState>().toEqualTypeOf<SubpathRadioRootState>();
@@ -1187,8 +1274,11 @@ describe('@base-ui/lit', () => {
     expectTypeOf<RootRadioGroupState>().toEqualTypeOf<SubpathRadioGroupState>();
     expectTypeOf<RootRadioGroupChangeEventDetails>().toEqualTypeOf<SubpathRadioGroupChangeEventDetails>();
     // Avatar (custom element)
+    expectTypeOf<RootAvatarRootProps>().toEqualTypeOf<SubpathAvatarRootProps>();
     expectTypeOf<RootAvatarRootState>().toEqualTypeOf<SubpathAvatarRootState>();
+    expectTypeOf<RootAvatarImageProps>().toEqualTypeOf<SubpathAvatarImageProps>();
     expectTypeOf<RootAvatarImageState>().toEqualTypeOf<SubpathAvatarImageState>();
+    expectTypeOf<RootAvatarFallbackProps>().toEqualTypeOf<SubpathAvatarFallbackProps>();
     expectTypeOf<RootAvatarFallbackState>().toEqualTypeOf<SubpathAvatarFallbackState>();
     expectTypeOf<RootImageLoadingStatus>().toEqualTypeOf<SubpathImageLoadingStatus>();
   });
@@ -1254,6 +1344,7 @@ describe('@base-ui/lit', () => {
   it('re-exports use-button from the package root', async () => {
     const module = await import('@base-ui/lit');
 
+    expectTypeOf<RootButtonBehaviorOptions>().toEqualTypeOf<SubpathButtonBehaviorOptions>();
     expect(module.applyButtonBehavior).toBe(subpathApplyButtonBehavior);
     expect(rootApplyButtonBehavior).toBe(subpathApplyButtonBehavior);
     expect(module.syncButtonAttributes).toBe(subpathSyncButtonAttributes);

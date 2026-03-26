@@ -1,9 +1,9 @@
 # useButton
 
-<Subtitle>Shared button behavior utilities for any element.</Subtitle>
+<Subtitle>Applies Base UI button semantics to native and non-native elements.</Subtitle>
 <Meta
   name="description"
-  content="Utilities for applying button keyboard, mouse, and ARIA behavior to arbitrary elements in Base UI Lit."
+  content="A Base UI Lit utility for applying button keyboard, mouse, and ARIA behavior to native and non-native elements."
 />
 
 ## Usage
@@ -14,6 +14,7 @@ import { applyButtonBehavior } from '@base-ui/lit/use-button';
 const cleanup = applyButtonBehavior(element, {
   disabled: false,
   focusableWhenDisabled: false,
+  composite: false,
   onAction: (event) => console.log('activated'),
 });
 
@@ -26,7 +27,11 @@ For updating attributes without reapplying listeners:
 ```ts title="Syncing attributes"
 import { syncButtonAttributes } from '@base-ui/lit/use-button';
 
-syncButtonAttributes(element, { disabled: true, focusableWhenDisabled: true });
+syncButtonAttributes(element, {
+  disabled: true,
+  focusableWhenDisabled: true,
+  composite: true,
+});
 ```
 
 ## API
@@ -35,13 +40,15 @@ syncButtonAttributes(element, { disabled: true, focusableWhenDisabled: true });
 
 Applies button-like keyboard, mouse, and ARIA behavior to any element. Returns a cleanup function.
 
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `disabled` | `boolean` | `false` | Whether the button is disabled. |
-| `focusableWhenDisabled` | `boolean` | `false` | Whether to keep focus when disabled. |
-| `tabIndex` | `number` | `0` | Tab index override. |
-| `native` | `boolean` | auto-detected | Whether the element is a native `<button>`. |
-| `onAction` | `(event) => void` | — | Callback on activation. |
+| Option                  | Type              | Default       | Description                                                                                     |
+| ----------------------- | ----------------- | ------------- | ----------------------------------------------------------------------------------------------- |
+| `disabled`              | `boolean`         | `false`       | Whether the button is disabled.                                                                 |
+| `focusableWhenDisabled` | `boolean`         | `false`       | Whether to keep focus when disabled.                                                            |
+| `tabIndex`              | `number`          | `0`           | Tab index override.                                                                             |
+| `native`                | `boolean`         | auto-detected | Whether the element is a native `<button>`.                                                     |
+| `composite`             | `boolean`         | `false`       | Whether Space should activate on keydown because roving focus is handled by a composite widget. |
+| `role`                  | `string`          | `'button'`    | ARIA role applied to non-native elements.                                                       |
+| `onAction`              | `(event) => void` | —             | Callback on activation.                                                                         |
 
 ### `syncButtonAttributes(element, options): void`
 
@@ -50,10 +57,6 @@ Updates ARIA and DOM attributes for button behavior without reapplying listeners
 ### `removeButtonBehavior(element): void`
 
 Removes all button-related attributes from an element.
-
-## Status
-
-The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
 
 export const metadata = {
   keywords: ['Lit useButton', 'Button behavior', 'Base UI Lit', 'Accessible button'],

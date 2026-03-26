@@ -1,7 +1,10 @@
 # Radio
 
-<Subtitle>Radio and radio group primitives for Lit templates.</Subtitle>
-<Meta name="description" content="Radio and radio group primitives for Lit templates." />
+<Subtitle>An individual radio control used inside a radio group.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit radio component used inside a radio group."
+/>
 
 import { DemoRadioHero } from './demos/hero';
 
@@ -9,16 +12,50 @@ import { DemoRadioHero } from './demos/hero';
 
 ## Anatomy
 
+Use `radio-root` together with [`radio-group`](/lit/components/radio-group):
+
 ```html title="Anatomy"
-<radio-root value="system">
-  <radio-indicator></radio-indicator>
-</radio-root>
+<radio-group>
+  <radio-root value="system">
+    <radio-indicator></radio-indicator>
+    System
+  </radio-root>
+</radio-group>
 ```
 
-## Status
+## API reference
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### RadioRootElement
+
+Custom element: `<radio-root>`
+
+| Property                  | Type      | Default | Description                                       |
+| ------------------------- | --------- | ------- | ------------------------------------------------- |
+| `.value`                  | `unknown` | —       | Value used to identify this radio inside a group. |
+| `disabled`                | `boolean` | `false` | Disables the radio.                               |
+| `read-only` / `.readOnly` | `boolean` | `false` | Prevents the radio from being selected.           |
+| `required`                | `boolean` | `false` | Marks the radio as required.                      |
+
+`radio-root` renders a hidden native `<input type="radio">` internally for form participation and label association.
+
+### RadioIndicatorElement
+
+Custom element: `<radio-indicator>`
+
+| Attribute / Property            | Type      | Default | Description                                              |
+| ------------------------------- | --------- | ------- | -------------------------------------------------------- |
+| `keep-mounted` / `.keepMounted` | `boolean` | `false` | Keeps the indicator mounted when the radio is unchecked. |
+
+## Data attributes
+
+`radio-root` and `radio-indicator` can receive:
+
+- `data-checked`
+- `data-unchecked`
+- `data-disabled`
+- `data-readonly`
+- `data-required`
 
 export const metadata = {
-  keywords: ['Lit Radio', 'Radio Group', 'Base UI Lit'],
+  keywords: ['Lit Radio', 'Radio', 'Radio Group', 'Form Controls', 'Base UI Lit'],
 };

@@ -1,10 +1,37 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import '../checkbox/index.ts';
-import '../fieldset/index.ts';
-import './index.ts';
-import type { FieldRootElement, FieldValidityState } from './index.ts';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import '../checkbox';
+import '../fieldset';
+import {
+  Field,
+  FieldControl,
+  FieldControlElement,
+  type FieldControlChangeEventDetails,
+  type FieldControlProps,
+  type FieldControlState,
+  FieldDescription,
+  type FieldDescriptionProps,
+  type FieldDescriptionState,
+  FieldError,
+  type FieldErrorProps,
+  type FieldErrorState,
+  FieldItem,
+  type FieldItemProps,
+  type FieldItemState,
+  FieldLabel,
+  type FieldLabelProps,
+  type FieldLabelState,
+  FieldRoot,
+  FieldRootElement,
+  type FieldRootActions,
+  type FieldRootProps,
+  type FieldRootState,
+  FieldValidity,
+  type FieldValidityProps,
+  type FieldValidityState,
+} from './index';
+import './index';
 
 describe('field', () => {
   const containers = new Set<HTMLDivElement>();
@@ -26,70 +53,120 @@ describe('field', () => {
     return container;
   }
 
-  async function waitForUpdate() {
-    for (let i = 0; i < 6; i++) {
-      await new Promise((r) => setTimeout(r, 0));
-    }
+  async function flushUpdates(count = 6) {
+    await Array.from({ length: count }).reduce(
+      (promise) =>
+        promise.then(
+          () =>
+            new Promise<void>((resolve) => {
+              setTimeout(resolve, 0);
+            }),
+        ),
+      Promise.resolve(),
+    );
   }
 
-  it('renders field-root as a custom element', async () => {
-    const container = render(html`<field-root></field-root>`);
-    await waitForUpdate();
+  it('exposes the field runtime export and namespace aliases', () => {
+    expect(Field.Root).toBe(FieldRootElement);
+    expect(Field.Label).toBeDefined();
+    expect(Field.Control).toBe(FieldControlElement);
+    expect(Field.Description).toBeDefined();
+    expect(Field.Error).toBeDefined();
+    expect(Field.Validity).toBeDefined();
+    expect(Field.Item).toBeDefined();
 
-    const root = container.querySelector('field-root') as FieldRootElement;
+    expectTypeOf<FieldRoot.Props>().toEqualTypeOf<FieldRootProps>();
+    expectTypeOf<FieldRoot.Actions>().toEqualTypeOf<FieldRootActions>();
+    expectTypeOf<FieldRoot.State>().toEqualTypeOf<FieldRootState>();
+    expectTypeOf<FieldLabel.Props>().toEqualTypeOf<FieldLabelProps>();
+    expectTypeOf<FieldLabel.State>().toEqualTypeOf<FieldLabelState>();
+    expectTypeOf<FieldDescription.Props>().toEqualTypeOf<FieldDescriptionProps>();
+    expectTypeOf<FieldDescription.State>().toEqualTypeOf<FieldDescriptionState>();
+    expectTypeOf<FieldError.Props>().toEqualTypeOf<FieldErrorProps>();
+    expectTypeOf<FieldError.State>().toEqualTypeOf<FieldErrorState>();
+    expectTypeOf<FieldControl.Props>().toEqualTypeOf<FieldControlProps>();
+    expectTypeOf<FieldControl.State>().toEqualTypeOf<FieldControlState>();
+    expectTypeOf<FieldControl.ChangeEventDetails>().toEqualTypeOf<FieldControlChangeEventDetails>();
+    expectTypeOf<FieldValidity.Props>().toEqualTypeOf<FieldValidityProps>();
+    expectTypeOf<FieldValidity.State>().toEqualTypeOf<FieldValidityState>();
+    expectTypeOf<FieldItem.Props>().toEqualTypeOf<FieldItemProps>();
+    expectTypeOf<FieldItem.State>().toEqualTypeOf<FieldItemState>();
+  });
+
+  it('renders field-root as a custom element', async () => {
+    const view = render(html`<field-root></field-root>`);
+    await flushUpdates();
+
+    const root = view.querySelector('field-root') as FieldRootElement;
     expect(root).toBeInTheDocument();
     expect(root).toHaveAttribute('data-base-ui-field-root');
   });
 
-  it('field-control creates an input inside itself', async () => {
-    const container = render(html`
+  it('field-control creates an input, applies defaultValue, and emits value changes', async () => {
+    const handleValueChange = vi.fn();
+    const view = render(html`
       <field-root>
-        <field-control></field-control>
+        <field-control
+          .defaultValue=${'initial'}
+          .onValueChange=${handleValueChange}
+        ></field-control>
       </field-root>
     `);
-    await waitForUpdate();
+    await flushUpdates();
 
-    const input = container.querySelector('input') as HTMLInputElement;
+    const input = view.querySelector('input') as HTMLInputElement;
     expect(input).toBeInTheDocument();
     expect(input.id).not.toBe('');
+    expect(input.value).toBe('initial');
+
+    input.value = 'updated';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushUpdates();
+
+    expect(handleValueChange).toHaveBeenCalledTimes(1);
+    expect(handleValueChange.mock.calls[0]?.[0]).toBe('updated');
+    expect(handleValueChange.mock.calls[0]?.[1]).toMatchObject({
+      reason: 'none',
+      trigger: input,
+    });
   });
 
   it('field-label focuses the control when clicked', async () => {
-    const container = render(html`
+    const view = render(html`
       <field-root>
         <field-control></field-control>
-        <field-label>Name</field-label>
+        <field-label>Label</field-label>
       </field-root>
     `);
-    await waitForUpdate();
+    await flushUpdates();
 
-    const label = container.querySelector('field-label') as HTMLElement;
-    const input = container.querySelector('input') as HTMLInputElement;
+    const label = view.querySelector('field-label') as HTMLElement;
+    const input = view.querySelector('input') as HTMLInputElement;
 
     label.click();
-    await waitForUpdate();
+    await flushUpdates();
 
     expect(input).toHaveFocus();
   });
 
-  it('field-description applies aria-describedby to the control', async () => {
-    const container = render(html`
+  it('field-description applies aria-describedby to the control automatically', async () => {
+    const view = render(html`
       <field-root>
         <field-control></field-control>
         <field-description>Visible on your profile</field-description>
       </field-root>
     `);
-    await waitForUpdate();
+    await flushUpdates();
 
-    const input = container.querySelector('input') as HTMLInputElement;
-    const description = container.querySelector('field-description') as HTMLElement;
+    const input = view.querySelector('input') as HTMLInputElement;
+    const description = view.querySelector('field-description') as HTMLElement;
 
     expect(description.id).not.toBe('');
     expect(input).toHaveAttribute('aria-describedby', description.id);
   });
 
   it('shows error content after submit validation and wires aria-describedby', async () => {
-    const container = render(html`
+    const view = render(html`
       <form>
         <field-root .validate=${() => 'Required'}>
           <field-control></field-control>
@@ -97,45 +174,130 @@ describe('field', () => {
         </field-root>
       </form>
     `);
-    await waitForUpdate();
+    await flushUpdates();
 
-    const form = container.querySelector('form') as HTMLFormElement;
+    const form = view.querySelector('form') as HTMLFormElement;
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    await waitForUpdate();
+    await flushUpdates();
 
-    const input = container.querySelector('input') as HTMLInputElement;
-    const error = container.querySelector('field-error') as HTMLElement;
+    const input = view.querySelector('input') as HTMLInputElement;
+    const error = view.querySelector('field-error') as HTMLElement;
 
     expect(error).not.toHaveAttribute('hidden');
     expect(error).toHaveTextContent('Required');
     expect(error.id).not.toBe('');
     expect(input).toHaveAttribute('aria-describedby', error.id);
+    expect(error).toHaveAttribute('data-invalid', '');
   });
 
   it('passes validity updates to the render callback', async () => {
     const handleValidity = vi.fn();
-    const container = render(html`
+    const view = render(html`
       <field-root .validationMode=${'onBlur'} .validate=${() => ['one', 'two']}>
         <field-control></field-control>
         <field-validity .renderValidity=${handleValidity}></field-validity>
       </field-root>
     `);
-    await waitForUpdate();
+    await flushUpdates();
 
-    const input = container.querySelector('input') as HTMLInputElement;
+    const input = view.querySelector('input') as HTMLInputElement;
     input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
     input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
-    await waitForUpdate();
+    await flushUpdates();
 
     expect(handleValidity).toHaveBeenCalled();
     const latestCall = handleValidity.mock.lastCall?.[0] as FieldValidityState;
-    expect(latestCall?.error).toBe('one');
-    expect(latestCall?.errors).toEqual(['one', 'two']);
+    expect(latestCall.error).toBe('one');
+    expect(latestCall.errors).toEqual(['one', 'two']);
     expect(latestCall).toHaveProperty('transitionStatus');
   });
 
+  it('applies touched, dirty, filled, and focused state hooks to field parts', async () => {
+    const view = render(html`
+      <field-root data-testid="root">
+        <field-control data-testid="control"></field-control>
+        <field-label data-testid="label">Name</field-label>
+        <field-description data-testid="description">Description</field-description>
+      </field-root>
+    `);
+    await flushUpdates();
+
+    const root = view.querySelector('[data-testid="root"]') as HTMLElement;
+    const control = view.querySelector('[data-testid="control"]') as HTMLElement;
+    const label = view.querySelector('[data-testid="label"]') as HTMLElement;
+    const description = view.querySelector('[data-testid="description"]') as HTMLElement;
+    const input = view.querySelector('input') as HTMLInputElement;
+
+    input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    await flushUpdates();
+
+    [root, control, label, description, input].forEach((element) => {
+      expect(element).toHaveAttribute('data-focused', '');
+    });
+
+    input.value = 'value';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushUpdates();
+
+    [root, control, label, description, input].forEach((element) => {
+      expect(element).toHaveAttribute('data-dirty', '');
+      expect(element).toHaveAttribute('data-filled', '');
+    });
+
+    input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    await flushUpdates();
+
+    [root, control, label, description, input].forEach((element) => {
+      expect(element).toHaveAttribute('data-touched', '');
+      expect(element).not.toHaveAttribute('data-focused');
+    });
+  });
+
+  it('supports controlled dirty and touched state props', async () => {
+    const view = render(html`
+      <field-root .dirty=${true} .touched=${true}>
+        <field-control data-testid="control"></field-control>
+        <field-label data-testid="label">Name</field-label>
+        <field-description data-testid="description">Description</field-description>
+      </field-root>
+    `);
+    await flushUpdates();
+
+    const elements = [
+      view.querySelector('field-root'),
+      view.querySelector('[data-testid="control"]'),
+      view.querySelector('[data-testid="label"]'),
+      view.querySelector('[data-testid="description"]'),
+    ];
+
+    elements.forEach((element) => {
+      expect(element).toHaveAttribute('data-dirty', '');
+      expect(element).toHaveAttribute('data-touched', '');
+    });
+  });
+
+  it('validates the field when actionsRef.validate is called', async () => {
+    const actionsRef: { current: FieldRootActions | null } = { current: null };
+    const view = render(html`
+      <field-root .actionsRef=${actionsRef} .validate=${() => 'Required'}>
+        <field-control .defaultValue=${''}></field-control>
+        <field-error data-testid="error"></field-error>
+      </field-root>
+    `);
+    await flushUpdates();
+
+    const error = view.querySelector('[data-testid="error"]') as HTMLElement;
+    expect(error).toHaveAttribute('hidden');
+
+    actionsRef.current?.validate();
+    await flushUpdates();
+
+    expect(error).not.toHaveAttribute('hidden');
+    expect(error).toHaveTextContent('Required');
+  });
+
   it('blocks interaction inside a disabled field-item', async () => {
-    const container = render(html`
+    const view = render(html`
       <field-root>
         <field-item disabled>
           <checkbox-root></checkbox-root>
@@ -143,31 +305,31 @@ describe('field', () => {
         <checkbox-root data-testid="allowed"></checkbox-root>
       </field-root>
     `);
-    await waitForUpdate();
+    await flushUpdates();
 
-    const blocked = container.querySelector('field-item checkbox-root') as HTMLElement;
-    const allowed = container.querySelector('[data-testid="allowed"]') as HTMLElement;
+    const blocked = view.querySelector('field-item checkbox-root') as HTMLElement;
+    const allowed = view.querySelector('[data-testid="allowed"]') as HTMLElement;
 
     blocked.click();
-    await waitForUpdate();
+    await flushUpdates();
     expect(blocked).toHaveAttribute('aria-checked', 'false');
 
     allowed.click();
-    await waitForUpdate();
+    await flushUpdates();
     expect(allowed).toHaveAttribute('aria-checked', 'true');
   });
 
   it('inherits disabled state from a surrounding fieldset', async () => {
-    const container = render(html`
+    const view = render(html`
       <fieldset-root .disabled=${true}>
         <field-root>
           <field-control></field-control>
         </field-root>
       </fieldset-root>
     `);
-    await waitForUpdate();
+    await flushUpdates();
 
-    const field = container.querySelector('field-root') as FieldRootElement;
+    const field = view.querySelector('field-root') as FieldRootElement;
     expect(field).toHaveAttribute('data-disabled');
   });
 });

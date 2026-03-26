@@ -1,9 +1,9 @@
 # Collapsible
 
-<Subtitle>A Lit collapsible panel controlled by a button.</Subtitle>
+<Subtitle>A collapsible panel controlled by a button.</Subtitle>
 <Meta
   name="description"
-  content="A Lit collapsible component that displays a panel controlled by a button."
+  content="A high-quality, unstyled Lit collapsible component that displays a panel controlled by a button."
 />
 
 import { DemoCollapsibleHero } from './demos/hero';
@@ -12,6 +12,8 @@ import { DemoCollapsibleHero } from './demos/hero';
 
 ## Anatomy
 
+Import the custom elements and assemble the parts:
+
 ```html title="Anatomy"
 <collapsible-root>
   <collapsible-trigger>Toggle section</collapsible-trigger>
@@ -19,10 +21,54 @@ import { DemoCollapsibleHero } from './demos/hero';
 </collapsible-root>
 ```
 
-## Status
+## Usage guidelines
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and the published package entrypoint.
+- Use `collapsible-trigger` as the interactive control for opening and closing the panel.
+- Use `keep-mounted` when the panel content needs to stay in the DOM while hidden.
+- Use `hidden-until-found` when browser find-in-page should reveal the panel automatically.
+
+## API reference
+
+### CollapsibleRootElement
+
+Custom element: `<collapsible-root>`
+
+| Attribute / Property | Type                      | Default | Description                                           |
+| -------------------- | ------------------------- | ------- | ----------------------------------------------------- |
+| `.open`              | `boolean \| undefined`    | —       | Controlled open state.                                |
+| `.defaultOpen`       | `boolean`                 | `false` | Initial open state when uncontrolled.                 |
+| `disabled`           | `boolean`                 | `false` | Whether the component should ignore user interaction. |
+| `.onOpenChange`      | `(open, details) => void` | —       | Called when the open state changes.                   |
+
+### CollapsibleTriggerElement
+
+Custom element: `<collapsible-trigger>`
+
+Interactive control that toggles the panel and manages `aria-expanded` / `aria-controls`.
+
+### CollapsiblePanelElement
+
+Custom element: `<collapsible-panel>`
+
+| Attribute / Property | Type      | Default | Description                                                        |
+| -------------------- | --------- | ------- | ------------------------------------------------------------------ |
+| `keep-mounted`       | `boolean` | `false` | Keeps the panel mounted while hidden.                              |
+| `hidden-until-found` | `boolean` | `false` | Uses `hidden="until-found"` so browser find-in-page can reveal it. |
+
+### Data attributes
+
+`<collapsible-root>`, `<collapsible-trigger>`, and `<collapsible-panel>` can receive:
+
+- `data-open`
+- `data-closed`
+- `data-disabled`
+- `data-starting-style`
+- `data-ending-style`
+
+`<collapsible-trigger>` also receives:
+
+- `data-panel-open`
 
 export const metadata = {
-  keywords: ['Lit Collapsible', 'Collapsible', 'Disclosure', 'Base UI Lit'],
+  keywords: ['Lit Collapsible', 'Collapsible', 'Disclosure', 'Expandable Panel', 'Base UI Lit'],
 };

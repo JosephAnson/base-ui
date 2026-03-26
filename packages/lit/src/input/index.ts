@@ -32,10 +32,14 @@ export interface InputState {
 export interface InputChangeEventDetails {
   event: Event;
   cancel(): void;
+  allowPropagation(): void;
   readonly isCanceled: boolean;
+  readonly isPropagationAllowed: boolean;
   reason: 'none';
   trigger: Element | undefined;
 }
+
+export type InputChangeEventReason = InputChangeEventDetails['reason'];
 
 // ─── InputRootElement ───────────────────────────────────────────────────────────
 
@@ -54,11 +58,9 @@ export class InputRootElement extends ReactiveElement {
   declare disabled: boolean;
 
   /** Callback fired when the value changes. Set via `.onValueChange=${fn}`. */
-  onValueChange:
-    | ((value: string, eventDetails: InputChangeEventDetails) => void)
-    | undefined;
+  onValueChange: ((value: string, eventDetails: InputChangeEventDetails) => void) | undefined;
 
-  private _state: InputState = {
+  private stateData: InputState = {
     disabled: false,
     touched: false,
     dirty: false,
@@ -67,20 +69,27 @@ export class InputRootElement extends ReactiveElement {
     focused: false,
   };
 
-  private _initialValue = '';
-  private _initialized = false;
-  private _controlledValue: string | number | readonly string[] | undefined;
-  private _inputEl: HTMLInputElement | HTMLTextAreaElement | null = null;
+  private initialValue = '';
+  private initialized = false;
+  private controlledValue: string | number | readonly string[] | undefined;
+  defaultValue: string | number | readonly string[] | undefined;
+  private inputElement: HTMLInputElement | HTMLTextAreaElement | null = null;
 
   /** Controlled value. Set via `.value=${val}`. */
   get value(): string | number | readonly string[] | undefined {
-    return this._controlledValue;
+    return this.controlledValue;
   }
 
   set value(val: string | number | readonly string[] | undefined) {
-    this._controlledValue = val;
-    if (this._inputEl && val !== undefined) {
-      this._inputEl.value = stringifyInputValue(val);
+    this.controlledValue = val;
+    if (this.inputElement && val !== undefined) {
+      const stringValue = stringifyInputValue(val);
+      this.inputElement.value = stringValue;
+      this.updateState({
+        dirty: stringValue !== this.initialValue,
+        filled: stringValue !== '',
+        valid: readValidityState(this.inputElement),
+      });
     }
   }
 
@@ -96,45 +105,47 @@ export class InputRootElement extends ReactiveElement {
   override connectedCallback() {
     super.connectedCallback();
     this.style.display = 'contents';
-    this._findInput();
+    this.findInput();
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    this._detachInput();
+    this.detachInput();
   }
 
   protected override updated() {
-    this._state = { ...this._state, disabled: this.disabled };
-    this._syncDataAttributes();
+    this.stateData = { ...this.stateData, disabled: this.disabled };
+    this.syncDataAttributes();
   }
 
   getState(): InputState {
-    return { ...this._state };
+    return { ...this.stateData };
   }
 
-  private _findInput() {
+  private findInput() {
     const el = this.querySelector('input, textarea') as
       | HTMLInputElement
       | HTMLTextAreaElement
       | null;
     if (el) {
-      this._attachInput(el);
+      this.attachInput(el);
     }
   }
 
-  private _attachInput(el: HTMLInputElement | HTMLTextAreaElement) {
-    this._inputEl = el;
+  private attachInput(el: HTMLInputElement | HTMLTextAreaElement) {
+    this.inputElement = el;
 
     // Apply controlled value if set before input was found
-    if (this._controlledValue !== undefined) {
-      el.value = stringifyInputValue(this._controlledValue);
+    if (this.controlledValue !== undefined) {
+      el.value = stringifyInputValue(this.controlledValue);
+    } else if (!this.initialized && this.defaultValue !== undefined) {
+      el.value = stringifyInputValue(this.defaultValue);
     }
 
-    if (!this._initialized) {
-      this._initialized = true;
-      this._initialValue = el.value;
-      this._state = {
+    if (!this.initialized) {
+      this.initialized = true;
+      this.initialValue = el.value;
+      this.stateData = {
         disabled: this.disabled,
         touched: false,
         dirty: false,
@@ -144,72 +155,76 @@ export class InputRootElement extends ReactiveElement {
       };
     }
 
-    el.addEventListener('input', this._handleInput);
-    el.addEventListener('focus', this._handleFocus);
-    el.addEventListener('blur', this._handleBlur);
-    this._syncDataAttributes();
+    el.addEventListener('input', this.handleInput);
+    el.addEventListener('focus', this.handleFocus);
+    el.addEventListener('blur', this.handleBlur);
+    this.syncDataAttributes();
   }
 
-  private _detachInput() {
-    if (this._inputEl) {
-      this._inputEl.removeEventListener('input', this._handleInput);
-      this._inputEl.removeEventListener('focus', this._handleFocus);
-      this._inputEl.removeEventListener('blur', this._handleBlur);
-      this._inputEl = null;
+  private detachInput() {
+    if (this.inputElement) {
+      this.inputElement.removeEventListener('input', this.handleInput);
+      this.inputElement.removeEventListener('focus', this.handleFocus);
+      this.inputElement.removeEventListener('blur', this.handleBlur);
+      this.inputElement = null;
     }
   }
 
-  private _handleInput = (event: Event) => {
+  private handleInput = (event: Event) => {
     const el = event.currentTarget as HTMLInputElement | HTMLTextAreaElement;
     const newValue = el.value;
 
-    this.onValueChange?.(
-      newValue,
-      createChangeEventDetails(event, el),
-    );
+    this.onValueChange?.(newValue, createChangeEventDetails(event, el));
 
     // Restore controlled value
-    if (this._controlledValue !== undefined) {
-      el.value = stringifyInputValue(this._controlledValue);
+    if (this.controlledValue !== undefined) {
+      el.value = stringifyInputValue(this.controlledValue);
     }
 
-    this._updateState({
-      dirty: (this._controlledValue !== undefined
-        ? stringifyInputValue(this._controlledValue)
-        : newValue) !== this._initialValue,
-      filled: (this._controlledValue !== undefined
-        ? stringifyInputValue(this._controlledValue)
-        : newValue) !== '',
+    this.updateState({
+      dirty:
+        (this.controlledValue !== undefined
+          ? stringifyInputValue(this.controlledValue)
+          : newValue) !== this.initialValue,
+      filled:
+        (this.controlledValue !== undefined
+          ? stringifyInputValue(this.controlledValue)
+          : newValue) !== '',
       valid: readValidityState(el),
     });
   };
 
-  private _handleFocus = () => {
-    this._updateState({ focused: true, valid: readValidityState(this._inputEl) });
+  private handleFocus = () => {
+    this.updateState({ focused: true, valid: readValidityState(this.inputElement) });
   };
 
-  private _handleBlur = () => {
-    this._updateState({
+  private handleBlur = () => {
+    this.updateState({
       focused: false,
       touched: true,
-      valid: readValidityState(this._inputEl),
+      valid: readValidityState(this.inputElement),
     });
   };
 
-  private _updateState(partial: Partial<InputState>) {
-    const next: InputState = { ...this._state, ...partial };
+  private updateState(partial: Partial<InputState>) {
+    const next: InputState = { ...this.stateData, ...partial };
 
-    if (isEqualInputState(this._state, next)) return;
+    if (isEqualInputState(this.stateData, next)) {
+      return;
+    }
 
-    this._state = next;
-    this._syncDataAttributes();
+    this.stateData = next;
+    this.syncDataAttributes();
   }
 
-  private _syncDataAttributes() {
-    const el = this._inputEl;
-    if (!el) return;
+  private syncDataAttributes() {
+    const el = this.inputElement;
+    if (!el) {
+      return;
+    }
 
-    const s = this._state;
+    const s = this.stateData;
+    el.disabled = s.disabled;
     el.toggleAttribute('data-disabled', s.disabled);
     el.toggleAttribute('data-touched', s.touched);
     el.toggleAttribute('data-dirty', s.dirty);
@@ -233,18 +248,27 @@ if (!customElements.get('input-root')) {
   customElements.define('input-root', InputRootElement);
 }
 
+export const Input = InputRootElement;
+
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
 function stringifyInputValue(value: string | number | readonly string[] | undefined): string {
-  if (value == null) return '';
-  if (Array.isArray(value)) return value.join(',');
+  if (value == null) {
+    return '';
+  }
+
+  if (Array.isArray(value)) {
+    return value.join(',');
+  }
+
   return String(value);
 }
 
-function readValidityState(
-  element: HTMLInputElement | HTMLTextAreaElement | null,
-): boolean | null {
-  if (!element) return null;
+function readValidityState(element: HTMLInputElement | HTMLTextAreaElement | null): boolean | null {
+  if (!element) {
+    return null;
+  }
+
   return typeof element.validity?.valid === 'boolean' ? element.validity.valid : null;
 }
 
@@ -264,14 +288,21 @@ function createChangeEventDetails(
   trigger: Element | undefined,
 ): InputChangeEventDetails {
   let isCanceled = false;
+  let isPropagationAllowed = false;
 
   return {
     cancel() {
       isCanceled = true;
     },
+    allowPropagation() {
+      isPropagationAllowed = true;
+    },
     event,
     get isCanceled() {
       return isCanceled;
+    },
+    get isPropagationAllowed() {
+      return isPropagationAllowed;
     },
     reason: 'none',
     trigger,
@@ -280,8 +311,32 @@ function createChangeEventDetails(
 
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
+export interface InputRootProps {
+  /**
+   * Whether the component should ignore user interaction.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * Callback fired when the `value` changes. Use when controlled.
+   */
+  onValueChange?: ((value: string, eventDetails: InputChangeEventDetails) => void) | undefined;
+  /**
+   * The default value of the input. Use when uncontrolled.
+   */
+  defaultValue?: string | number | readonly string[] | undefined;
+  /**
+   * The value of the input. Use when controlled.
+   */
+  value?: string | number | readonly string[] | undefined;
+}
+
+export type InputProps = InputRootProps;
+
 export namespace InputRoot {
+  export type Props = InputRootProps;
   export type State = InputState;
+  export type ChangeEventReason = InputChangeEventReason;
   export type ChangeEventDetails = InputChangeEventDetails;
 }
 

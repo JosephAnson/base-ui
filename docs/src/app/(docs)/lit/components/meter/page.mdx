@@ -1,7 +1,10 @@
 # Meter
 
-<Subtitle>A semantic meter for bounded values.</Subtitle>
-<Meta name="description" content="A semantic meter for bounded values." />
+<Subtitle>A graphical display of a numeric value within a range.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit meter component that provides a graphical display of a numeric value."
+/>
 
 import { DemoMeterHero } from './demos/hero';
 
@@ -9,20 +12,70 @@ import { DemoMeterHero } from './demos/hero';
 
 ## Anatomy
 
+Import the custom elements and assemble the parts:
+
 ```html title="Anatomy"
 <meter-root value="72">
+  <meter-label>Battery level</meter-label>
   <meter-track>
     <meter-indicator></meter-indicator>
   </meter-track>
   <meter-value></meter-value>
-  <meter-label></meter-label>
 </meter-root>
 ```
 
-## Status
+## Usage guidelines
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+- Use `<meter-label>` or an explicit `aria-labelledby` reference so assistive technology announces what the value represents.
+- Use `meter` for bounded measurements like capacity, storage, or rating. Use `progress` for task completion.
+
+## API reference
+
+### MeterRootElement
+
+Custom element: `<meter-root>`
+
+| Attribute / Property | Type                                | Default  | Description                                                                |
+| -------------------- | ----------------------------------- | -------- | -------------------------------------------------------------------------- |
+| `value`              | `number`                            | `0`      | The current value.                                                         |
+| `min`                | `number`                            | `0`      | The minimum value.                                                         |
+| `max`                | `number`                            | `100`    | The maximum value.                                                         |
+| `.format`            | `Intl.NumberFormatOptions`          | —        | Options used to format the displayed value.                                |
+| `.locale`            | `Intl.LocalesArgument`              | —        | Locale used when formatting the value.                                     |
+| `.getAriaValueText`  | `(formattedValue, value) => string` | —        | Returns a human-readable value for `aria-valuetext`.                       |
+| `aria-valuetext`     | `string`                            | computed | Explicit accessible value text. Overrides the computed text when provided. |
+
+### MeterTrackElement
+
+Custom element: `<meter-track>`
+
+Container for the visual indicator.
+
+### MeterIndicatorElement
+
+Custom element: `<meter-indicator>`
+
+Visualizes the current value as a percentage of the total range.
+
+### MeterLabelElement
+
+Custom element: `<meter-label>`
+
+Accessible label for the meter.
+
+### MeterValueElement
+
+Custom element: `<meter-value>`
+
+Displays the formatted value. You can customize the output with `.renderValue`.
 
 export const metadata = {
-  keywords: ['Lit Meter', 'Meter', 'Base UI Lit', 'Range indicator'],
+  keywords: [
+    'Lit Meter',
+    'Meter Component',
+    'Gauge',
+    'Level Indicator',
+    'Accessible Meter',
+    'Base UI Lit',
+  ],
 };

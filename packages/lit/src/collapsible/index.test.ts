@@ -1,8 +1,24 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import './index.ts';
-import type { CollapsibleRootElement, CollapsibleChangeEventDetails } from './index.ts';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import {
+  Collapsible,
+  CollapsiblePanelElement,
+  CollapsibleRootElement,
+  CollapsibleTriggerElement,
+  type CollapsibleChangeEventDetails,
+  type CollapsibleRoot,
+  type CollapsibleRootChangeEventDetails,
+  type CollapsibleRootChangeEventReason,
+  type CollapsibleRootProps,
+  type CollapsibleRootState,
+  type CollapsiblePanel,
+  type CollapsiblePanelProps,
+  type CollapsiblePanelState,
+  type CollapsibleTrigger,
+  type CollapsibleTriggerProps,
+  type CollapsibleTriggerState,
+} from './index';
 
 describe('collapsible', () => {
   const containers = new Set<HTMLDivElement>();
@@ -14,6 +30,7 @@ describe('collapsible', () => {
     });
     containers.clear();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   function render(result: ReturnType<typeof html>) {
@@ -25,29 +42,52 @@ describe('collapsible', () => {
   }
 
   async function waitForUpdate() {
-    for (let i = 0; i < 6; i++) {
-      await new Promise((r) => setTimeout(r, 0));
-    }
-    await new Promise<void>((r) => requestAnimationFrame(() => r()));
-    for (let i = 0; i < 6; i++) {
-      await new Promise((r) => setTimeout(r, 0));
-    }
+    await flushTimers(6);
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+    await flushTimers(6);
   }
 
-  function getRoot(container: HTMLElement) {
-    return container.querySelector('collapsible-root') as CollapsibleRootElement;
+  function flushTimers(count: number) {
+    return Array.from({ length: count }).reduce<Promise<void>>((promise) => {
+      return promise.then(
+        () =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, 0);
+          }),
+      );
+    }, Promise.resolve());
   }
 
-  function getTrigger(container: HTMLElement) {
-    return container.querySelector('collapsible-trigger') as HTMLElement;
+  function getRoot(view: HTMLElement) {
+    return view.querySelector('collapsible-root') as CollapsibleRootElement;
   }
 
-  function getPanel(container: HTMLElement) {
-    return container.querySelector('collapsible-panel') as HTMLElement;
+  function getTrigger(view: HTMLElement) {
+    return view.querySelector('collapsible-trigger') as HTMLElement;
   }
+
+  function getPanel(view: HTMLElement) {
+    return view.querySelector('collapsible-panel') as HTMLElement;
+  }
+
+  it('exposes runtime parts and namespace aliases', () => {
+    expect(Collapsible.Root).toBe(CollapsibleRootElement);
+    expect(Collapsible.Trigger).toBe(CollapsibleTriggerElement);
+    expect(Collapsible.Panel).toBe(CollapsiblePanelElement);
+    expectTypeOf<CollapsibleRootProps>().toEqualTypeOf<CollapsibleRoot.Props>();
+    expectTypeOf<CollapsibleRootState>().toEqualTypeOf<CollapsibleRoot.State>();
+    expectTypeOf<CollapsibleRootChangeEventReason>().toEqualTypeOf<CollapsibleRoot.ChangeEventReason>();
+    expectTypeOf<CollapsibleRootChangeEventDetails>().toEqualTypeOf<CollapsibleRoot.ChangeEventDetails>();
+    expectTypeOf<CollapsibleTriggerProps>().toEqualTypeOf<CollapsibleTrigger.Props>();
+    expectTypeOf<CollapsibleTriggerState>().toEqualTypeOf<CollapsibleTrigger.State>();
+    expectTypeOf<CollapsiblePanelProps>().toEqualTypeOf<CollapsiblePanel.Props>();
+    expectTypeOf<CollapsiblePanelState>().toEqualTypeOf<CollapsiblePanel.State>();
+  });
 
   it('renders collapsible-root as a custom element', async () => {
-    const container = render(html`
+    const view = render(html`
       <collapsible-root>
         <collapsible-trigger>Toggle</collapsible-trigger>
         <collapsible-panel>Content</collapsible-panel>
@@ -55,13 +95,13 @@ describe('collapsible', () => {
     `);
     await waitForUpdate();
 
-    const root = getRoot(container);
+    const root = getRoot(view);
     expect(root).toBeInTheDocument();
     expect(root).toHaveAttribute('data-base-ui-collapsible-root');
   });
 
   it('wires ARIA attributes and toggles open on trigger click', async () => {
-    const container = render(html`
+    const view = render(html`
       <collapsible-root>
         <collapsible-trigger>Toggle</collapsible-trigger>
         <collapsible-panel>Content</collapsible-panel>
@@ -69,15 +109,13 @@ describe('collapsible', () => {
     `);
     await waitForUpdate();
 
-    const trigger = getTrigger(container);
-    const panel = getPanel(container);
+    const trigger = getTrigger(view);
+    const panel = getPanel(view);
 
-    // Initially closed
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).not.toHaveAttribute('aria-controls');
     expect(panel).toHaveAttribute('hidden');
 
-    // Click to open
     trigger.click();
     await waitForUpdate();
 
@@ -87,7 +125,6 @@ describe('collapsible', () => {
     expect(panel).not.toHaveAttribute('hidden');
     expect(panel).toHaveAttribute('data-open');
 
-    // Click to close
     trigger.click();
     await waitForUpdate();
 
@@ -97,7 +134,7 @@ describe('collapsible', () => {
   });
 
   it('supports controlled open state', async () => {
-    const container = render(html``);
+    const view = render(html``);
 
     function rerender(open: boolean) {
       renderTemplate(
@@ -107,32 +144,34 @@ describe('collapsible', () => {
             <collapsible-panel>Content</collapsible-panel>
           </collapsible-root>
         `,
-        container,
+        view,
       );
     }
 
     rerender(false);
     await waitForUpdate();
 
-    expect(getTrigger(container)).toHaveAttribute('aria-expanded', 'false');
-    expect(getPanel(container)).toHaveAttribute('hidden');
+    expect(getTrigger(view)).toHaveAttribute('aria-expanded', 'false');
+    expect(getPanel(view)).toHaveAttribute('hidden');
 
     rerender(true);
     await waitForUpdate();
 
-    expect(getTrigger(container)).toHaveAttribute('aria-expanded', 'true');
-    expect(getPanel(container)).not.toHaveAttribute('hidden');
+    expect(getTrigger(view)).toHaveAttribute('aria-expanded', 'true');
+    expect(getPanel(view)).not.toHaveAttribute('hidden');
 
     rerender(false);
     await waitForUpdate();
 
-    expect(getTrigger(container)).toHaveAttribute('aria-expanded', 'false');
-    expect(getPanel(container)).toHaveAttribute('hidden');
+    expect(getTrigger(view)).toHaveAttribute('aria-expanded', 'false');
+    expect(getPanel(view)).toHaveAttribute('hidden');
   });
 
-  it('calls onOpenChange with event details', async () => {
-    const handleOpenChange = vi.fn();
-    const container = render(html`
+  it('calls onOpenChange with Base UI-style event details', async () => {
+    const handleOpenChange = vi.fn(
+      (_open: boolean, details: CollapsibleChangeEventDetails) => details,
+    );
+    const view = render(html`
       <collapsible-root .onOpenChange=${handleOpenChange}>
         <collapsible-trigger>Toggle</collapsible-trigger>
         <collapsible-panel>Content</collapsible-panel>
@@ -140,23 +179,25 @@ describe('collapsible', () => {
     `);
     await waitForUpdate();
 
-    getTrigger(container).click();
+    getTrigger(view).click();
     await waitForUpdate();
 
     expect(handleOpenChange).toHaveBeenCalledTimes(1);
     expect(handleOpenChange.mock.calls[0]?.[0]).toBe(true);
-    const details = handleOpenChange.mock.calls[0]?.[1] as CollapsibleChangeEventDetails;
+    const details = handleOpenChange.mock.results[0]?.value as CollapsibleChangeEventDetails;
     expect(details.reason).toBe('trigger-press');
     expect(details.event).toBeInstanceOf(MouseEvent);
+    expect(details.isCanceled).toBe(false);
+    expect(details.isPropagationAllowed).toBe(false);
+    expect(typeof details.cancel).toBe('function');
+    expect(typeof details.allowPropagation).toBe('function');
   });
 
   it('supports cancellation in onOpenChange', async () => {
-    const handleOpenChange = vi.fn(
-      (_open: boolean, details: CollapsibleChangeEventDetails) => {
-        details.cancel();
-      },
-    );
-    const container = render(html`
+    const handleOpenChange = vi.fn((_open: boolean, details: CollapsibleChangeEventDetails) => {
+      details.cancel();
+    });
+    const view = render(html`
       <collapsible-root .onOpenChange=${handleOpenChange}>
         <collapsible-trigger>Toggle</collapsible-trigger>
         <collapsible-panel>Content</collapsible-panel>
@@ -164,17 +205,16 @@ describe('collapsible', () => {
     `);
     await waitForUpdate();
 
-    getTrigger(container).click();
+    getTrigger(view).click();
     await waitForUpdate();
 
     expect(handleOpenChange).toHaveBeenCalledTimes(1);
-    // Open was cancelled - should remain closed
-    expect(getPanel(container)).toHaveAttribute('hidden');
-    expect(getTrigger(container)).toHaveAttribute('aria-expanded', 'false');
+    expect(getPanel(view)).toHaveAttribute('hidden');
+    expect(getTrigger(view)).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('applies disabled state and prevents toggle', async () => {
-    const container = render(html`
+    const view = render(html`
       <collapsible-root .defaultOpen=${true} .disabled=${true}>
         <collapsible-trigger>Toggle</collapsible-trigger>
         <collapsible-panel>Content</collapsible-panel>
@@ -182,26 +222,41 @@ describe('collapsible', () => {
     `);
     await waitForUpdate();
 
-    const root = getRoot(container);
-    const trigger = getTrigger(container);
-    const panel = getPanel(container);
+    const root = getRoot(view);
+    const trigger = getTrigger(view);
+    const panel = getPanel(view);
 
     expect(root).toHaveAttribute('data-disabled');
     expect(trigger).toHaveAttribute('data-disabled');
     expect(trigger).toHaveAttribute('aria-disabled', 'true');
     expect(panel).toHaveAttribute('data-disabled');
 
-    // Click should not toggle because disabled
     trigger.click();
     await waitForUpdate();
 
-    // Should still be open (disabled prevents toggle)
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(panel).toHaveAttribute('data-open');
   });
 
+  it('blocks same-target click listeners when disabled', async () => {
+    const handleClick = vi.fn();
+    const view = render(html`
+      <collapsible-root .disabled=${true}>
+        <collapsible-trigger>Toggle</collapsible-trigger>
+        <collapsible-panel>Content</collapsible-panel>
+      </collapsible-root>
+    `);
+    await waitForUpdate();
+
+    const trigger = getTrigger(view);
+    trigger.addEventListener('click', handleClick);
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(handleClick).not.toHaveBeenCalled();
+  });
+
   it('supports keyboard activation with Enter and Space', async () => {
-    const container = render(html`
+    const view = render(html`
       <collapsible-root>
         <collapsible-trigger>Toggle</collapsible-trigger>
         <collapsible-panel>Content</collapsible-panel>
@@ -209,16 +264,14 @@ describe('collapsible', () => {
     `);
     await waitForUpdate();
 
-    const trigger = getTrigger(container);
+    const trigger = getTrigger(view);
 
-    // Enter opens
     trigger.dispatchEvent(
       new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }),
     );
     await waitForUpdate();
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
 
-    // Space closes
     trigger.dispatchEvent(
       new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: ' ' }),
     );
@@ -227,7 +280,7 @@ describe('collapsible', () => {
   });
 
   it('keeps panel mounted when keepMounted is set', async () => {
-    const container = render(html`
+    const view = render(html`
       <collapsible-root>
         <collapsible-trigger>Toggle</collapsible-trigger>
         <collapsible-panel .keepMounted=${true}>Content</collapsible-panel>
@@ -235,21 +288,18 @@ describe('collapsible', () => {
     `);
     await waitForUpdate();
 
-    const trigger = getTrigger(container);
-    const panel = getPanel(container);
+    const trigger = getTrigger(view);
+    const panel = getPanel(view);
 
-    // Closed but still in DOM with hidden
     expect(panel).toBeInTheDocument();
     expect(panel).toHaveAttribute('hidden');
     expect(panel).toHaveAttribute('data-closed');
 
-    // Open
     trigger.click();
     await waitForUpdate();
     expect(panel).not.toHaveAttribute('hidden');
     expect(panel).toHaveAttribute('data-open');
 
-    // Close — still in DOM
     trigger.click();
     await waitForUpdate();
     expect(panel).toBeInTheDocument();
@@ -258,7 +308,7 @@ describe('collapsible', () => {
   });
 
   it('supports hiddenUntilFound', async () => {
-    const container = render(html`
+    const view = render(html`
       <collapsible-root>
         <collapsible-trigger>Toggle</collapsible-trigger>
         <collapsible-panel .hiddenUntilFound=${true}>Content</collapsible-panel>
@@ -266,13 +316,19 @@ describe('collapsible', () => {
     `);
     await waitForUpdate();
 
-    const panel = getPanel(container);
+    const panel = getPanel(view);
     expect(panel).toHaveAttribute('hidden', 'until-found');
   });
 
   it('opens on beforematch event with hiddenUntilFound', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
     const handleOpenChange = vi.fn();
-    const container = render(html`
+    const view = render(html`
       <collapsible-root .onOpenChange=${handleOpenChange}>
         <collapsible-trigger>Toggle</collapsible-trigger>
         <collapsible-panel .hiddenUntilFound=${true}>Content</collapsible-panel>
@@ -280,21 +336,17 @@ describe('collapsible', () => {
     `);
     await waitForUpdate();
 
-    // Simulate browser find-in-page triggering beforematch
-    // The panel should tell the root to open
-    // Since beforematch is not natively supported in jsdom, we simulate
-    // the behavior that would happen: root.toggle(true, event, 'none')
-    const root = getRoot(container);
-    root.toggle(true, new Event('beforematch'), 'none');
+    const panel = getPanel(view);
+    panel.dispatchEvent(new Event('beforematch'));
     await waitForUpdate();
 
     expect(handleOpenChange).toHaveBeenCalledTimes(1);
     expect(handleOpenChange.mock.calls[0]?.[0]).toBe(true);
-    expect(getPanel(container)).not.toHaveAttribute('hidden');
+    expect(getPanel(view)).not.toHaveAttribute('hidden');
   });
 
   it('wires aria-controls with panel id', async () => {
-    const container = render(html`
+    const view = render(html`
       <collapsible-root .defaultOpen=${true}>
         <collapsible-trigger>Toggle</collapsible-trigger>
         <collapsible-panel id="my-panel">Content</collapsible-panel>
@@ -302,17 +354,18 @@ describe('collapsible', () => {
     `);
     await waitForUpdate();
 
-    const trigger = getTrigger(container);
+    const trigger = getTrigger(view);
     expect(trigger).toHaveAttribute('aria-controls', 'my-panel');
-    expect(getPanel(container)).toHaveAttribute('id', 'my-panel');
+    expect(getPanel(view)).toHaveAttribute('id', 'my-panel');
   });
 
   it('logs error when parts are used outside root', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(html`<collapsible-trigger>Orphan</collapsible-trigger>`);
+    render(html`<collapsible-panel>Orphan panel</collapsible-panel>`);
 
-    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledTimes(2);
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining('Collapsible parts must be placed within'),
     );
@@ -321,25 +374,29 @@ describe('collapsible', () => {
   });
 
   it('starts closed by default and opens with defaultOpen', async () => {
-    const closedContainer = render(html`
-      <collapsible-root>
-        <collapsible-trigger>Toggle</collapsible-trigger>
-        <collapsible-panel>Content</collapsible-panel>
-      </collapsible-root>
-    `);
-    await waitForUpdate();
+    {
+      const view = render(html`
+        <collapsible-root>
+          <collapsible-trigger>Toggle</collapsible-trigger>
+          <collapsible-panel>Content</collapsible-panel>
+        </collapsible-root>
+      `);
+      await waitForUpdate();
 
-    expect(getRoot(closedContainer)).toHaveAttribute('data-closed');
+      expect(getRoot(view)).toHaveAttribute('data-closed');
+    }
 
-    const openContainer = render(html`
-      <collapsible-root .defaultOpen=${true}>
-        <collapsible-trigger>Toggle</collapsible-trigger>
-        <collapsible-panel>Content</collapsible-panel>
-      </collapsible-root>
-    `);
-    await waitForUpdate();
+    {
+      const view = render(html`
+        <collapsible-root .defaultOpen=${true}>
+          <collapsible-trigger>Toggle</collapsible-trigger>
+          <collapsible-panel>Content</collapsible-panel>
+        </collapsible-root>
+      `);
+      await waitForUpdate();
 
-    expect(getRoot(openContainer)).toHaveAttribute('data-open');
-    expect(getPanel(openContainer)).not.toHaveAttribute('hidden');
+      expect(getRoot(view)).toHaveAttribute('data-open');
+      expect(getPanel(view)).not.toHaveAttribute('hidden');
+    }
   });
 });

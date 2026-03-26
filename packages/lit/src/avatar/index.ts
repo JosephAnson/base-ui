@@ -1,5 +1,5 @@
 import { ReactiveElement } from 'lit';
-import { BaseHTMLElement } from '../utils/index.ts';
+import { BaseHTMLElement } from '../utils';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -21,6 +21,22 @@ export interface AvatarRootState {
 export interface AvatarImageState extends AvatarRootState {}
 export interface AvatarFallbackState extends AvatarRootState {}
 
+export interface AvatarRootProps {}
+
+export interface AvatarImageProps {
+  /**
+   * Callback fired when the loading status changes.
+   */
+  onLoadingStatusChange?: ((status: ImageLoadingStatus) => void) | undefined;
+}
+
+export interface AvatarFallbackProps {
+  /**
+   * How long to wait before showing the fallback. Specified in milliseconds.
+   */
+  delay?: number | undefined;
+}
+
 // ─── AvatarRootElement ───────────────────────────────────────────────────────────
 
 /**
@@ -30,19 +46,22 @@ export interface AvatarFallbackState extends AvatarRootState {}
  * Documentation: [Base UI Avatar](https://base-ui.com/react/components/avatar)
  */
 export class AvatarRootElement extends ReactiveElement {
-  private _imageLoadingStatus: ImageLoadingStatus = 'idle';
+  private imageLoadingStatusValue: ImageLoadingStatus = 'idle';
 
   override createRenderRoot() {
     return this;
   }
 
   getImageLoadingStatus(): ImageLoadingStatus {
-    return this._imageLoadingStatus;
+    return this.imageLoadingStatusValue;
   }
 
   setImageLoadingStatus(status: ImageLoadingStatus) {
-    if (this._imageLoadingStatus === status) return;
-    this._imageLoadingStatus = status;
+    if (this.imageLoadingStatusValue === status) {
+      return;
+    }
+
+    this.imageLoadingStatusValue = status;
     this.dispatchEvent(new CustomEvent(STATUS_CHANGE_EVENT, { bubbles: false }));
   }
 }
@@ -62,72 +81,81 @@ export class AvatarImageElement extends BaseHTMLElement {
     return ['src', 'alt', 'crossorigin', 'referrerpolicy', 'width', 'height'];
   }
 
-  private _root: AvatarRootElement | null = null;
-  private _cleanupImageLoad: (() => void) | null = null;
-  private _loadingSourceKey: string | null = null;
-  private _statusHandler = () => this._syncVisibility();
-  private _imgEl: HTMLImageElement | null = null;
+  private rootElement: AvatarRootElement | null = null;
+  private cleanupImageLoad: (() => void) | null = null;
+  private loadingSourceKey: string | null = null;
+  private statusHandler = () => this.syncVisibility();
+  private imgElement: HTMLImageElement | null = null;
 
   /** Callback fired when the loading status changes. Set via `.onLoadingStatusChange=${fn}`. */
   onLoadingStatusChange: ((status: ImageLoadingStatus) => void) | undefined;
 
   connectedCallback() {
-    this._root = this.closest('avatar-root') as AvatarRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('avatar-root') as AvatarRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
-    this._root.addEventListener(STATUS_CHANGE_EVENT, this._statusHandler);
-    this._syncImageLoading();
-    this._syncVisibility();
+    this.rootElement.addEventListener(STATUS_CHANGE_EVENT, this.statusHandler);
+    this.syncImageLoading();
+    this.syncVisibility();
   }
 
   disconnectedCallback() {
-    this._cleanupImageLoad?.();
-    this._cleanupImageLoad = null;
-    this._loadingSourceKey = null;
-    this._removeImgElement();
-    this._root?.removeEventListener(STATUS_CHANGE_EVENT, this._statusHandler);
-    this._root = null;
+    this.cleanupImageLoad?.();
+    this.cleanupImageLoad = null;
+    this.loadingSourceKey = null;
+    this.removeImgElement();
+    this.rootElement?.removeEventListener(STATUS_CHANGE_EVENT, this.statusHandler);
+    this.rootElement = null;
   }
 
   attributeChangedCallback() {
-    if (this._root) {
-      this._syncImageLoading();
+    if (this.rootElement) {
+      this.syncImageLoading();
     }
   }
 
-  private _syncImageLoading() {
+  private syncImageLoading() {
     const src = this.getAttribute('src') || '';
     const referrerPolicy = this.getAttribute('referrerpolicy') || '';
     const crossOrigin = this.getAttribute('crossorigin');
     const sourceKey = `${src}::${referrerPolicy}::${crossOrigin ?? ''}`;
 
-    if (sourceKey === this._loadingSourceKey) return;
-    this._loadingSourceKey = sourceKey;
-
-    this._cleanupImageLoad?.();
-    this._cleanupImageLoad = null;
-
-    if (!src) {
-      this._updateStatus('error');
+    if (sourceKey === this.loadingSourceKey) {
       return;
     }
 
-    this._updateStatus('loading');
+    this.loadingSourceKey = sourceKey;
+
+    this.cleanupImageLoad?.();
+    this.cleanupImageLoad = null;
+
+    if (!src) {
+      this.updateStatus('error');
+      return;
+    }
+
+    this.updateStatus('loading');
 
     let active = true;
     const image = new Image();
 
     image.onload = () => {
-      if (!active) return;
-      this._updateStatus('loaded');
+      if (!active) {
+        return;
+      }
+
+      this.updateStatus('loaded');
     };
 
     image.onerror = () => {
-      if (!active) return;
-      this._updateStatus('error');
+      if (!active) {
+        return;
+      }
+
+      this.updateStatus('error');
     };
 
     if (referrerPolicy) {
@@ -136,65 +164,83 @@ export class AvatarImageElement extends BaseHTMLElement {
     image.crossOrigin = crossOrigin;
     image.src = src;
 
-    this._cleanupImageLoad = () => {
+    this.cleanupImageLoad = () => {
       active = false;
     };
   }
 
-  private _updateStatus(status: ImageLoadingStatus) {
+  private updateStatus(status: ImageLoadingStatus) {
     this.onLoadingStatusChange?.(status);
-    this._root?.setImageLoadingStatus(status);
-    this._syncVisibility();
+    this.rootElement?.setImageLoadingStatus(status);
+    this.syncVisibility();
   }
 
-  private _syncVisibility() {
-    const status = this._root?.getImageLoadingStatus() ?? 'idle';
+  private syncVisibility() {
+    const status = this.rootElement?.getImageLoadingStatus() ?? 'idle';
     if (status === 'loaded') {
       this.style.display = '';
       this.removeAttribute('hidden');
-      this._ensureImgElement();
+      this.ensureImgElement();
     } else {
       this.style.display = 'none';
       this.setAttribute('hidden', '');
-      this._removeImgElement();
+      this.removeImgElement();
     }
   }
 
-  private _ensureImgElement() {
-    if (!this._imgEl) {
-      this._imgEl = document.createElement('img');
-      this._imgEl.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
-      this.appendChild(this._imgEl);
+  private ensureImgElement() {
+    if (!this.imgElement) {
+      this.imgElement = document.createElement('img');
+      this.imgElement.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+      this.appendChild(this.imgElement);
     }
     const src = this.getAttribute('src');
-    if (src) this._imgEl.src = src;
-    else this._imgEl.removeAttribute('src');
+    if (src) {
+      this.imgElement.src = src;
+    } else {
+      this.imgElement.removeAttribute('src');
+    }
 
     const alt = this.getAttribute('alt');
-    if (alt != null) this._imgEl.alt = alt;
-    else this._imgEl.removeAttribute('alt');
+    if (alt != null) {
+      this.imgElement.alt = alt;
+    } else {
+      this.imgElement.removeAttribute('alt');
+    }
 
     const width = this.getAttribute('width');
-    if (width != null) this._imgEl.width = Number(width);
-    else this._imgEl.removeAttribute('width');
+    if (width != null) {
+      this.imgElement.width = Number(width);
+    } else {
+      this.imgElement.removeAttribute('width');
+    }
 
     const height = this.getAttribute('height');
-    if (height != null) this._imgEl.height = Number(height);
-    else this._imgEl.removeAttribute('height');
+    if (height != null) {
+      this.imgElement.height = Number(height);
+    } else {
+      this.imgElement.removeAttribute('height');
+    }
 
     const crossorigin = this.getAttribute('crossorigin');
-    if (crossorigin != null) this._imgEl.crossOrigin = crossorigin;
-    else this._imgEl.removeAttribute('crossorigin');
+    if (crossorigin != null) {
+      this.imgElement.crossOrigin = crossorigin;
+    } else {
+      this.imgElement.removeAttribute('crossorigin');
+    }
 
     const referrerpolicy = this.getAttribute('referrerpolicy');
-    if (referrerpolicy != null) this._imgEl.referrerPolicy = referrerpolicy;
-    else this._imgEl.removeAttribute('referrerpolicy');
+    if (referrerpolicy != null) {
+      this.imgElement.referrerPolicy = referrerpolicy;
+    } else {
+      this.imgElement.removeAttribute('referrerpolicy');
+    }
   }
 
-  private _removeImgElement() {
-    if (this._imgEl) {
-      this._imgEl.remove();
-      this._imgEl = null;
+  private removeImgElement() {
+    if (this.imgElement) {
+      this.imgElement.remove();
+      this.imgElement = null;
     }
   }
 }
@@ -214,66 +260,69 @@ export class AvatarFallbackElement extends BaseHTMLElement {
     return ['delay'];
   }
 
-  private _root: AvatarRootElement | null = null;
-  private _delayPassed = true;
-  private _timeoutId: ReturnType<typeof setTimeout> | null = null;
-  private _statusHandler = () => this._syncVisibility();
+  private rootElement: AvatarRootElement | null = null;
+  private delayPassed = true;
+  private timeoutId: ReturnType<typeof setTimeout> | null = null;
+  private statusHandler = () => this.syncVisibility();
 
   connectedCallback() {
-    this._root = this.closest('avatar-root') as AvatarRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('avatar-root') as AvatarRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
-    this._root.addEventListener(STATUS_CHANGE_EVENT, this._statusHandler);
+    this.rootElement.addEventListener(STATUS_CHANGE_EVENT, this.statusHandler);
 
-    const delay = this._getDelay();
+    const delay = this.getDelay();
     if (delay !== undefined) {
-      this._delayPassed = false;
-      this._startDelay(delay);
+      this.delayPassed = false;
+      this.startDelay(delay);
     }
 
-    this._syncVisibility();
+    this.syncVisibility();
   }
 
   disconnectedCallback() {
-    this._clearDelay();
-    this._root?.removeEventListener(STATUS_CHANGE_EVENT, this._statusHandler);
-    this._root = null;
+    this.clearDelay();
+    this.rootElement?.removeEventListener(STATUS_CHANGE_EVENT, this.statusHandler);
+    this.rootElement = null;
   }
 
   attributeChangedCallback() {
     // Delay changed — only relevant if we haven't passed it yet
   }
 
-  private _getDelay(): number | undefined {
+  private getDelay(): number | undefined {
     const attr = this.getAttribute('delay');
-    if (attr == null) return undefined;
+    if (attr == null) {
+      return undefined;
+    }
+
     const num = Number(attr);
     return Number.isFinite(num) ? num : undefined;
   }
 
-  private _startDelay(delay: number) {
-    this._clearDelay();
-    this._timeoutId = setTimeout(() => {
-      this._timeoutId = null;
-      this._delayPassed = true;
-      this._syncVisibility();
+  private startDelay(delay: number) {
+    this.clearDelay();
+    this.timeoutId = setTimeout(() => {
+      this.timeoutId = null;
+      this.delayPassed = true;
+      this.syncVisibility();
     }, delay);
   }
 
-  private _clearDelay() {
-    if (this._timeoutId != null) {
-      clearTimeout(this._timeoutId);
-      this._timeoutId = null;
+  private clearDelay() {
+    if (this.timeoutId != null) {
+      clearTimeout(this.timeoutId);
+      this.timeoutId = null;
     }
   }
 
-  private _syncVisibility() {
-    const status = this._root?.getImageLoadingStatus() ?? 'idle';
+  private syncVisibility() {
+    const status = this.rootElement?.getImageLoadingStatus() ?? 'idle';
 
-    if (status === 'loaded' || !this._delayPassed) {
+    if (status === 'loaded' || !this.delayPassed) {
       this.style.display = 'none';
       this.setAttribute('hidden', '');
     } else {
@@ -287,17 +336,26 @@ if (!customElements.get('avatar-fallback')) {
   customElements.define('avatar-fallback', AvatarFallbackElement);
 }
 
+export const Avatar = {
+  Root: AvatarRootElement,
+  Image: AvatarImageElement,
+  Fallback: AvatarFallbackElement,
+} as const;
+
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
 export namespace AvatarRoot {
+  export type Props = AvatarRootProps;
   export type State = AvatarRootState;
 }
 
 export namespace AvatarImage {
+  export type Props = AvatarImageProps;
   export type State = AvatarImageState;
 }
 
 export namespace AvatarFallback {
+  export type Props = AvatarFallbackProps;
   export type State = AvatarFallbackState;
 }
 

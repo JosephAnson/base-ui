@@ -1,5 +1,5 @@
 import { ReactiveElement } from 'lit';
-import { BaseHTMLElement, ensureId, formatNumberValue, valueToPercent } from '../utils/index.ts';
+import { BaseHTMLElement, ensureId, formatNumberValue, valueToPercent } from '../utils';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,52 @@ export interface ProgressTrackState extends ProgressRootState {}
 export interface ProgressIndicatorState extends ProgressRootState {}
 export interface ProgressValueState extends ProgressRootState {}
 export interface ProgressLabelState extends ProgressRootState {}
+
+export interface ProgressRootProps {
+  /**
+   * A string value that provides a user-friendly name for `aria-valuenow`, the current value.
+   */
+  'aria-valuetext'?: string | undefined;
+  /**
+   * Options to format the value.
+   */
+  format?: Intl.NumberFormatOptions | undefined;
+  /**
+   * Accepts a function that returns a human-readable text alternative for the current value.
+   */
+  getAriaValueText?: ((formattedValue: string | null, value: number | null) => string) | undefined;
+  /**
+   * The locale used by `Intl.NumberFormat` when formatting the value.
+   */
+  locale?: Intl.LocalesArgument | undefined;
+  /**
+   * The maximum value.
+   * @default 100
+   */
+  max?: number | undefined;
+  /**
+   * The minimum value.
+   * @default 0
+   */
+  min?: number | undefined;
+  /**
+   * The current value. The component is indeterminate when value is `null`.
+   */
+  value?: number | null | undefined;
+}
+
+export interface ProgressTrackProps {}
+
+export interface ProgressIndicatorProps {}
+
+export interface ProgressLabelProps {}
+
+export interface ProgressValueProps {
+  /**
+   * Custom render function for the displayed value.
+   */
+  renderValue?: ((formattedValue: string | null, value: number | null) => string) | undefined;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────────
 
@@ -68,9 +114,7 @@ export class ProgressRootElement extends ReactiveElement {
   declare max: number;
 
   /** Custom aria-valuetext function. Set via `.getAriaValueText=${fn}`. */
-  getAriaValueText:
-    | ((formattedValue: string | null, value: number | null) => string)
-    | undefined;
+  getAriaValueText: ((formattedValue: string | null, value: number | null) => string) | undefined;
 
   /** Number format options. Set via `.format=${options}`. */
   format: Intl.NumberFormatOptions | undefined;
@@ -78,9 +122,10 @@ export class ProgressRootElement extends ReactiveElement {
   /** Locale for formatting. Set via `.locale=${locale}`. */
   locale: Intl.LocalesArgument | undefined;
 
-  private _labelId: string | undefined;
-  private _labelMode: 'auto' | 'explicit' = 'auto';
-  private _nvdaSpan: HTMLSpanElement | null = null;
+  private labelId: string | undefined;
+  private labelMode: 'auto' | 'explicit' = 'auto';
+  private nvdaSpan: HTMLSpanElement | null = null;
+  private explicitAriaValueText: string | null = null;
 
   constructor() {
     super();
@@ -97,21 +142,25 @@ export class ProgressRootElement extends ReactiveElement {
     super.connectedCallback();
 
     // Create NVDA force-announcement span
-    if (!this._nvdaSpan) {
-      this._nvdaSpan = document.createElement('span');
-      this._nvdaSpan.setAttribute('role', 'presentation');
-      this._nvdaSpan.style.cssText = NVDA_FORCE_ANNOUNCEMENT_STYLE;
-      this._nvdaSpan.textContent = 'x';
-      this.appendChild(this._nvdaSpan);
+    if (!this.nvdaSpan) {
+      this.nvdaSpan = document.createElement('span');
+      this.nvdaSpan.setAttribute('role', 'presentation');
+      this.nvdaSpan.style.cssText = NVDA_FORCE_ANNOUNCEMENT_STYLE;
+      this.nvdaSpan.textContent = 'x';
+      this.appendChild(this.nvdaSpan);
     }
 
+    if (this.hasAttribute('aria-labelledby')) {
+      this.labelMode = 'explicit';
+    }
+    this.explicitAriaValueText = this.getAttribute('aria-valuetext');
     this.syncAttributes();
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    this._nvdaSpan?.remove();
-    this._nvdaSpan = null;
+    this.nvdaSpan?.remove();
+    this.nvdaSpan = null;
   }
 
   protected override updated() {
@@ -137,20 +186,22 @@ export class ProgressRootElement extends ReactiveElement {
   }
 
   registerLabel(id: string) {
-    if (this._labelMode === 'explicit') return;
-    this._labelId = id;
+    if (this.labelMode === 'explicit') {
+      return;
+    }
+    this.labelId = id;
     this.setAttribute('aria-labelledby', id);
   }
 
   unregisterLabel(id: string) {
-    if (this._labelId === id) {
-      this._labelId = undefined;
+    if (this.labelId === id) {
+      this.labelId = undefined;
       this.removeAttribute('aria-labelledby');
     }
   }
 
   setLabelMode(mode: 'auto' | 'explicit') {
-    this._labelMode = mode;
+    this.labelMode = mode;
   }
 
   private syncAttributes() {
@@ -168,7 +219,9 @@ export class ProgressRootElement extends ReactiveElement {
       this.removeAttribute('aria-valuenow');
     }
 
-    this.setAttribute('aria-valuetext', getValueText(formattedValue || null, this.value));
+    const ariaValueText =
+      this.explicitAriaValueText ?? getValueText(formattedValue || null, this.value);
+    this.setAttribute('aria-valuetext', ariaValueText);
 
     setStatusAttributes(this, status);
 
@@ -187,28 +240,30 @@ if (!customElements.get('progress-root')) {
  * Renders a `<progress-track>` custom element.
  */
 export class ProgressTrackElement extends BaseHTMLElement {
-  private _root: ProgressRootElement | null = null;
-  private _handler = () => this.syncAttributes();
+  private rootElement: ProgressRootElement | null = null;
+  private stateHandler = () => this.syncAttributes();
 
   connectedCallback() {
-    this._root = this.closest('progress-root') as ProgressRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('progress-root') as ProgressRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
-    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    this.rootElement.addEventListener(STATE_CHANGE_EVENT, this.stateHandler);
     queueMicrotask(() => this.syncAttributes());
   }
 
   disconnectedCallback() {
-    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
-    this._root = null;
+    this.rootElement?.removeEventListener(STATE_CHANGE_EVENT, this.stateHandler);
+    this.rootElement = null;
   }
 
   private syncAttributes() {
-    if (!this._root) return;
-    setStatusAttributes(this, this._root.getStatus());
+    if (!this.rootElement) {
+      return;
+    }
+    setStatusAttributes(this, this.rootElement.getStatus());
   }
 }
 
@@ -223,28 +278,30 @@ if (!customElements.get('progress-track')) {
  * Renders a `<progress-indicator>` custom element.
  */
 export class ProgressIndicatorElement extends BaseHTMLElement {
-  private _root: ProgressRootElement | null = null;
-  private _handler = () => this.syncAttributes();
+  private rootElement: ProgressRootElement | null = null;
+  private stateHandler = () => this.syncAttributes();
 
   connectedCallback() {
-    this._root = this.closest('progress-root') as ProgressRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('progress-root') as ProgressRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
-    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    this.rootElement.addEventListener(STATE_CHANGE_EVENT, this.stateHandler);
     queueMicrotask(() => this.syncAttributes());
   }
 
   disconnectedCallback() {
-    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
-    this._root = null;
+    this.rootElement?.removeEventListener(STATE_CHANGE_EVENT, this.stateHandler);
+    this.rootElement = null;
   }
 
   private syncAttributes() {
-    if (!this._root) return;
-    const ctx = this._root.getProgressContext();
+    if (!this.rootElement) {
+      return;
+    }
+    const ctx = this.rootElement.getProgressContext();
 
     setStatusAttributes(this, ctx.status);
 
@@ -272,34 +329,36 @@ if (!customElements.get('progress-indicator')) {
  * Renders a `<progress-label>` custom element.
  */
 export class ProgressLabelElement extends BaseHTMLElement {
-  private _root: ProgressRootElement | null = null;
-  private _handler = () => this.syncAttributes();
+  private rootElement: ProgressRootElement | null = null;
+  private stateHandler = () => this.syncAttributes();
 
   connectedCallback() {
-    this._root = this.closest('progress-root') as ProgressRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('progress-root') as ProgressRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
     this.setAttribute('role', 'presentation');
     const id = ensureId(this, 'base-ui-progress-label');
-    this._root.registerLabel(id);
-    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    this.rootElement.registerLabel(id);
+    this.rootElement.addEventListener(STATE_CHANGE_EVENT, this.stateHandler);
     queueMicrotask(() => this.syncAttributes());
   }
 
   disconnectedCallback() {
-    if (this._root && this.id) {
-      this._root.unregisterLabel(this.id);
+    if (this.rootElement && this.id) {
+      this.rootElement.unregisterLabel(this.id);
     }
-    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
-    this._root = null;
+    this.rootElement?.removeEventListener(STATE_CHANGE_EVENT, this.stateHandler);
+    this.rootElement = null;
   }
 
   private syncAttributes() {
-    if (!this._root) return;
-    setStatusAttributes(this, this._root.getStatus());
+    if (!this.rootElement) {
+      return;
+    }
+    setStatusAttributes(this, this.rootElement.getStatus());
   }
 }
 
@@ -314,34 +373,34 @@ if (!customElements.get('progress-label')) {
  * Renders a `<progress-value>` custom element.
  */
 export class ProgressValueElement extends BaseHTMLElement {
-  private _root: ProgressRootElement | null = null;
-  private _handler = () => this.syncAttributes();
+  private rootElement: ProgressRootElement | null = null;
+  private stateHandler = () => this.syncAttributes();
 
   /** Custom render function for value display. Set via `.renderValue=${fn}`. */
-  renderValue:
-    | ((formattedValue: string | null, value: number | null) => string)
-    | undefined;
+  renderValue: ((formattedValue: string | null, value: number | null) => string) | undefined;
 
   connectedCallback() {
-    this._root = this.closest('progress-root') as ProgressRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('progress-root') as ProgressRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
     this.setAttribute('aria-hidden', 'true');
-    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    this.rootElement.addEventListener(STATE_CHANGE_EVENT, this.stateHandler);
     queueMicrotask(() => this.syncAttributes());
   }
 
   disconnectedCallback() {
-    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
-    this._root = null;
+    this.rootElement?.removeEventListener(STATE_CHANGE_EVENT, this.stateHandler);
+    this.rootElement = null;
   }
 
   private syncAttributes() {
-    if (!this._root) return;
-    const ctx = this._root.getProgressContext();
+    if (!this.rootElement) {
+      return;
+    }
+    const ctx = this.rootElement.getProgressContext();
 
     setStatusAttributes(this, ctx.status);
 
@@ -361,22 +420,27 @@ if (!customElements.get('progress-value')) {
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
 export namespace ProgressRoot {
+  export type Props = ProgressRootProps;
   export type State = ProgressRootState;
 }
 
 export namespace ProgressTrack {
+  export type Props = ProgressTrackProps;
   export type State = ProgressTrackState;
 }
 
 export namespace ProgressIndicator {
+  export type Props = ProgressIndicatorProps;
   export type State = ProgressIndicatorState;
 }
 
 export namespace ProgressLabel {
+  export type Props = ProgressLabelProps;
   export type State = ProgressLabelState;
 }
 
 export namespace ProgressValue {
+  export type Props = ProgressValueProps;
   export type State = ProgressValueState;
 }
 

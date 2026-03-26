@@ -1,7 +1,10 @@
 # Progress
 
-<Subtitle>A progress indicator for determinate loading states.</Subtitle>
-<Meta name="description" content="A progress indicator for determinate loading states." />
+<Subtitle>Displays the status of a task that takes a long time.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit progress bar component that displays the status of a task that takes a long time."
+/>
 
 import { DemoProgressHero } from './demos/hero';
 
@@ -9,8 +12,11 @@ import { DemoProgressHero } from './demos/hero';
 
 ## Anatomy
 
+Import the custom elements and assemble the parts:
+
 ```html title="Anatomy"
 <progress-root value="60">
+  <progress-label>Uploading files</progress-label>
   <progress-track>
     <progress-indicator></progress-indicator>
   </progress-track>
@@ -18,10 +24,66 @@ import { DemoProgressHero } from './demos/hero';
 </progress-root>
 ```
 
-## Status
+## Usage guidelines
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+- Use `<progress-label>` or an explicit `aria-labelledby` reference so screen readers announce the task clearly.
+- Pass `null` as the value for indeterminate progress when the total work is unknown.
+
+## API reference
+
+### ProgressRootElement
+
+Custom element: `<progress-root>`
+
+| Attribute / Property | Type                                | Default  | Description                                                                |
+| -------------------- | ----------------------------------- | -------- | -------------------------------------------------------------------------- |
+| `value`              | `number \| null`                    | `null`   | The current value. The component is indeterminate when `null`.             |
+| `min`                | `number`                            | `0`      | The minimum value.                                                         |
+| `max`                | `number`                            | `100`    | The maximum value.                                                         |
+| `.format`            | `Intl.NumberFormatOptions`          | —        | Options used to format the displayed value.                                |
+| `.locale`            | `Intl.LocalesArgument`              | —        | Locale used when formatting the value.                                     |
+| `.getAriaValueText`  | `(formattedValue, value) => string` | —        | Returns a human-readable value for `aria-valuetext`.                       |
+| `aria-valuetext`     | `string`                            | computed | Explicit accessible value text. Overrides the computed text when provided. |
+
+### ProgressTrackElement
+
+Custom element: `<progress-track>`
+
+Container for the visual indicator.
+
+### ProgressIndicatorElement
+
+Custom element: `<progress-indicator>`
+
+Visualizes the completion percentage. In determinate mode it receives an inline width based on the current value.
+
+### ProgressLabelElement
+
+Custom element: `<progress-label>`
+
+Accessible label for the progress bar.
+
+### ProgressValueElement
+
+Custom element: `<progress-value>`
+
+Displays the formatted value. You can customize the output with `.renderValue`.
+
+### Data attributes
+
+`<progress-root>`, `<progress-track>`, `<progress-indicator>`, `<progress-label>`, and `<progress-value>` receive one of:
+
+- `data-indeterminate`
+- `data-progressing`
+- `data-complete`
 
 export const metadata = {
-  keywords: ['Lit Progress', 'Progress', 'Base UI Lit', 'Loading state'],
+  keywords: [
+    'Lit Progress',
+    'Progress Bar',
+    'Progress Indicator',
+    'Indeterminate Progress',
+    'Accessible Progress',
+    'Base UI Lit',
+  ],
 };

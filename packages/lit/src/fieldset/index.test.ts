@@ -1,8 +1,17 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import './index.ts';
-import type { FieldsetRootElement } from './index.ts';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import {
+  Fieldset,
+  FieldsetLegendElement,
+  FieldsetRootElement,
+  type FieldsetLegend,
+  type FieldsetLegendProps,
+  type FieldsetLegendState,
+  type FieldsetRoot,
+  type FieldsetRootProps,
+  type FieldsetRootState,
+} from './index';
 
 describe('fieldset', () => {
   const containers = new Set<HTMLDivElement>();
@@ -13,6 +22,7 @@ describe('fieldset', () => {
       container.remove();
     });
     containers.clear();
+    vi.restoreAllMocks();
   });
 
   function render(result: ReturnType<typeof html>) {
@@ -24,100 +34,115 @@ describe('fieldset', () => {
   }
 
   async function waitForUpdate() {
-    for (let i = 0; i < 4; i++) {
-      await new Promise((r) => setTimeout(r, 0));
-    }
+    await flushTimers(4);
   }
 
-  function getRoot(container: HTMLElement) {
-    return container.querySelector('fieldset-root') as FieldsetRootElement;
+  function flushTimers(count: number) {
+    return Array.from({ length: count }).reduce<Promise<void>>((promise) => {
+      return promise.then(
+        () =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, 0);
+          }),
+      );
+    }, Promise.resolve());
   }
 
-  function getLegend(container: HTMLElement) {
-    return container.querySelector('fieldset-legend') as HTMLElement;
+  function getRoot(view: HTMLElement) {
+    return view.querySelector('fieldset-root') as FieldsetRootElement;
   }
+
+  function getLegend(view: HTMLElement) {
+    return view.querySelector('fieldset-legend') as HTMLElement;
+  }
+
+  it('exposes runtime parts and namespace aliases', () => {
+    expect(Fieldset.Root).toBe(FieldsetRootElement);
+    expect(Fieldset.Legend).toBe(FieldsetLegendElement);
+    expectTypeOf<FieldsetRootProps>().toEqualTypeOf<FieldsetRoot.Props>();
+    expectTypeOf<FieldsetRootState>().toEqualTypeOf<FieldsetRoot.State>();
+    expectTypeOf<FieldsetLegendProps>().toEqualTypeOf<FieldsetLegend.Props>();
+    expectTypeOf<FieldsetLegendState>().toEqualTypeOf<FieldsetLegend.State>();
+  });
 
   it('renders fieldset-root as a custom element', async () => {
-    const container = render(html`<fieldset-root></fieldset-root>`);
+    const view = render(html`<fieldset-root></fieldset-root>`);
     await waitForUpdate();
 
-    const root = getRoot(container);
+    const root = getRoot(view);
     expect(root).toBeInTheDocument();
     expect(root).toHaveAttribute('data-base-ui-fieldset-root');
     expect(root).toHaveAttribute('data-base-ui-fieldset-context');
   });
 
   it('sets aria-labelledby on the root automatically from legend', async () => {
-    const container = render(html`
+    const view = render(html`
       <fieldset-root>
         <fieldset-legend>Legend text</fieldset-legend>
       </fieldset-root>
     `);
     await waitForUpdate();
 
-    const root = getRoot(container);
-    const legend = getLegend(container);
+    const root = getRoot(view);
+    const legend = getLegend(view);
 
     expect(legend).toHaveAttribute('id');
     expect(root).toHaveAttribute('aria-labelledby', legend.id);
   });
 
   it('sets aria-labelledby with a custom legend id', async () => {
-    const container = render(html`
+    const view = render(html`
       <fieldset-root>
         <fieldset-legend id="my-legend">Legend</fieldset-legend>
       </fieldset-root>
     `);
     await waitForUpdate();
 
-    const root = getRoot(container);
-    expect(root).toHaveAttribute('aria-labelledby', 'my-legend');
+    expect(getRoot(view)).toHaveAttribute('aria-labelledby', 'my-legend');
   });
 
   it('removes aria-labelledby when legend is removed', async () => {
-    const container = render(html`
+    const view = render(html`
       <fieldset-root>
         <fieldset-legend>Legend</fieldset-legend>
       </fieldset-root>
     `);
     await waitForUpdate();
 
-    const root = getRoot(container);
+    const root = getRoot(view);
     expect(root).toHaveAttribute('aria-labelledby');
 
-    // Remove the legend
-    const legend = getLegend(container);
-    legend.remove();
+    getLegend(view).remove();
     await waitForUpdate();
 
     expect(root).not.toHaveAttribute('aria-labelledby');
   });
 
   it('propagates disabled state to the legend', async () => {
-    const container = render(html`
+    const view = render(html`
       <fieldset-root .disabled=${true}>
         <fieldset-legend>Legend</fieldset-legend>
       </fieldset-root>
     `);
     await waitForUpdate();
 
-    const root = getRoot(container);
-    const legend = getLegend(container);
+    const root = getRoot(view);
+    const legend = getLegend(view);
 
     expect(root).toHaveAttribute('data-disabled');
     expect(legend).toHaveAttribute('data-disabled');
   });
 
   it('does not set data-disabled when disabled is false', async () => {
-    const container = render(html`
+    const view = render(html`
       <fieldset-root>
         <fieldset-legend>Legend</fieldset-legend>
       </fieldset-root>
     `);
     await waitForUpdate();
 
-    const root = getRoot(container);
-    const legend = getLegend(container);
+    const root = getRoot(view);
+    const legend = getLegend(view);
 
     expect(root).not.toHaveAttribute('data-disabled');
     expect(legend).not.toHaveAttribute('data-disabled');
@@ -137,7 +162,7 @@ describe('fieldset', () => {
   });
 
   it('associates nested fieldsets with their nearest legends', async () => {
-    const container = render(html`
+    const view = render(html`
       <fieldset-root>
         <fieldset-root>
           <fieldset-legend id="inner-legend">Inner</fieldset-legend>
@@ -147,8 +172,7 @@ describe('fieldset', () => {
     `);
     await waitForUpdate();
 
-    const roots = container.querySelectorAll('fieldset-root');
-    // roots[0] is the outer, roots[1] is the inner
+    const roots = view.querySelectorAll('fieldset-root');
     expect(roots[0]).toHaveAttribute('aria-labelledby', 'outer-legend');
     expect(roots[1]).toHaveAttribute('aria-labelledby', 'inner-legend');
   });

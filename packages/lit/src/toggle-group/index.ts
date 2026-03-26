@@ -24,6 +24,13 @@ export interface ToggleGroupRootState {
   orientation: ToggleGroupOrientation;
 }
 
+export interface ToggleGroupRootChangeEventDetails {
+  event: Event;
+  cancel(): void;
+  readonly isCanceled: boolean;
+  reason: 'none';
+}
+
 // ─── ToggleGroupRootElement ─────────────────────────────────────────────────────
 
 /**
@@ -36,16 +43,17 @@ export class ToggleGroupRootElement extends ReactiveElement {
   static properties = {
     disabled: { type: Boolean, reflect: true },
     multiple: { type: Boolean },
+    orientation: { type: String, reflect: true },
+    loopFocus: { type: Boolean, attribute: 'loop-focus' },
   };
 
   declare disabled: boolean;
   declare multiple: boolean;
-
   /** Whether arrow key navigation loops back to the start. */
-  loopFocus = true;
+  declare loopFocus: boolean;
 
   /** The orientation of the toggle group for keyboard navigation. */
-  orientation: ToggleGroupOrientation = 'horizontal';
+  declare orientation: ToggleGroupOrientation;
 
   /**
    * Controlled value: array of pressed toggle values.
@@ -62,7 +70,9 @@ export class ToggleGroupRootElement extends ReactiveElement {
    * Callback fired when the group value changes.
    * Set via `.onValueChange=${fn}`.
    */
-  onValueChange: ((groupValue: string[], event: Event) => void) | undefined;
+  onValueChange:
+    | ((groupValue: string[], eventDetails: ToggleGroupRootChangeEventDetails) => void)
+    | undefined;
 
   private _internalValue: string[] = [];
   private _initialized = false;
@@ -71,6 +81,8 @@ export class ToggleGroupRootElement extends ReactiveElement {
     super();
     this.disabled = false;
     this.multiple = false;
+    this.orientation = 'horizontal';
+    this.loopFocus = true;
   }
 
   override createRenderRoot() {
@@ -141,7 +153,12 @@ export class ToggleGroupRootElement extends ReactiveElement {
       }
     }
 
-    this.onValueChange?.(newValue, event);
+    const eventDetails = createChangeEventDetails(event);
+    this.onValueChange?.(newValue, eventDetails);
+
+    if (eventDetails.isCanceled) {
+      return;
+    }
 
     // Update internal state (uncontrolled mode)
     if (this.value === undefined) {
@@ -170,9 +187,9 @@ export class ToggleGroupRootElement extends ReactiveElement {
   // ── Keyboard navigation (roving tabindex) ─────────────────────────────
 
   private _getToggleItems(): HTMLElement[] {
-    return Array.from(
-      this.querySelectorAll<HTMLElement>('toggle-root'),
-    ).filter((el) => !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true');
+    return Array.from(this.querySelectorAll<HTMLElement>('toggle-root')).filter(
+      (el) => !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true',
+    );
   }
 
   private _handleKeyDown = (event: KeyboardEvent) => {
@@ -218,7 +235,7 @@ export class ToggleGroupRootElement extends ReactiveElement {
     if (this.orientation === 'vertical') {
       if (key === 'ArrowDown') return 1;
       if (key === 'ArrowUp') return -1;
-      if (key === 'Home') return -(Infinity);
+      if (key === 'Home') return -Infinity;
       if (key === 'End') return Infinity;
       return null;
     }
@@ -229,7 +246,7 @@ export class ToggleGroupRootElement extends ReactiveElement {
 
     if (key === forward) return 1;
     if (key === backward) return -1;
-    if (key === 'Home') return -(Infinity);
+    if (key === 'Home') return -Infinity;
     if (key === 'End') return Infinity;
     return null;
   }
@@ -258,7 +275,68 @@ if (!customElements.get('toggle-group-root')) {
 }
 
 export namespace ToggleGroupRoot {
+  export type Props = ToggleGroupRootProps;
   export type State = ToggleGroupRootState;
+  export type ChangeEventReason = ToggleGroupChangeEventReason;
+  export type ChangeEventDetails = ToggleGroupChangeEventDetails;
+}
+
+export interface ToggleGroupRootProps {
+  /**
+   * The pressed state of the toggle group represented by an array of
+   * the values of all pressed toggle buttons.
+   * This is the controlled counterpart of `defaultValue`.
+   */
+  value?: readonly string[] | undefined;
+  /**
+   * The pressed state of the toggle group represented by an array of
+   * the values of all pressed toggle buttons.
+   * This is the uncontrolled counterpart of `value`.
+   */
+  defaultValue?: readonly string[] | undefined;
+  /**
+   * Callback fired when the pressed states of the toggle group change.
+   */
+  onValueChange?:
+    | ((groupValue: string[], eventDetails: ToggleGroupRootChangeEventDetails) => void)
+    | undefined;
+  /**
+   * Whether the toggle group should ignore user interaction.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * @default 'horizontal'
+   */
+  orientation?: ToggleGroupOrientation | undefined;
+  /**
+   * Whether to loop keyboard focus back to the first item.
+   * @default true
+   */
+  loopFocus?: boolean | undefined;
+  /**
+   * Whether multiple items can be pressed.
+   * @default false
+   */
+  multiple?: boolean | undefined;
+}
+
+export type ToggleGroupChangeEventReason = ToggleGroupRootChangeEventDetails['reason'];
+export type ToggleGroupChangeEventDetails = ToggleGroupRootChangeEventDetails;
+
+function createChangeEventDetails(event: Event): ToggleGroupRootChangeEventDetails {
+  let canceled = false;
+
+  return {
+    event,
+    cancel() {
+      canceled = true;
+    },
+    get isCanceled() {
+      return canceled;
+    },
+    reason: 'none',
+  };
 }
 
 declare global {

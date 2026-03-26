@@ -8,6 +8,13 @@ export interface CSPContextValue {
   disableStyleElements?: boolean | undefined;
 }
 
+export interface CSPProviderState {}
+
+export interface CSPProviderProps {
+  nonce?: string | undefined;
+  disableStyleElements?: boolean | undefined;
+}
+
 /**
  * Finds the nearest `<csp-provider>` ancestor and returns its CSP context.
  * Falls back to `{ disableStyleElements: false }` when no provider is found.
@@ -60,10 +67,8 @@ if (!customElements.get('csp-provider')) {
 }
 
 export namespace CSPProvider {
-  export interface Props {
-    nonce?: string;
-    disableStyleElements?: boolean;
-  }
+  export type Props = CSPProviderProps;
+  export type State = CSPProviderState;
 }
 
 declare global {

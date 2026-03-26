@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ensureId, formatNumber, formatNumberValue, valueToPercent } from './index.ts';
+import {
+  ensureId,
+  formatNumber,
+  formatNumberMaxPrecision,
+  formatNumberValue,
+  getFormatter,
+  valueToPercent,
+} from './index';
 
 describe('utils', () => {
   describe('ensureId', () => {
@@ -49,8 +56,51 @@ describe('utils', () => {
     });
 
     it('formats a number', () => {
-      const result = formatNumber(1234);
-      expect(result).toBeTruthy();
+      const expected = new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: 'USD',
+      }).format(1234.56);
+
+      expect(
+        formatNumber(1234.56, undefined, {
+          currency: 'USD',
+          style: 'currency',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+      ).toBe(expected);
+    });
+
+    it('formats a number with different options', () => {
+      expect(formatNumber(0.1234, 'en-US', { style: 'percent' })).toBe('12%');
+    });
+  });
+
+  describe('getFormatter', () => {
+    it('caches the formatter based on options', () => {
+      const options: Intl.NumberFormatOptions = {
+        currency: 'USD',
+        style: 'currency',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      };
+
+      const formatter1 = getFormatter(undefined, options);
+      const formatter2 = getFormatter(undefined, { ...options });
+
+      expect(formatter1).toBe(formatter2);
+    });
+  });
+
+  describe('formatNumberMaxPrecision', () => {
+    it('preserves higher precision than the default formatter', () => {
+      expect(formatNumberMaxPrecision(1.23456)).toBe(
+        (1.23456).toLocaleString(undefined, { maximumFractionDigits: 20 }),
+      );
+    });
+
+    it('returns empty string for null', () => {
+      expect(formatNumberMaxPrecision(null)).toBe('');
     });
   });
 
@@ -60,13 +110,11 @@ describe('utils', () => {
     });
 
     it('formats as percentage by default', () => {
-      const result = formatNumberValue(50);
-      expect(result).toContain('50');
+      expect(formatNumberValue(50)).toBe('50%');
     });
 
     it('uses custom format when provided', () => {
-      const result = formatNumberValue(50, undefined, { style: 'decimal' });
-      expect(result).toBe('50');
+      expect(formatNumberValue(50, undefined, { style: 'decimal' })).toBe('50');
     });
   });
 });

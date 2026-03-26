@@ -1,5 +1,5 @@
 import { ReactiveElement } from 'lit';
-import { BaseHTMLElement, ensureId, formatNumberValue, valueToPercent } from '../utils/index.ts';
+import { BaseHTMLElement, ensureId, formatNumberValue, valueToPercent } from '../utils';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,53 @@ export interface MeterTrackState extends MeterRootState {}
 export interface MeterIndicatorState extends MeterRootState {}
 export interface MeterValueState extends MeterRootState {}
 export interface MeterLabelState extends MeterRootState {}
+
+export interface MeterRootProps {
+  /**
+   * A string value that provides a user-friendly name for `aria-valuenow`, the current value.
+   */
+  'aria-valuetext'?: string | undefined;
+  /**
+   * Options to format the value.
+   */
+  format?: Intl.NumberFormatOptions | undefined;
+  /**
+   * Returns a human-readable text alternative for `aria-valuenow`, the current value.
+   */
+  getAriaValueText?: ((formattedValue: string, value: number) => string) | undefined;
+  /**
+   * The locale used by `Intl.NumberFormat` when formatting the value.
+   */
+  locale?: Intl.LocalesArgument | undefined;
+  /**
+   * The maximum value.
+   * @default 100
+   */
+  max?: number | undefined;
+  /**
+   * The minimum value.
+   * @default 0
+   */
+  min?: number | undefined;
+  /**
+   * The current value.
+   * @default 0
+   */
+  value?: number | undefined;
+}
+
+export interface MeterTrackProps {}
+
+export interface MeterIndicatorProps {}
+
+export interface MeterLabelProps {}
+
+export interface MeterValueProps {
+  /**
+   * Custom render function for the displayed value.
+   */
+  renderValue?: ((formattedValue: string, value: number) => string) | undefined;
+}
 
 // ─── MeterRootElement ────────────────────────────────────────────────────────────
 
@@ -45,9 +92,10 @@ export class MeterRootElement extends ReactiveElement {
   /** Locale for formatting. Set via `.locale=${locale}`. */
   locale: Intl.LocalesArgument | undefined;
 
-  private _labelId: string | undefined;
-  private _labelMode: 'auto' | 'explicit' = 'auto';
-  private _nvdaSpan: HTMLSpanElement | null = null;
+  private labelId: string | undefined;
+  private labelMode: 'auto' | 'explicit' = 'auto';
+  private nvdaSpan: HTMLSpanElement | null = null;
+  private explicitAriaValueText: string | null = null;
 
   constructor() {
     super();
@@ -63,21 +111,25 @@ export class MeterRootElement extends ReactiveElement {
   override connectedCallback() {
     super.connectedCallback();
 
-    if (!this._nvdaSpan) {
-      this._nvdaSpan = document.createElement('span');
-      this._nvdaSpan.setAttribute('role', 'presentation');
-      this._nvdaSpan.style.cssText = NVDA_FORCE_ANNOUNCEMENT_STYLE;
-      this._nvdaSpan.textContent = 'x';
-      this.appendChild(this._nvdaSpan);
+    if (!this.nvdaSpan) {
+      this.nvdaSpan = document.createElement('span');
+      this.nvdaSpan.setAttribute('role', 'presentation');
+      this.nvdaSpan.style.cssText = NVDA_FORCE_ANNOUNCEMENT_STYLE;
+      this.nvdaSpan.textContent = 'x';
+      this.appendChild(this.nvdaSpan);
     }
 
+    if (this.hasAttribute('aria-labelledby')) {
+      this.labelMode = 'explicit';
+    }
+    this.explicitAriaValueText = this.getAttribute('aria-valuetext');
     this.syncAttributes();
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    this._nvdaSpan?.remove();
-    this._nvdaSpan = null;
+    this.nvdaSpan?.remove();
+    this.nvdaSpan = null;
   }
 
   protected override updated() {
@@ -98,27 +150,31 @@ export class MeterRootElement extends ReactiveElement {
   }
 
   registerLabel(id: string) {
-    if (this._labelMode === 'explicit') return;
-    this._labelId = id;
+    if (this.labelMode === 'explicit') {
+      return;
+    }
+    this.labelId = id;
     this.setAttribute('aria-labelledby', id);
   }
 
   unregisterLabel(id: string) {
-    if (this._labelId === id) {
-      this._labelId = undefined;
+    if (this.labelId === id) {
+      this.labelId = undefined;
       this.removeAttribute('aria-labelledby');
     }
   }
 
   setLabelMode(mode: 'auto' | 'explicit') {
-    this._labelMode = mode;
+    this.labelMode = mode;
   }
 
   private syncAttributes() {
     const formattedValue = this.getFormattedValue();
 
     let ariaValueText = `${this.value}%`;
-    if (this.getAriaValueText) {
+    if (this.explicitAriaValueText != null) {
+      ariaValueText = this.explicitAriaValueText;
+    } else if (this.getAriaValueText) {
       ariaValueText = this.getAriaValueText(formattedValue, this.value);
     } else if (this.format) {
       ariaValueText = formattedValue;
@@ -145,23 +201,23 @@ if (!customElements.get('meter-root')) {
  * Renders a `<meter-track>` custom element.
  */
 export class MeterTrackElement extends BaseHTMLElement {
-  private _root: MeterRootElement | null = null;
-  private _handler = () => this.syncAttributes();
+  private rootElement: MeterRootElement | null = null;
+  private stateHandler = () => this.syncAttributes();
 
   connectedCallback() {
-    this._root = this.closest('meter-root') as MeterRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('meter-root') as MeterRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
-    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    this.rootElement.addEventListener(STATE_CHANGE_EVENT, this.stateHandler);
     queueMicrotask(() => this.syncAttributes());
   }
 
   disconnectedCallback() {
-    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
-    this._root = null;
+    this.rootElement?.removeEventListener(STATE_CHANGE_EVENT, this.stateHandler);
+    this.rootElement = null;
   }
 
   private syncAttributes() {
@@ -180,28 +236,30 @@ if (!customElements.get('meter-track')) {
  * Renders a `<meter-indicator>` custom element.
  */
 export class MeterIndicatorElement extends BaseHTMLElement {
-  private _root: MeterRootElement | null = null;
-  private _handler = () => this.syncAttributes();
+  private rootElement: MeterRootElement | null = null;
+  private stateHandler = () => this.syncAttributes();
 
   connectedCallback() {
-    this._root = this.closest('meter-root') as MeterRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('meter-root') as MeterRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
-    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    this.rootElement.addEventListener(STATE_CHANGE_EVENT, this.stateHandler);
     queueMicrotask(() => this.syncAttributes());
   }
 
   disconnectedCallback() {
-    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
-    this._root = null;
+    this.rootElement?.removeEventListener(STATE_CHANGE_EVENT, this.stateHandler);
+    this.rootElement = null;
   }
 
   private syncAttributes() {
-    if (!this._root) return;
-    const ctx = this._root.getMeterContext();
+    if (!this.rootElement) {
+      return;
+    }
+    const ctx = this.rootElement.getMeterContext();
     const percent = valueToPercent(ctx.value, ctx.min, ctx.max);
 
     this.style.width = `${percent}%`;
@@ -221,29 +279,29 @@ if (!customElements.get('meter-indicator')) {
  * Renders a `<meter-label>` custom element.
  */
 export class MeterLabelElement extends BaseHTMLElement {
-  private _root: MeterRootElement | null = null;
-  private _handler = () => this.syncAttributes();
+  private rootElement: MeterRootElement | null = null;
+  private stateHandler = () => this.syncAttributes();
 
   connectedCallback() {
-    this._root = this.closest('meter-root') as MeterRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('meter-root') as MeterRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
     this.setAttribute('role', 'presentation');
     const id = ensureId(this, 'base-ui-meter-label');
-    this._root.registerLabel(id);
-    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    this.rootElement.registerLabel(id);
+    this.rootElement.addEventListener(STATE_CHANGE_EVENT, this.stateHandler);
     queueMicrotask(() => this.syncAttributes());
   }
 
   disconnectedCallback() {
-    if (this._root && this.id) {
-      this._root.unregisterLabel(this.id);
+    if (this.rootElement && this.id) {
+      this.rootElement.unregisterLabel(this.id);
     }
-    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
-    this._root = null;
+    this.rootElement?.removeEventListener(STATE_CHANGE_EVENT, this.stateHandler);
+    this.rootElement = null;
   }
 
   private syncAttributes() {
@@ -262,32 +320,34 @@ if (!customElements.get('meter-label')) {
  * Renders a `<meter-value>` custom element.
  */
 export class MeterValueElement extends BaseHTMLElement {
-  private _root: MeterRootElement | null = null;
-  private _handler = () => this.syncAttributes();
+  private rootElement: MeterRootElement | null = null;
+  private stateHandler = () => this.syncAttributes();
 
   /** Custom render function for value display. Set via `.renderValue=${fn}`. */
   renderValue: ((formattedValue: string, value: number) => string) | undefined;
 
   connectedCallback() {
-    this._root = this.closest('meter-root') as MeterRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('meter-root') as MeterRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
     this.setAttribute('aria-hidden', 'true');
-    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
+    this.rootElement.addEventListener(STATE_CHANGE_EVENT, this.stateHandler);
     queueMicrotask(() => this.syncAttributes());
   }
 
   disconnectedCallback() {
-    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
-    this._root = null;
+    this.rootElement?.removeEventListener(STATE_CHANGE_EVENT, this.stateHandler);
+    this.rootElement = null;
   }
 
   private syncAttributes() {
-    if (!this._root) return;
-    const ctx = this._root.getMeterContext();
+    if (!this.rootElement) {
+      return;
+    }
+    const ctx = this.rootElement.getMeterContext();
 
     if (this.renderValue) {
       this.textContent = this.renderValue(ctx.formattedValue, ctx.value);
@@ -304,22 +364,27 @@ if (!customElements.get('meter-value')) {
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
 export namespace MeterRoot {
+  export type Props = MeterRootProps;
   export type State = MeterRootState;
 }
 
 export namespace MeterTrack {
+  export type Props = MeterTrackProps;
   export type State = MeterTrackState;
 }
 
 export namespace MeterIndicator {
+  export type Props = MeterIndicatorProps;
   export type State = MeterIndicatorState;
 }
 
 export namespace MeterLabel {
+  export type Props = MeterLabelProps;
   export type State = MeterLabelState;
 }
 
 export namespace MeterValue {
+  export type Props = MeterValueProps;
   export type State = MeterValueState;
 }
 

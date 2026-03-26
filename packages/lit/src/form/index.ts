@@ -1,4 +1,4 @@
-import { BaseHTMLElement } from '../utils/index.ts';
+import { BaseHTMLElement } from '../utils';
 import {
   FORM_CONTEXT_ATTRIBUTE,
   FORM_STATE_CHANGE_EVENT,
@@ -7,7 +7,7 @@ import {
   type FormRuntime,
   type FormValidationMode,
   setFormRuntime,
-} from './shared.ts';
+} from './shared';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -22,9 +22,31 @@ export interface FormActions {
   validate: (fieldName?: string) => void;
 }
 
+export interface FormProps {
+  /**
+   * Determines when the form should be validated.
+   * @default 'onSubmit'
+   */
+  validationMode?: FormValidationMode | undefined;
+  /**
+   * Validation errors returned externally, keyed by field name.
+   */
+  errors?: Errors | undefined;
+  /**
+   * Event handler called when the form is submitted with collected form values.
+   */
+  onFormSubmit?:
+    | ((values: Record<string, unknown>, details: FormSubmitEventDetails) => void)
+    | undefined;
+  /**
+   * A ref to imperative actions.
+   */
+  actionsRef?: { current: FormActions | null } | undefined;
+}
+
 export interface FormState {}
 
-export { type FormValidationMode } from './shared.ts';
+export { type FormValidationMode } from './shared';
 
 // ─── FormRootElement ─────────────────────────────────────────────────────────────
 
@@ -49,12 +71,12 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
   // --- Properties (set via Lit property binding) ---
 
   /** External errors keyed by field name. */
-  private _errors: Errors | undefined;
+  private errorsValue: Errors | undefined;
   get errors(): Errors | undefined {
-    return this._errors;
+    return this.errorsValue;
   }
   set errors(value: Errors | undefined) {
-    this._syncExternalErrors(value);
+    this.syncExternalErrors(value);
   }
 
   /** Validation mode inherited by child fields. */
@@ -69,62 +91,64 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
   onSubmit: ((event: SubmitEvent) => void) | undefined;
 
   /** Ref object for imperative validation. */
-  private _actionsRef: { current: FormActions | null } | undefined;
+  private actionsRefValue: { current: FormActions | null } | undefined;
   get actionsRef(): { current: FormActions | null } | undefined {
-    return this._actionsRef;
+    return this.actionsRefValue;
   }
   set actionsRef(value: { current: FormActions | null } | undefined) {
-    this._actionsRef = value;
+    this.actionsRefValue = value;
     if (value != null) {
-      value.current = { validate: (name) => this._validateFields(name) };
+      value.current = { validate: (name) => this.validateFields(name) };
     }
   }
 
   // --- Internal state ---
 
-  private _form: HTMLFormElement | null = null;
-  private _internalErrors: Errors = {};
-  private _externalErrors: Errors | undefined;
-  private _fields = new Map<Element, FormFieldEntry>();
-  private _submitted = false;
-  private _pendingFocusInvalid = false;
-  private _pendingFocusQueued = false;
-  private _lastPublishedStateKey: string | null = null;
+  private formElement: HTMLFormElement | null = null;
+  private internalErrors: Errors = {};
+  private externalErrors: Errors | undefined;
+  private fields = new Map<Element, FormFieldEntry>();
+  private submitted = false;
+  private pendingFocusInvalid = false;
+  private pendingFocusQueued = false;
+  private lastPublishedStateKey: string | null = null;
 
   connectedCallback() {
     this.style.display = 'contents';
     this.setAttribute(FORM_CONTEXT_ATTRIBUTE, '');
 
     queueMicrotask(() => {
-      this._attachForm();
+      this.attachForm();
     });
   }
 
   disconnectedCallback() {
-    this._detachForm();
-    if (this._actionsRef != null) {
-      this._actionsRef.current = null;
+    this.detachForm();
+    if (this.actionsRefValue != null) {
+      this.actionsRefValue.current = null;
     }
-    this._fields.clear();
-    this._lastPublishedStateKey = null;
+    this.fields.clear();
+    this.lastPublishedStateKey = null;
   }
 
   // --- FormRuntime implementation ---
 
   clearErrors(name: string | undefined) {
-    if (name == null || !Object.hasOwn(this._internalErrors, name)) return;
-    const next = { ...this._internalErrors };
+    if (name == null || !Object.hasOwn(this.internalErrors, name)) {
+      return;
+    }
+    const next = { ...this.internalErrors };
     delete next[name];
-    this._internalErrors = next;
-    this._publishStateChange();
+    this.internalErrors = next;
+    this.publishStateChange();
   }
 
   getErrors(): Errors {
-    return this._internalErrors;
+    return this.internalErrors;
   }
 
   getFormValues(): Record<string, unknown> {
-    return this._getConnectedFields().reduce(
+    return this.getConnectedFields().reduce(
       (values, field) => {
         if (field.name) {
           values[field.name] = field.getValue();
@@ -140,46 +164,50 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
   }
 
   registerField(element: Element, entry: FormFieldEntry) {
-    this._fields.set(element, entry);
-    this._queueFocusInvalidField();
+    this.fields.set(element, entry);
+    this.queueFocusInvalidField();
   }
 
   unregisterField(element: Element) {
-    this._fields.delete(element);
+    this.fields.delete(element);
   }
 
   // --- Private methods ---
 
-  private _attachForm() {
+  private attachForm() {
     const form = this.querySelector('form');
-    if (!form || this._form === form) return;
-
-    this._detachForm();
-    this._form = form;
-    form.noValidate = true;
-    setFormRuntime(form, this);
-    form.addEventListener('submit', this._handleSubmit);
-    this._publishStateChange();
-  }
-
-  private _detachForm() {
-    if (!this._form) return;
-    this._form.removeEventListener('submit', this._handleSubmit);
-    setFormRuntime(this._form, null);
-    this._form = null;
-  }
-
-  private _handleSubmit = (event: SubmitEvent) => {
-    this._validateFields(undefined, true);
-
-    const invalidField = this._getFirstInvalidField();
-    if (invalidField) {
-      event.preventDefault();
-      this._focusControl(invalidField.getControl());
+    if (!form || this.formElement === form) {
       return;
     }
 
-    this._submitted = true;
+    this.detachForm();
+    this.formElement = form;
+    form.noValidate = true;
+    setFormRuntime(form, this);
+    form.addEventListener('submit', this.handleSubmit);
+    this.publishStateChange();
+  }
+
+  private detachForm() {
+    if (!this.formElement) {
+      return;
+    }
+    this.formElement.removeEventListener('submit', this.handleSubmit);
+    setFormRuntime(this.formElement, null);
+    this.formElement = null;
+  }
+
+  private handleSubmit = (event: SubmitEvent) => {
+    this.validateFields(undefined, true);
+
+    const invalidField = this.getFirstInvalidField();
+    if (invalidField) {
+      event.preventDefault();
+      this.focusControl(invalidField.getControl());
+      return;
+    }
+
+    this.submitted = true;
 
     this.onSubmit?.(event);
 
@@ -189,36 +217,44 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
     }
   };
 
-  private _syncExternalErrors(nextErrors: Errors | undefined) {
-    if (this._externalErrors === nextErrors) return;
-    this._externalErrors = nextErrors;
-    this._errors = nextErrors;
-    this._internalErrors = nextErrors ?? {};
-    this._publishStateChange();
+  private syncExternalErrors(nextErrors: Errors | undefined) {
+    if (this.externalErrors === nextErrors) {
+      return;
+    }
+    this.externalErrors = nextErrors;
+    this.errorsValue = nextErrors;
+    this.internalErrors = nextErrors ?? {};
+    this.publishStateChange();
 
-    if (!this._submitted) return;
-    this._submitted = false;
+    if (!this.submitted) {
+      return;
+    }
+    this.submitted = false;
     queueMicrotask(() => {
-      this._pendingFocusInvalid = true;
-      this._queueFocusInvalidField();
+      this.pendingFocusInvalid = true;
+      this.queueFocusInvalidField();
     });
   }
 
-  private _publishStateChange() {
-    if (this._form == null) return;
+  private publishStateChange() {
+    if (this.formElement == null) {
+      return;
+    }
 
     const nextKey = JSON.stringify({
-      errors: this._internalErrors,
+      errors: this.internalErrors,
       validationMode: this.getValidationMode(),
     });
 
-    if (nextKey === this._lastPublishedStateKey) return;
-    this._lastPublishedStateKey = nextKey;
-    this._form.dispatchEvent(new CustomEvent(FORM_STATE_CHANGE_EVENT));
+    if (nextKey === this.lastPublishedStateKey) {
+      return;
+    }
+    this.lastPublishedStateKey = nextKey;
+    this.formElement.dispatchEvent(new CustomEvent(FORM_STATE_CHANGE_EVENT));
   }
 
-  private _validateFields(fieldName?: string, submitAttempted = false) {
-    const fields = this._getConnectedFields();
+  private validateFields(fieldName?: string, submitAttempted = false) {
+    const fields = this.getConnectedFields();
 
     if (fieldName != null) {
       const namedField = fields.find((f) => f.name === fieldName);
@@ -229,17 +265,15 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
     fields.forEach((f) => f.validate(submitAttempted));
   }
 
-  private _getFirstInvalidField() {
-    return this._getConnectedFields().find(
-      (f) => f.getValidityData().state.valid === false,
-    );
+  private getFirstInvalidField() {
+    return this.getConnectedFields().find((f) => f.getValidityData().state.valid === false);
   }
 
-  private _getConnectedFields() {
+  private getConnectedFields() {
     const connected: FormFieldEntry[] = [];
-    this._fields.forEach((field, element) => {
+    this.fields.forEach((field, element) => {
       if (!element.isConnected) {
-        this._fields.delete(element);
+        this.fields.delete(element);
         return;
       }
       connected.push(field);
@@ -247,33 +281,36 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
     return connected;
   }
 
-  private _queueFocusInvalidField() {
-    if (!this._pendingFocusInvalid || this._pendingFocusQueued) return;
-    this._pendingFocusQueued = true;
+  private queueFocusInvalidField() {
+    if (!this.pendingFocusInvalid || this.pendingFocusQueued) {
+      return;
+    }
+    this.pendingFocusQueued = true;
     queueMicrotask(() => {
-      this._pendingFocusQueued = false;
-      if (!this._pendingFocusInvalid) return;
+      this.pendingFocusQueued = false;
+      if (!this.pendingFocusInvalid) {
+        return;
+      }
 
-      const invalidField = this._getFirstInvalidField();
-      const control =
-        invalidField?.getControl() ?? this._getFirstInvalidControlFromDom();
-      if (!control) return;
+      const invalidField = this.getFirstInvalidField();
+      const control = invalidField?.getControl() ?? this.getFirstInvalidControlFromDom();
+      if (!control) {
+        return;
+      }
 
-      this._pendingFocusInvalid = false;
-      this._focusControl(control);
+      this.pendingFocusInvalid = false;
+      this.focusControl(control);
     });
   }
 
-  private _getFirstInvalidControlFromDom() {
-    return (
-      this._form?.querySelector<HTMLElement>(
-        '[aria-invalid="true"]',
-      ) ?? null
-    );
+  private getFirstInvalidControlFromDom() {
+    return this.formElement?.querySelector<HTMLElement>('[aria-invalid="true"]') ?? null;
   }
 
-  private _focusControl(control: HTMLElement | null) {
-    if (!control) return;
+  private focusControl(control: HTMLElement | null) {
+    if (!control) {
+      return;
+    }
     control.focus();
     if (control instanceof HTMLInputElement) {
       control.select();
@@ -285,9 +322,21 @@ if (!customElements.get('form-root')) {
   customElements.define('form-root', FormRootElement);
 }
 
+export const Form = FormRootElement;
+
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
 export namespace FormRoot {
+  export type Props = FormProps;
+  export type Actions = FormActions;
+  export type State = FormState;
+  export type SubmitEventDetails = FormSubmitEventDetails;
+  export type SubmitEventReason = FormSubmitEventReason;
+  export type ValidationMode = FormValidationMode;
+}
+
+export namespace Form {
+  export type Props = FormProps;
   export type Actions = FormActions;
   export type State = FormState;
   export type SubmitEventDetails = FormSubmitEventDetails;

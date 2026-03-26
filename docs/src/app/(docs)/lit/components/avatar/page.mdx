@@ -1,7 +1,10 @@
 # Avatar
 
-<Subtitle>An avatar primitive for Lit templates.</Subtitle>
-<Meta name="description" content="An avatar primitive for Lit templates." />
+<Subtitle>An easily stylable avatar component.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit avatar component that is easy to customize."
+/>
 
 import { DemoAvatarHero } from './demos/hero';
 
@@ -16,9 +19,29 @@ import { DemoAvatarHero } from './demos/hero';
 </avatar-root>
 ```
 
-## Status
+## API reference
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### Root
+
+Custom element: `<avatar-root>`
+
+Tracks shared image loading status for the image and fallback parts.
+
+### Image
+
+Custom element: `<avatar-image>`
+
+| Property                | Type               | Default | Description                                     |
+| ----------------------- | ------------------ | ------- | ----------------------------------------------- |
+| `onLoadingStatusChange` | `(status) => void` | —       | Callback fired when the loading status changes. |
+
+### Fallback
+
+Custom element: `<avatar-fallback>`
+
+| Attribute | Type     | Default | Description                                                    |
+| --------- | -------- | ------- | -------------------------------------------------------------- |
+| `delay`   | `number` | —       | How long to wait before showing the fallback, in milliseconds. |
 
 export const metadata = {
   keywords: ['Lit Avatar', 'Avatar', 'Base UI Lit', 'Custom avatar'],

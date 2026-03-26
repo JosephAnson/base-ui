@@ -1,10 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
 import { render, html } from 'lit';
 import {
   getLabelableContext,
   LabelableProviderElement,
+  LabelableProvider,
   focusElementWithVisible,
-} from './index.ts';
+  type LabelableProviderProps,
+  type LabelableProviderState,
+} from './index';
 
 describe('labelable-provider', () => {
   let container: HTMLDivElement;
@@ -20,6 +23,11 @@ describe('labelable-provider', () => {
   });
 
   describe('LabelableProviderElement', () => {
+    it('exposes namespace aliases for props and state', () => {
+      expectTypeOf<LabelableProviderProps>().toEqualTypeOf<LabelableProvider.Props>();
+      expectTypeOf<LabelableProviderState>().toEqualTypeOf<LabelableProvider.State>();
+    });
+
     it('registers the custom element', () => {
       expect(customElements.get('labelable-provider')).toBe(LabelableProviderElement);
     });
@@ -47,7 +55,33 @@ describe('labelable-provider', () => {
       const target = container.querySelector('#target')!;
       const ctx = getLabelableContext(target);
       expect(ctx).not.toBeNull();
-      expect(ctx!.controlId).toBeUndefined();
+      expect(ctx!.controlId).toMatch(/^base-ui-labelable-control-/);
+    });
+
+    it('reads initial control-id and label-id attributes from the provider', () => {
+      mount(html`
+        <labelable-provider control-id="my-input" label-id="my-label">
+          <div id="target"></div>
+        </labelable-provider>
+      `);
+      const ctx = getLabelableContext(container.querySelector('#target')!)!;
+
+      expect(ctx.controlId).toBe('my-input');
+      expect(ctx.labelId).toBe('my-label');
+    });
+
+    it('preserves an explicit null controlId', () => {
+      mount(html`
+        <labelable-provider>
+          <div id="target"></div>
+        </labelable-provider>
+      `);
+      const provider = container.querySelector('labelable-provider') as LabelableProviderElement;
+      const ctx = getLabelableContext(container.querySelector('#target')!)!;
+
+      provider.controlId = null;
+
+      expect(ctx.controlId).toBeNull();
     });
   });
 
@@ -78,7 +112,7 @@ describe('labelable-provider', () => {
       const source = Symbol('test');
       ctx.registerControlId(source, 'my-input');
       ctx.registerControlId(source, undefined);
-      expect(ctx.controlId).toBeUndefined();
+      expect(ctx.controlId).toMatch(/^base-ui-labelable-control-/);
     });
 
     it('supports multiple control ID sources', () => {
@@ -99,6 +133,24 @@ describe('labelable-provider', () => {
 
       ctx.registerControlId(s2, undefined);
       expect(ctx.controlId).toBe('id-1');
+    });
+
+    it('preserves null registrations instead of treating them as unregistered', () => {
+      mount(html`
+        <labelable-provider>
+          <div id="target"></div>
+        </labelable-provider>
+      `);
+      const ctx = getLabelableContext(container.querySelector('#target')!)!;
+      const source = Symbol('implicit');
+
+      ctx.registerControlId(source, null);
+
+      expect(ctx.controlId).toBeNull();
+
+      ctx.registerControlId(source, undefined);
+
+      expect(ctx.controlId).toMatch(/^base-ui-labelable-control-/);
     });
   });
 
@@ -183,6 +235,30 @@ describe('labelable-provider', () => {
 
       const props = ctx.getDescriptionProps();
       expect(props['aria-describedby']).toBeUndefined();
+    });
+
+    it('merges parent message ids and external aria-describedby values', () => {
+      mount(html`
+        <labelable-provider id="outer">
+          <labelable-provider id="inner">
+            <div id="target"></div>
+          </labelable-provider>
+        </labelable-provider>
+      `);
+
+      const outer = container.querySelector('#outer')!;
+      const inner = container.querySelector('#inner')!;
+      const outerContext = getLabelableContext(outer)!;
+      const innerContext = getLabelableContext(inner)!;
+
+      outerContext.registerMessageId('parent-msg', true);
+      innerContext.registerMessageId('child-msg', true);
+
+      const props = innerContext.getDescriptionProps({
+        'aria-describedby': 'external-msg child-msg',
+      });
+
+      expect(props['aria-describedby']).toBe('parent-msg child-msg external-msg');
     });
   });
 

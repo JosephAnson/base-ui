@@ -1,11 +1,11 @@
 import { ReactiveElement } from 'lit';
-import { BaseHTMLElement, ensureId } from '../utils/index.ts';
+import { BaseHTMLElement, ensureId } from '../utils';
 import {
   RADIO_GROUP_ATTRIBUTE,
   RADIO_GROUP_STATE_CHANGE_EVENT,
   getRadioGroupRuntimeState,
   type RadioGroupRuntimeState,
-} from '../radio-group/shared.ts';
+} from '../radio-group/shared';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -43,9 +43,44 @@ export interface RadioIndicatorState extends RadioRootState {}
 export interface RadioRootChangeEventDetails {
   event: Event;
   cancel(): void;
+  allowPropagation(): void;
   readonly isCanceled: boolean;
+  readonly isPropagationAllowed: boolean;
   reason: 'none';
+  trigger: Element | undefined;
 }
+
+export interface RadioRootProps {
+  /**
+   * The value that identifies this radio within a group.
+   */
+  value?: unknown | undefined;
+  /**
+   * Whether the component should ignore user interaction.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * Whether the user should be unable to select the radio button.
+   * @default false
+   */
+  readOnly?: boolean | undefined;
+  /**
+   * Whether the user must choose a value before submitting a form.
+   * @default false
+   */
+  required?: boolean | undefined;
+}
+
+export interface RadioIndicatorProps {
+  /**
+   * Whether the indicator should stay mounted when unchecked.
+   * @default false
+   */
+  keepMounted?: boolean | undefined;
+}
+
+export type RadioRootChangeEventReason = RadioRootChangeEventDetails['reason'];
 
 // ─── RadioRootElement ───────────────────────────────────────────────────────────
 
@@ -100,9 +135,7 @@ export class RadioRootElement extends ReactiveElement {
     super.connectedCallback();
 
     this._ensureHiddenInput();
-    this._syncGroupRoot(
-      this.closest(`[${RADIO_GROUP_ATTRIBUTE}]`),
-    );
+    this._syncGroupRoot(this.closest(`[${RADIO_GROUP_ATTRIBUTE}]`));
     this._syncGroupRegistration();
 
     this.addEventListener('click', this._handleClick);
@@ -191,21 +224,31 @@ export class RadioRootElement extends ReactiveElement {
       return;
     }
 
-    const labels = Array.from(control.labels ?? []);
+    const labels = [...Array.from(control.labels ?? []), ...this._getExplicitLabels()];
     if (labels.length === 0) {
       this.removeAttribute('aria-labelledby');
       return;
     }
 
-    const labelIds = labels
-      .map((label) => ensureId(label, 'base-ui-radio-label'))
-      .filter(Boolean);
+    const labelIds = labels.map((label) => ensureId(label, 'base-ui-radio-label')).filter(Boolean);
 
     if (labelIds.length > 0) {
       this.setAttribute('aria-labelledby', labelIds.join(' '));
     } else {
       this.removeAttribute('aria-labelledby');
     }
+  }
+
+  private _getExplicitLabels() {
+    if (!this.id) {
+      return [];
+    }
+
+    return Array.from(
+      this.ownerDocument?.querySelectorAll<HTMLLabelElement>(
+        `label[for="${CSS.escape(this.id)}"]`,
+      ) ?? [],
+    );
   }
 
   private syncAttributes() {
@@ -357,10 +400,7 @@ export class RadioRootElement extends ReactiveElement {
       this._handleGroupStateChange,
     );
     this._groupRoot = root;
-    this._groupRoot?.addEventListener(
-      RADIO_GROUP_STATE_CHANGE_EVENT,
-      this._handleGroupStateChange,
-    );
+    this._groupRoot?.addEventListener(RADIO_GROUP_STATE_CHANGE_EVENT, this._handleGroupStateChange);
   }
 
   private _syncGroupRegistration() {
@@ -487,27 +527,43 @@ function serializeValue(value: unknown): string {
 
 function createChangeEventDetails(event: Event): RadioRootChangeEventDetails {
   let isCanceled = false;
+  let isPropagationAllowed = false;
 
   return {
     cancel() {
       isCanceled = true;
     },
+    allowPropagation() {
+      isPropagationAllowed = true;
+    },
     event,
     get isCanceled() {
       return isCanceled;
     },
+    get isPropagationAllowed() {
+      return isPropagationAllowed;
+    },
     reason: 'none',
+    trigger: event.target instanceof Element ? event.target : undefined,
   };
 }
 
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
+export const Radio = {
+  Root: RadioRootElement,
+  Indicator: RadioIndicatorElement,
+} as const;
+
 export namespace RadioRoot {
+  export type Props = RadioRootProps;
   export type State = RadioRootState;
+  export type ChangeEventReason = RadioRootChangeEventReason;
   export type ChangeEventDetails = RadioRootChangeEventDetails;
 }
 
 export namespace RadioIndicator {
+  export type Props = RadioIndicatorProps;
   export type State = RadioIndicatorState;
 }
 

@@ -1,8 +1,8 @@
 {
   "sourcePackage": "@base-ui/react",
   "targetPackage": "@base-ui/lit",
-  "generatedAt": "2026-03-21T22:18:15.816Z",
-  "entrypointCount": 44,
+  "generatedAt": "2026-03-26T23:41:19.205Z",
+  "entrypointCount": 52,
   "entrypoints": [
     {
       "exportPath": ".",
@@ -41,6 +41,12 @@
       "status": "pending"
     },
     {
+      "exportPath": "./calendar",
+      "sourcePath": "./src/calendar/index.ts",
+      "category": "component",
+      "status": "pending"
+    },
+    {
       "exportPath": "./checkbox",
       "sourcePath": "./src/checkbox/index.ts",
       "category": "component",
@@ -65,6 +71,12 @@
       "status": "pending"
     },
     {
+      "exportPath": "./composite",
+      "sourcePath": "./src/composite/index.ts",
+      "category": "utility",
+      "status": "pending"
+    },
+    {
       "exportPath": "./context-menu",
       "sourcePath": "./src/context-menu/index.ts",
       "category": "component",
@@ -86,7 +98,7 @@
       "exportPath": "./direction-provider",
       "sourcePath": "./src/direction-provider/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./drawer",
@@ -116,6 +128,18 @@
       "exportPath": "./input",
       "sourcePath": "./src/input/index.ts",
       "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./labelable-provider",
+      "sourcePath": "./src/labelable-provider/index.ts",
+      "category": "utility",
+      "status": "verified"
+    },
+    {
+      "exportPath": "./localization-provider",
+      "sourcePath": "./src/localization-provider/index.ts",
+      "category": "utility",
       "status": "pending"
     },
     {
@@ -200,7 +224,7 @@
       "exportPath": "./separator",
       "sourcePath": "./src/separator/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./slider",
@@ -212,6 +236,24 @@
       "exportPath": "./switch",
       "sourcePath": "./src/switch/index.ts",
       "category": "component",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./temporal-adapter-date-fns",
+      "sourcePath": "./src/temporal-adapter-date-fns/index.ts",
+      "category": "utility",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./temporal-adapter-luxon",
+      "sourcePath": "./src/temporal-adapter-luxon/index.ts",
+      "category": "utility",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./temporal-adapter-provider",
+      "sourcePath": "./src/temporal-adapter-provider/index.ts",
+      "category": "utility",
       "status": "pending"
     },
     {
@@ -254,11 +296,17 @@
       "exportPath": "./types",
       "sourcePath": "./src/types/index.ts",
       "category": "utility",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./unstable-use-media-query",
       "sourcePath": "./src/unstable-use-media-query/index.ts",
+      "category": "utility",
+      "status": "pending"
+    },
+    {
+      "exportPath": "./use-button",
+      "sourcePath": "./src/use-button/index.ts",
       "category": "utility",
       "status": "pending"
     },

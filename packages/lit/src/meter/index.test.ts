@@ -1,8 +1,28 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import './index.ts';
-import type { MeterRootElement, MeterValueElement } from './index.ts';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import {
+  MeterIndicatorElement,
+  MeterLabelElement,
+  MeterRootElement,
+  MeterTrackElement,
+  MeterValueElement,
+  type MeterIndicator,
+  type MeterIndicatorProps,
+  type MeterIndicatorState,
+  type MeterLabel,
+  type MeterLabelProps,
+  type MeterLabelState,
+  type MeterRoot,
+  type MeterRootProps,
+  type MeterRootState,
+  type MeterTrack,
+  type MeterTrackProps,
+  type MeterTrackState,
+  type MeterValue,
+  type MeterValueProps,
+  type MeterValueState,
+} from './index';
 
 describe('meter', () => {
   const containers = new Set<HTMLDivElement>();
@@ -13,6 +33,7 @@ describe('meter', () => {
       container.remove();
     });
     containers.clear();
+    vi.restoreAllMocks();
   });
 
   function render(result: ReturnType<typeof html>) {
@@ -24,11 +45,31 @@ describe('meter', () => {
   }
 
   async function waitForUpdate() {
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
   }
 
+  it('exposes namespace aliases for props and state', () => {
+    expect(customElements.get('meter-root')).toBe(MeterRootElement);
+    expect(customElements.get('meter-track')).toBe(MeterTrackElement);
+    expect(customElements.get('meter-indicator')).toBe(MeterIndicatorElement);
+    expect(customElements.get('meter-label')).toBe(MeterLabelElement);
+    expect(customElements.get('meter-value')).toBe(MeterValueElement);
+    expectTypeOf<MeterRootProps>().toEqualTypeOf<MeterRoot.Props>();
+    expectTypeOf<MeterRootState>().toEqualTypeOf<MeterRoot.State>();
+    expectTypeOf<MeterTrackProps>().toEqualTypeOf<MeterTrack.Props>();
+    expectTypeOf<MeterTrackState>().toEqualTypeOf<MeterTrack.State>();
+    expectTypeOf<MeterIndicatorProps>().toEqualTypeOf<MeterIndicator.Props>();
+    expectTypeOf<MeterIndicatorState>().toEqualTypeOf<MeterIndicator.State>();
+    expectTypeOf<MeterLabelProps>().toEqualTypeOf<MeterLabel.Props>();
+    expectTypeOf<MeterLabelState>().toEqualTypeOf<MeterLabel.State>();
+    expectTypeOf<MeterValueProps>().toEqualTypeOf<MeterValue.Props>();
+    expectTypeOf<MeterValueState>().toEqualTypeOf<MeterValue.State>();
+  });
+
   it('renders the expected root aria attributes', async () => {
-    const container = render(html`
+    const view = render(html`
       <meter-root .value=${30}>
         <meter-label>Battery Level</meter-label>
         <meter-track>
@@ -38,7 +79,7 @@ describe('meter', () => {
     `);
     await waitForUpdate();
 
-    const root = container.querySelector('meter-root')!;
+    const root = view.querySelector('meter-root') as HTMLElement;
 
     expect(root).toHaveAttribute('role', 'meter');
     expect(root).toHaveAttribute('aria-valuenow', '30');
@@ -48,37 +89,59 @@ describe('meter', () => {
   });
 
   it('wires up label via aria-labelledby', async () => {
-    const container = render(html`
+    const view = render(html`
       <meter-root .value=${50}>
         <meter-label>Battery Level</meter-label>
       </meter-root>
     `);
     await waitForUpdate();
 
-    const root = container.querySelector('meter-root')!;
-    const label = container.querySelector('meter-label')!;
+    const root = view.querySelector('meter-root') as HTMLElement;
+    const label = view.querySelector('meter-label') as HTMLElement;
 
     expect(root).toHaveAttribute('aria-labelledby', label.id);
     expect(label).toHaveAttribute('role', 'presentation');
   });
 
+  it('preserves an explicit aria-labelledby attribute', async () => {
+    const view = render(html`
+      <span id="external-meter-label">Battery Level</span>
+      <meter-root aria-labelledby="external-meter-label" .value=${50}>
+        <meter-label>Ignored auto label</meter-label>
+      </meter-root>
+    `);
+    await waitForUpdate();
+
+    expect(view.querySelector('meter-root')).toHaveAttribute(
+      'aria-labelledby',
+      'external-meter-label',
+    );
+  });
+
+  it('preserves an explicit aria-valuetext attribute', async () => {
+    const view = render(html`
+      <meter-root aria-valuetext="30 out of 100" .value=${30}></meter-root>
+    `);
+    await waitForUpdate();
+
+    expect(view.querySelector('meter-root')).toHaveAttribute('aria-valuetext', '30 out of 100');
+  });
+
   it('displays formatted value in meter-value', async () => {
-    const container = render(html`
+    const view = render(html`
       <meter-root .value=${30}>
         <meter-value data-testid="value"></meter-value>
       </meter-root>
     `);
     await waitForUpdate();
 
-    const value = container.querySelector('[data-testid="value"]')!;
-    expect(value.textContent).toBe(
-      (0.3).toLocaleString(undefined, { style: 'percent' }),
-    );
+    const value = view.querySelector('[data-testid="value"]') as HTMLElement;
+    expect(value.textContent).toBe((0.3).toLocaleString(undefined, { style: 'percent' }));
     expect(value).toHaveAttribute('aria-hidden', 'true');
   });
 
   it('computes indicator width from meter range', async () => {
-    const container = render(html`
+    const view = render(html`
       <meter-root .value=${33}>
         <meter-track>
           <meter-indicator data-testid="indicator"></meter-indicator>
@@ -87,14 +150,26 @@ describe('meter', () => {
     `);
     await waitForUpdate();
 
-    const indicator = container.querySelector('[data-testid="indicator"]')! as HTMLElement;
+    const indicator = view.querySelector('[data-testid="indicator"]') as HTMLElement;
     expect(indicator.style.width).toBe('33%');
     expect(indicator.style.insetInlineStart).toBe('0');
     expect(indicator.style.height).toBe('inherit');
   });
 
+  it('sets zero width when value is 0', async () => {
+    const view = render(html`
+      <meter-root .value=${0}>
+        <meter-indicator data-testid="indicator"></meter-indicator>
+      </meter-root>
+    `);
+    await waitForUpdate();
+
+    const indicator = view.querySelector('[data-testid="indicator"]') as HTMLElement;
+    expect(indicator.style.width).toBe('0%');
+  });
+
   it('updates root aria value on reactivity', async () => {
-    const container = render(html`
+    const view = render(html`
       <meter-root .value=${50}>
         <meter-track>
           <meter-indicator></meter-indicator>
@@ -103,7 +178,7 @@ describe('meter', () => {
     `);
     await waitForUpdate();
 
-    const root = container.querySelector('meter-root')! as MeterRootElement;
+    const root = view.querySelector('meter-root') as MeterRootElement;
     expect(root).toHaveAttribute('aria-valuenow', '50');
 
     root.value = 77;
@@ -119,15 +194,15 @@ describe('meter', () => {
     };
     const expectedValue = new Intl.NumberFormat(undefined, format).format(30);
 
-    const container = render(html`
+    const view = render(html`
       <meter-root .value=${30} .format=${format}>
         <meter-value data-testid="value"></meter-value>
       </meter-root>
     `);
     await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="value"]')!.textContent).toBe(expectedValue);
-    expect(container.querySelector('meter-root')).toHaveAttribute('aria-valuetext', expectedValue);
+    expect(view.querySelector('[data-testid="value"]')?.textContent).toBe(expectedValue);
+    expect(view.querySelector('meter-root')).toHaveAttribute('aria-valuetext', expectedValue);
   });
 
   it('uses the provided locale when formatting the value', async () => {
@@ -138,14 +213,14 @@ describe('meter', () => {
     };
     const expectedValue = new Intl.NumberFormat('de-DE', format).format(86.49);
 
-    const container = render(html`
+    const view = render(html`
       <meter-root .value=${86.49} .locale=${'de-DE'} .format=${format}>
         <meter-value data-testid="value"></meter-value>
       </meter-root>
     `);
     await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="value"]')!.textContent).toBe(expectedValue);
+    expect(view.querySelector('[data-testid="value"]')?.textContent).toBe(expectedValue);
   });
 
   it('supports custom renderValue on meter-value', async () => {
@@ -153,7 +228,7 @@ describe('meter', () => {
       (formattedValue: string, _value: number) => `Custom: ${formattedValue}`,
     );
 
-    const container = render(html`
+    const view = render(html`
       <meter-root .value=${30}>
         <meter-value .renderValue=${renderSpy} data-testid="value"></meter-value>
       </meter-root>
@@ -161,33 +236,31 @@ describe('meter', () => {
     await waitForUpdate();
 
     expect(renderSpy).toHaveBeenCalled();
-    expect(container.querySelector('[data-testid="value"]')!.textContent).toContain('Custom:');
+    expect(view.querySelector('[data-testid="value"]')?.textContent).toContain('Custom:');
   });
 
   it('uses getAriaValueText when provided', async () => {
-    const getAriaValueText = vi.fn(
-      (_formatted: string, value: number) => `${value} items`,
-    );
+    const getAriaValueText = vi.fn((_formatted: string, value: number) => `${value} items`);
 
-    const container = render(html`
+    const view = render(html`
       <meter-root .value=${42} .getAriaValueText=${getAriaValueText}></meter-root>
     `);
     await waitForUpdate();
 
-    expect(container.querySelector('meter-root')).toHaveAttribute('aria-valuetext', '42 items');
+    expect(view.querySelector('meter-root')).toHaveAttribute('aria-valuetext', '42 items');
     expect(getAriaValueText).toHaveBeenCalled();
   });
 
   it('supports custom min/max range', async () => {
-    const container = render(html`
+    const view = render(html`
       <meter-root .value=${15} .min=${10} .max=${20}>
         <meter-indicator data-testid="indicator"></meter-indicator>
       </meter-root>
     `);
     await waitForUpdate();
 
-    const root = container.querySelector('meter-root')!;
-    const indicator = container.querySelector('[data-testid="indicator"]')! as HTMLElement;
+    const root = view.querySelector('meter-root') as HTMLElement;
+    const indicator = view.querySelector('[data-testid="indicator"]') as HTMLElement;
 
     expect(root).toHaveAttribute('aria-valuemin', '10');
     expect(root).toHaveAttribute('aria-valuemax', '20');
@@ -212,12 +285,10 @@ describe('meter', () => {
   });
 
   it('includes NVDA force-announcement span', async () => {
-    const container = render(html`
-      <meter-root .value=${50}></meter-root>
-    `);
+    const view = render(html` <meter-root .value=${50}></meter-root> `);
     await waitForUpdate();
 
-    const nvdaSpan = container.querySelector('meter-root span[role="presentation"]');
+    const nvdaSpan = view.querySelector('meter-root span[role="presentation"]');
     expect(nvdaSpan).toBeInTheDocument();
     expect(nvdaSpan?.textContent).toBe('x');
   });

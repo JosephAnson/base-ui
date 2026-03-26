@@ -1,22 +1,37 @@
-# LabelableProvider
+# Labelable Provider
 
 <Subtitle>Manages label-control ID associations for accessibility.</Subtitle>
 <Meta
   name="description"
-  content="A provider element for managing label-control associations and aria-describedby in Base UI Lit."
+  content="A provider element for managing label-control associations and accessible descriptions in Base UI Lit."
 />
 
-## Usage
+## Anatomy
 
 ```html title="Anatomy"
-<labelable-provider>
+<labelable-provider control-id="my-input">
   <label id="my-label">Name</label>
   <input id="my-input" aria-labelledby="my-label" />
   <span id="my-error">Required field</span>
 </labelable-provider>
 ```
 
-### Reading context
+The provider renders with `display: contents`, keeps track of the active control and label ids, and combines description ids for `aria-describedby`.
+
+## API reference
+
+### LabelableProviderElement
+
+Custom element: `<labelable-provider>`
+
+| Attribute    | Type             | Default     | Description                                    |
+| ------------ | ---------------- | ----------- | ---------------------------------------------- |
+| `control-id` | `string \| null` | generated   | Explicit control id to expose through context. |
+| `label-id`   | `string`         | `undefined` | Explicit label id to expose through context.   |
+
+### getLabelableContext
+
+Use this helper to read the nearest labelable context from a descendant element.
 
 ```ts title="Using getLabelableContext"
 import { getLabelableContext } from '@base-ui/lit/labelable-provider';
@@ -27,31 +42,21 @@ if (ctx) {
   ctx.registerLabelId('my-label');
   ctx.registerMessageId('my-error', true);
 
-  const props = ctx.getDescriptionProps();
-  // { 'aria-describedby': 'my-error' }
+  const props = ctx.getDescriptionProps({ 'aria-describedby': 'custom-help' });
+  // { 'aria-describedby': 'my-error custom-help' }
 }
 ```
 
-## API
-
-### `LabelableProviderElement`
-
-Custom element: `<labelable-provider>`
-
-Renders with `display: contents`. Manages control IDs, label IDs, and message IDs for accessibility.
-
-### `getLabelableContext(element: Element): LabelableContext | null`
-
-Returns the context from the nearest `<labelable-provider>` ancestor, or `null`.
-
-### `focusElementWithVisible(element: HTMLElement): void`
+### focusElementWithVisible
 
 Focuses an element using the focus-visible algorithm.
 
-## Status
-
-The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
-
 export const metadata = {
-  keywords: ['Lit LabelableProvider', 'Label', 'aria-describedby', 'Base UI Lit', 'Accessibility'],
+  keywords: [
+    'Base UI Lit Labelable Provider',
+    'aria-describedby',
+    'Label Association',
+    'Accessibility',
+    'Form Labels',
+  ],
 };

@@ -1,21 +1,53 @@
 # Input
 
-<Subtitle>A Lit input primitive with Base UI form behavior.</Subtitle>
-<Meta name="description" content="A Lit input primitive with Base UI form behavior." />
+<Subtitle>
+  A native input element wrapper that tracks Base UI form state on the underlying control.
+</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit input component that wraps a native input or textarea."
+/>
 
 import { DemoInputHero } from './demos/hero';
 
 <DemoInputHero />
 
+## Usage guidelines
+
+- **Form controls must have an accessible name**: Use a native `<label>` or pair the input with the Lit `field` utilities where applicable.
+
 ## Anatomy
 
 ```html title="Anatomy"
-<input-root placeholder="Email address"></input-root>
+<input-root>
+  <input placeholder="Email address" />
+</input-root>
 ```
 
-## Status
+## API reference
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### InputRootElement
+
+Custom element: `<input-root>`
+
+| Property        | Type                           | Default | Description                                            |
+| --------------- | ------------------------------ | ------- | ------------------------------------------------------ |
+| `disabled`      | `boolean`                      | `false` | Whether the component should ignore user interaction.  |
+| `defaultValue`  | `string \| number \| string[]` | —       | The default value of the input. Use when uncontrolled. |
+| `value`         | `string \| number \| string[]` | —       | The value of the input. Use when controlled.           |
+| `onValueChange` | `(value, details) => void`     | —       | Callback fired when the value changes.                 |
+
+### Data attributes
+
+The wrapped native `<input>` or `<textarea>` receives the following attributes:
+
+- `data-disabled`
+- `data-valid`
+- `data-invalid`
+- `data-dirty`
+- `data-touched`
+- `data-filled`
+- `data-focused`
 
 export const metadata = {
   keywords: ['Lit Input', 'Input', 'Base UI Lit', 'Form input'],

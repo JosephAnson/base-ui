@@ -1,53 +1,60 @@
-# DirectionProvider
+# Direction Provider
 
-<Subtitle>Provides text direction (LTR/RTL) to child components.</Subtitle>
+<Subtitle>Enables RTL behavior for Base UI components.</Subtitle>
 <Meta
   name="description"
-  content="A provider element and utility for resolving text direction in Base UI Lit components."
+  content="A direction provider element that enables RTL behavior for Base UI components."
 />
 
-## Usage
+import { DemoDirectionProviderHero } from './demos/hero';
 
-The `getDirection` utility resolves the text direction for any element by walking up the DOM tree to find the nearest `[dir]` attribute.
+<DemoDirectionProviderHero />
 
-```ts title="Using getDirection"
-import { getDirection } from '@base-ui/lit/direction-provider';
+## Anatomy
 
-const dir = getDirection(element); // 'ltr' or 'rtl'
-```
-
-The `<direction-provider>` element sets the text direction for its subtree:
+Import the element and wrap it around your app:
 
 ```html title="Anatomy"
-<direction-provider dir="rtl">
-  <!-- All children will resolve to RTL -->
-  <accordion-root>...</accordion-root>
+<script type="module">
+  import '@base-ui/lit/direction-provider';
+</script>
+
+<direction-provider direction="rtl">
+  <!-- Your app or a group of components -->
 </direction-provider>
 ```
 
-The provider renders with `display: contents` so it doesn't affect layout.
+`<direction-provider>` enables child Base UI components to adjust behavior based on RTL text direction, but does not affect HTML and CSS. The `dir="rtl"` HTML attribute or `direction: rtl` CSS style must be set additionally by your own application code.
 
-## API
+## API reference
 
-### `getDirection(element: Element): TextDirection`
-
-Returns `'ltr'` or `'rtl'` by checking:
-1. The nearest ancestor with a `[dir]` attribute
-2. The document element's `dir` attribute
-3. Falls back to `'ltr'`
-
-### `DirectionProviderElement`
+### DirectionProvider
 
 Custom element: `<direction-provider>`
 
-| Attribute | Type | Default | Description |
-| --- | --- | --- | --- |
-| `dir` | `'ltr' \| 'rtl'` | `'ltr'` | The text direction to provide. |
+| Attribute   | Type             | Default | Description                        |
+| ----------- | ---------------- | ------- | ---------------------------------- |
+| `direction` | `'ltr' \| 'rtl'` | `'ltr'` | The reading direction of the text. |
 
-## Status
+The element mirrors `direction` to a `dir` attribute so descendant Lit components can resolve the effective text direction from the DOM tree.
 
-The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
+### getDirection
+
+Use this helper to read the current text direction from any element. This is useful for components that need the resolved direction from the nearest provider or DOM ancestor, including content rendered outside the provider subtree.
+
+```ts title="Reading the current direction"
+import { getDirection } from '@base-ui/lit/direction-provider';
+
+const direction = getDirection(element);
+```
 
 export const metadata = {
-  keywords: ['Lit DirectionProvider', 'DirectionProvider', 'RTL', 'Base UI Lit', 'Text direction'],
+  keywords: [
+    'Base UI Direction Provider',
+    'Lit RTL Context',
+    'Text Direction',
+    'Bidirectional Text',
+    'Internationalization',
+    'i18n',
+  ],
 };

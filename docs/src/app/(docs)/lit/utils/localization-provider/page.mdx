@@ -1,6 +1,6 @@
 # LocalizationProvider
 
-<Subtitle>Provides a locale configuration to temporal components.</Subtitle>
+<Subtitle>Defines the temporal locale provider for Base UI temporal components.</Subtitle>
 <Meta
   name="description"
   content="A provider element for supplying date-fns Locale or compatible locale to Base UI Lit temporal components."
@@ -20,7 +20,7 @@ Set the locale programmatically:
 import { fr } from 'date-fns/locale/fr';
 
 const provider = document.querySelector('localization-provider');
-provider.locale = fr;
+provider.temporalLocale = fr;
 ```
 
 ### Reading context
@@ -37,17 +37,13 @@ const { temporalLocale } = getLocalizationContext(element);
 
 Custom element: `<localization-provider>`
 
-| Property | Type | Default | Description |
-| --- | --- | --- | --- |
-| `locale` | `object` | `undefined` | A date-fns Locale object or compatible locale. |
+| Property         | Type     | Default     | Description                               |
+| ---------------- | -------- | ----------- | ----------------------------------------- |
+| `temporalLocale` | `object` | `undefined` | The locale to use in temporal components. |
 
 ### `getLocalizationContext(element: Element): LocalizationContext`
 
 Returns `{ temporalLocale }` from the nearest `<localization-provider>` ancestor.
-
-## Status
-
-The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
 
 export const metadata = {
   keywords: ['Lit LocalizationProvider', 'Locale', 'i18n', 'Base UI Lit'],

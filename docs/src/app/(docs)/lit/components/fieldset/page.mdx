@@ -1,7 +1,11 @@
 # Fieldset
 
-<Subtitle>Fieldset primitives for grouped controls in Lit.</Subtitle>
-<Meta name="description" content="Fieldset primitives for grouped controls in Lit." />
+<Subtitle>A native fieldset element with an easily stylable legend.</Subtitle>
+
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit fieldset component with an easily stylable legend."
+/>
 
 import { DemoFieldsetHero } from './demos/hero';
 
@@ -9,16 +13,41 @@ import { DemoFieldsetHero } from './demos/hero';
 
 ## Anatomy
 
+Import the custom elements and assemble the parts:
+
 ```html title="Anatomy"
 <fieldset-root>
   <fieldset-legend>Notifications</fieldset-legend>
 </fieldset-root>
 ```
 
-## Status
+## Usage guidelines
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+- Use `fieldset-root` to group related controls under a shared label.
+- Use `fieldset-legend` as the accessible label for the group instead of separate heading-only text.
+
+## API reference
+
+### FieldsetRootElement
+
+Custom element: `<fieldset-root>`
+
+| Attribute  | Type      | Default | Description                                           |
+| ---------- | --------- | ------- | ----------------------------------------------------- |
+| `disabled` | `boolean` | `false` | Whether the component should ignore user interaction. |
+
+### FieldsetLegendElement
+
+Custom element: `<fieldset-legend>`
+
+Accessible legend associated with the nearest `fieldset-root`.
+
+### Data attributes
+
+`<fieldset-root>` and `<fieldset-legend>` receive:
+
+- `data-disabled`
 
 export const metadata = {
-  keywords: ['Lit Fieldset', 'Fieldset', 'Base UI Lit'],
+  keywords: ['Lit Fieldset', 'Fieldset', 'Fieldset Legend', 'Accessible Fieldset', 'Base UI Lit'],
 };

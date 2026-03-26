@@ -1,13 +1,24 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import './index.ts';
-import type { RadioRootElement } from './index.ts';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import {
+  Radio,
+  RadioIndicator,
+  RadioIndicatorElement,
+  type RadioIndicatorProps,
+  type RadioIndicatorState,
+  RadioRoot,
+  RadioRootElement,
+  type RadioRootChangeEventDetails,
+  type RadioRootProps,
+  type RadioRootState,
+} from './index';
+import './index';
 import {
   RADIO_GROUP_ATTRIBUTE,
   setRadioGroupRuntimeState,
   type RadioGroupRuntimeState,
-} from '../radio-group/shared.ts';
+} from '../radio-group/shared';
 
 describe('radio', () => {
   const containers = new Set<HTMLDivElement>();
@@ -29,24 +40,30 @@ describe('radio', () => {
     return container;
   }
 
-  async function waitForUpdate() {
-    await new Promise((r) => setTimeout(r, 0));
+  async function flushUpdates(count = 2) {
+    await Array.from({ length: count }).reduce(
+      (promise) =>
+        promise.then(
+          () =>
+            new Promise<void>((resolve) => {
+              setTimeout(resolve, 0);
+            }),
+        ),
+      Promise.resolve(),
+    );
   }
 
-  function getRadio(container: HTMLElement) {
-    return container.querySelector('radio-root') as RadioRootElement;
+  function getRadio(view: HTMLElement) {
+    return view.querySelector('radio-root') as RadioRootElement;
   }
 
-  function getHiddenInput(container: HTMLElement) {
-    return container.querySelector('input[type="radio"]') as HTMLInputElement;
+  function getHiddenInput(view: HTMLElement) {
+    return view.querySelector('input[type="radio"]') as HTMLInputElement;
   }
 
-  /**
-   * Creates a mock radio group element with the given state.
-   */
-  function createMockGroup(overrides: Partial<RadioGroupRuntimeState> = {}): HTMLDivElement {
-    const groupEl = document.createElement('div');
-    groupEl.setAttribute(RADIO_GROUP_ATTRIBUTE, '');
+  function createMockGroup(overrides: Partial<RadioGroupRuntimeState> = {}) {
+    const groupElement = document.createElement('div');
+    groupElement.setAttribute(RADIO_GROUP_ATTRIBUTE, '');
     const state: RadioGroupRuntimeState = {
       id: 'test-group',
       name: undefined,
@@ -63,309 +80,225 @@ describe('radio', () => {
       moveFocus: vi.fn(() => ({ handled: false, selectionCommitted: false })),
       ...overrides,
     };
-    setRadioGroupRuntimeState(groupEl, state);
-    return groupEl;
+
+    setRadioGroupRuntimeState(groupElement, state);
+    return { groupElement, state };
   }
 
-  it('renders radio-root as a custom element with role=radio', async () => {
-    const container = render(html`<radio-root></radio-root>`);
-    await waitForUpdate();
+  function renderInGroup(
+    radioTemplate: ReturnType<typeof html>,
+    overrides: Partial<RadioGroupRuntimeState> = {},
+  ) {
+    const { groupElement, state } = createMockGroup(overrides);
+    const container = document.createElement('div');
+    document.body.append(container);
+    containers.add(container);
+    container.append(groupElement);
+    renderTemplate(radioTemplate, groupElement);
+    return { groupElement, state };
+  }
 
-    const el = getRadio(container);
-    expect(el).toBeInTheDocument();
-    expect(el).toHaveAttribute('role', 'radio');
-    expect(el).toHaveAttribute('aria-checked', 'false');
+  it('exposes the radio runtime export and namespace aliases', () => {
+    expect(Radio.Root).toBe(RadioRootElement);
+    expect(Radio.Indicator).toBe(RadioIndicatorElement);
+    expectTypeOf<RadioRoot.Props>().toEqualTypeOf<RadioRootProps>();
+    expectTypeOf<RadioRoot.State>().toEqualTypeOf<RadioRootState>();
+    expectTypeOf<RadioRoot.ChangeEventDetails>().toEqualTypeOf<RadioRootChangeEventDetails>();
+    expectTypeOf<RadioIndicator.Props>().toEqualTypeOf<RadioIndicatorProps>();
+    expectTypeOf<RadioIndicator.State>().toEqualTypeOf<RadioIndicatorState>();
   });
 
-  it('renders a hidden radio input inside the element', async () => {
-    const container = render(html`<radio-root></radio-root>`);
-    await waitForUpdate();
+  it('renders radio-root as a custom element with a hidden radio input', async () => {
+    const view = render(html`<radio-root></radio-root>`);
+    await flushUpdates();
 
-    const input = getHiddenInput(container);
-    expect(input).toBeInTheDocument();
+    const radio = getRadio(view);
+    const input = getHiddenInput(view);
+
+    expect(radio).toBeInTheDocument();
+    expect(radio).toHaveAttribute('role', 'radio');
+    expect(radio).toHaveAttribute('aria-checked', 'false');
     expect(input).toHaveAttribute('type', 'radio');
     expect(input).toHaveAttribute('aria-hidden', 'true');
     expect(input.tabIndex).toBe(-1);
   });
 
-  it('uses aria-disabled instead of html disabled', async () => {
-    const container = render(html`<radio-root .disabled=${true}></radio-root>`);
-    await waitForUpdate();
+  it('uses aria-disabled instead of HTML disabled and mirrors readOnly and required', async () => {
+    const view = render(html`
+      <radio-root .disabled=${true} .readOnly=${true} .required=${true}></radio-root>
+    `);
+    await flushUpdates();
 
-    const el = getRadio(container);
-    expect(el).not.toHaveAttribute('disabled');
-    expect(el).toHaveAttribute('aria-disabled', 'true');
-    expect(el).toHaveAttribute('data-disabled');
+    const radio = getRadio(view);
+
+    expect(radio).not.toHaveAttribute('disabled');
+    expect(radio).toHaveAttribute('aria-disabled', 'true');
+    expect(radio).toHaveAttribute('aria-readonly', 'true');
+    expect(radio).toHaveAttribute('aria-required', 'true');
+    expect(radio).toHaveAttribute('data-disabled');
+    expect(radio).toHaveAttribute('data-readonly');
+    expect(radio).toHaveAttribute('data-required');
   });
 
-  it('sets aria-readonly when readOnly', async () => {
-    const container = render(html`<radio-root .readOnly=${true}></radio-root>`);
-    await waitForUpdate();
+  it('associates aria-labelledby from explicit and implicit labels', async () => {
+    const view = render(html`
+      <div>
+        <label for="radio-explicit">Explicit label</label>
+        <radio-root id="radio-explicit"></radio-root>
+      </div>
+    `);
+    const utils = render(html`
+      <label>
+        Implicit label
+        <radio-root></radio-root>
+      </label>
+    `);
+    await flushUpdates();
 
-    const el = getRadio(container);
-    expect(el).toHaveAttribute('aria-readonly', 'true');
-    expect(el).toHaveAttribute('data-readonly');
+    const explicitRadio = getRadio(view);
+    const implicitRadio = getRadio(utils);
+
+    expect(explicitRadio).toHaveAttribute('aria-labelledby');
+    expect(implicitRadio).toHaveAttribute('aria-labelledby');
   });
 
-  it('sets aria-required when required', async () => {
-    const container = render(html`<radio-root .required=${true}></radio-root>`);
-    await waitForUpdate();
+  it('shows as checked when group value matches, including null values', async () => {
+    const { groupElement: nullGroup } = renderInGroup(
+      html`<radio-root .value=${null}></radio-root>`,
+      { checkedValue: null },
+    );
+    const { groupElement: stringGroup } = renderInGroup(
+      html`<radio-root .value=${'a'}></radio-root>`,
+      { checkedValue: 'a' },
+    );
+    await flushUpdates();
 
-    const el = getRadio(container);
-    expect(el).toHaveAttribute('aria-required', 'true');
-    expect(el).toHaveAttribute('data-required');
+    expect(nullGroup.querySelector('radio-root') as RadioRootElement).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    expect(stringGroup.querySelector('radio-root') as RadioRootElement).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
   });
 
-  it('is focusable with tabindex=0 and unfocusable when disabled', async () => {
-    const container = render(html`<radio-root></radio-root>`);
-    await waitForUpdate();
+  it('calls group setCheckedValue on click with change details', async () => {
+    const setCheckedValue = vi.fn(() => true);
+    const { groupElement } = renderInGroup(html`<radio-root .value=${'a'}></radio-root>`, {
+      setCheckedValue,
+    });
+    await flushUpdates();
 
-    const el = getRadio(container);
-    expect(el.tabIndex).toBe(0);
+    const radio = groupElement.querySelector('radio-root') as RadioRootElement;
+    radio.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true }),
+    );
+    await flushUpdates();
 
-    el.disabled = true;
-    await el.updateComplete;
-    expect(el.tabIndex).toBe(-1);
+    expect(setCheckedValue).toHaveBeenCalledTimes(1);
+    expect(setCheckedValue).toHaveBeenCalledWith(
+      'a',
+      expect.objectContaining({ reason: 'none', trigger: radio }),
+    );
+    expect(setCheckedValue.mock.calls[0]?.[1].event.shiftKey).toBe(true);
   });
 
-  it('logs error when radio-indicator is rendered outside radio-root', () => {
+  it('does not call setCheckedValue when already checked', async () => {
+    const setCheckedValue = vi.fn(() => true);
+    const { groupElement } = renderInGroup(html`<radio-root .value=${'a'}></radio-root>`, {
+      checkedValue: 'a',
+      setCheckedValue,
+    });
+    await flushUpdates();
+
+    const radio = groupElement.querySelector('radio-root') as RadioRootElement;
+    radio.click();
+    await flushUpdates();
+
+    expect(setCheckedValue).not.toHaveBeenCalled();
+  });
+
+  it('registers with the group on connect and unregisters on disconnect', async () => {
+    const registerControl = vi.fn();
+    const unregisterControl = vi.fn();
+    const registerInput = vi.fn();
+    const unregisterInput = vi.fn();
+    const { groupElement } = renderInGroup(html`<radio-root .value=${'a'}></radio-root>`, {
+      registerControl,
+      unregisterControl,
+      registerInput,
+      unregisterInput,
+    });
+    await flushUpdates();
+
+    expect(registerControl).toHaveBeenCalled();
+    expect(registerInput).toHaveBeenCalled();
+
+    const radio = groupElement.querySelector('radio-root') as RadioRootElement;
+    radio.remove();
+
+    expect(unregisterControl).toHaveBeenCalled();
+    expect(unregisterInput).toHaveBeenCalled();
+  });
+
+  it('inherits disabled and readOnly state from the group and uses group tabindex management', async () => {
+    const getTabIndex = vi.fn(() => -1);
+    const { groupElement } = renderInGroup(html`<radio-root .value=${'a'}></radio-root>`, {
+      disabled: true,
+      readOnly: true,
+      required: true,
+      getTabIndex,
+      name: 'color',
+    });
+    await flushUpdates();
+
+    const radio = groupElement.querySelector('radio-root') as RadioRootElement;
+    const input = groupElement.querySelector('input[type="radio"]') as HTMLInputElement;
+
+    expect(radio).toHaveAttribute('aria-disabled', 'true');
+    expect(radio).toHaveAttribute('aria-readonly', 'true');
+    expect(radio).toHaveAttribute('aria-required', 'true');
+    expect(radio.tabIndex).toBe(-1);
+    expect(input).toHaveAttribute('name', 'color');
+  });
+
+  it('indicator visibility and data attributes follow the radio state', async () => {
+    const { groupElement, state } = renderInGroup(
+      html`<radio-root .value=${'a'}>
+        <radio-indicator keep-mounted></radio-indicator>
+      </radio-root>`,
+      {
+        checkedValue: 'a',
+        disabled: true,
+        readOnly: true,
+        required: true,
+      },
+    );
+    await flushUpdates();
+
+    const indicator = groupElement.querySelector('radio-indicator') as HTMLElement;
+    expect(indicator).not.toHaveAttribute('hidden');
+    expect(indicator).toHaveAttribute('data-checked');
+    expect(indicator).toHaveAttribute('data-disabled');
+    expect(indicator).toHaveAttribute('data-readonly');
+    expect(indicator).toHaveAttribute('data-required');
+
+    setRadioGroupRuntimeState(groupElement, { ...state, checkedValue: 'b' });
+    groupElement.dispatchEvent(new CustomEvent('base-ui-radio-group-state-change'));
+    await flushUpdates();
+
+    expect(indicator).not.toHaveAttribute('hidden');
+    expect(indicator).toHaveAttribute('data-unchecked');
+  });
+
+  it('logs an error when radio-indicator is rendered outside radio-root', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
     render(html`<radio-indicator></radio-indicator>`);
 
     expect(errorSpy).toHaveBeenCalledTimes(1);
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining('Radio parts must be placed within <radio-root>'),
     );
-
-    errorSpy.mockRestore();
-  });
-
-  describe('within a group', () => {
-    function renderInGroup(
-      radioHtml: ReturnType<typeof html>,
-      groupOverrides: Partial<RadioGroupRuntimeState> = {},
-    ) {
-      const groupEl = createMockGroup(groupOverrides);
-      const container = document.createElement('div');
-      document.body.append(container);
-      containers.add(container);
-      container.append(groupEl);
-      renderTemplate(radioHtml, groupEl);
-      return { container, groupEl };
-    }
-
-    it('shows as checked when group value matches', async () => {
-      const { groupEl } = renderInGroup(
-        html`<radio-root .value=${'a'}></radio-root>`,
-        { checkedValue: 'a' },
-      );
-      await waitForUpdate();
-
-      const el = groupEl.querySelector('radio-root') as RadioRootElement;
-      expect(el).toHaveAttribute('aria-checked', 'true');
-      expect(el).toHaveAttribute('data-checked');
-    });
-
-    it('shows as unchecked when group value does not match', async () => {
-      const { groupEl } = renderInGroup(
-        html`<radio-root .value=${'a'}></radio-root>`,
-        { checkedValue: 'b' },
-      );
-      await waitForUpdate();
-
-      const el = groupEl.querySelector('radio-root') as RadioRootElement;
-      expect(el).toHaveAttribute('aria-checked', 'false');
-      expect(el).toHaveAttribute('data-unchecked');
-    });
-
-    it('calls group setCheckedValue on click', async () => {
-      const setCheckedValue = vi.fn(() => true);
-      const { groupEl } = renderInGroup(
-        html`<radio-root .value=${'a'}></radio-root>`,
-        { setCheckedValue },
-      );
-      await waitForUpdate();
-
-      const el = groupEl.querySelector('radio-root') as RadioRootElement;
-      el.click();
-      await waitForUpdate();
-
-      expect(setCheckedValue).toHaveBeenCalledTimes(1);
-      expect(setCheckedValue).toHaveBeenCalledWith(
-        'a',
-        expect.objectContaining({ reason: 'none' }),
-      );
-    });
-
-    it('does not call setCheckedValue when already checked', async () => {
-      const setCheckedValue = vi.fn(() => true);
-      const { groupEl } = renderInGroup(
-        html`<radio-root .value=${'a'}></radio-root>`,
-        { checkedValue: 'a', setCheckedValue },
-      );
-      await waitForUpdate();
-
-      const el = groupEl.querySelector('radio-root') as RadioRootElement;
-      el.click();
-      await waitForUpdate();
-
-      expect(setCheckedValue).not.toHaveBeenCalled();
-    });
-
-    it('registers with the group on connect and unregisters on disconnect', async () => {
-      const registerControl = vi.fn();
-      const unregisterControl = vi.fn();
-      const registerInput = vi.fn();
-      const unregisterInput = vi.fn();
-
-      const { groupEl } = renderInGroup(
-        html`<radio-root .value=${'a'}></radio-root>`,
-        { registerControl, unregisterControl, registerInput, unregisterInput },
-      );
-      await waitForUpdate();
-
-      expect(registerControl).toHaveBeenCalled();
-      expect(registerInput).toHaveBeenCalled();
-
-      const el = groupEl.querySelector('radio-root') as RadioRootElement;
-      el.remove();
-
-      expect(unregisterControl).toHaveBeenCalled();
-      expect(unregisterInput).toHaveBeenCalled();
-    });
-
-    it('inherits disabled state from group', async () => {
-      const { groupEl } = renderInGroup(
-        html`<radio-root .value=${'a'}></radio-root>`,
-        { disabled: true },
-      );
-      await waitForUpdate();
-
-      const el = groupEl.querySelector('radio-root') as RadioRootElement;
-      expect(el).toHaveAttribute('aria-disabled', 'true');
-      expect(el).toHaveAttribute('data-disabled');
-    });
-
-    it('inherits readOnly state from group', async () => {
-      const { groupEl } = renderInGroup(
-        html`<radio-root .value=${'a'}></radio-root>`,
-        { readOnly: true },
-      );
-      await waitForUpdate();
-
-      const el = groupEl.querySelector('radio-root') as RadioRootElement;
-      expect(el).toHaveAttribute('aria-readonly', 'true');
-    });
-
-    it('uses group tabIndex management', async () => {
-      const getTabIndex = vi.fn(() => -1);
-      const { groupEl } = renderInGroup(
-        html`<radio-root .value=${'a'}></radio-root>`,
-        { getTabIndex },
-      );
-      await waitForUpdate();
-
-      const el = groupEl.querySelector('radio-root') as RadioRootElement;
-      expect(el.tabIndex).toBe(-1);
-      expect(getTabIndex).toHaveBeenCalled();
-    });
-
-    it('sets name on hidden input from group', async () => {
-      const { groupEl } = renderInGroup(
-        html`<radio-root .value=${'a'}></radio-root>`,
-        { name: 'color' },
-      );
-      await waitForUpdate();
-
-      const input = groupEl.querySelector('input[type="radio"]') as HTMLInputElement;
-      expect(input).toHaveAttribute('name', 'color');
-    });
-  });
-
-  describe('indicator', () => {
-    it('indicator shows when checked and hides when unchecked', async () => {
-      const groupEl = createMockGroup({ checkedValue: 'a' });
-      const container = document.createElement('div');
-      document.body.append(container);
-      containers.add(container);
-      container.append(groupEl);
-      renderTemplate(
-        html`<radio-root .value=${'a'}>
-          <radio-indicator></radio-indicator>
-        </radio-root>`,
-        groupEl,
-      );
-      await waitForUpdate();
-
-      const indicator = groupEl.querySelector('radio-indicator') as HTMLElement;
-      expect(indicator).not.toHaveAttribute('hidden');
-
-      // Change group to select a different value
-      setRadioGroupRuntimeState(groupEl, {
-        ...createMockGroup().dataset,
-        id: 'test-group',
-        name: undefined,
-        checkedValue: 'b',
-        disabled: false,
-        readOnly: false,
-        required: false,
-        registerControl: vi.fn(),
-        unregisterControl: vi.fn(),
-        registerInput: vi.fn(),
-        unregisterInput: vi.fn(),
-        setCheckedValue: vi.fn(() => true),
-        getTabIndex: vi.fn(() => 0),
-        moveFocus: vi.fn(() => ({ handled: false, selectionCommitted: false })),
-      } as unknown as RadioGroupRuntimeState);
-
-      // Dispatch group state change
-      groupEl.dispatchEvent(new CustomEvent('base-ui-radio-group-state-change'));
-      await waitForUpdate();
-      await waitForUpdate();
-
-      expect(indicator).toHaveAttribute('hidden');
-    });
-
-    it('indicator stays in DOM when keep-mounted', async () => {
-      const container = render(html`
-        <radio-root>
-          <radio-indicator keep-mounted></radio-indicator>
-        </radio-root>
-      `);
-      await waitForUpdate();
-
-      const indicator = container.querySelector('radio-indicator') as HTMLElement;
-      expect(indicator).toBeInTheDocument();
-      expect(indicator).not.toHaveAttribute('hidden');
-    });
-
-    it('indicator mirrors data attributes from parent', async () => {
-      const groupEl = createMockGroup({
-        checkedValue: 'a',
-        disabled: true,
-        readOnly: true,
-        required: true,
-      });
-      const container = document.createElement('div');
-      document.body.append(container);
-      containers.add(container);
-      container.append(groupEl);
-      renderTemplate(
-        html`<radio-root .value=${'a'}>
-          <radio-indicator keep-mounted></radio-indicator>
-        </radio-root>`,
-        groupEl,
-      );
-      await waitForUpdate();
-
-      const indicator = groupEl.querySelector('radio-indicator') as HTMLElement;
-
-      expect(indicator).toHaveAttribute('data-checked');
-      expect(indicator).not.toHaveAttribute('data-unchecked');
-      expect(indicator).toHaveAttribute('data-disabled');
-      expect(indicator).toHaveAttribute('data-readonly');
-      expect(indicator).toHaveAttribute('data-required');
-    });
   });
 });

@@ -1,14 +1,26 @@
 # Button
 
-<Subtitle>A Lit button primitive with Base UI interaction behavior.</Subtitle>
-<Meta name="description" content="A Lit button primitive with Base UI interaction behavior." />
+<Subtitle>
+  A button primitive with Base UI interaction behavior and focusable disabled support.
+</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit button primitive with keyboard interaction and focusable disabled support."
+/>
 
 import { DemoButtonHero } from './demos/hero';
 import { DemoButtonLoading } from './demos/loading';
 
 <DemoButtonHero />
 
+## Usage guidelines
+
+- `button-root` always enforces button semantics. It should not be used for links.
+- Use `focusable-when-disabled` for loading buttons so focus stays on the control when it becomes disabled.
+
 ## Anatomy
+
+Import the custom element:
 
 ```html title="Anatomy"
 <button-root>Save changes</button-root>
@@ -20,10 +32,24 @@ import { DemoButtonLoading } from './demos/loading';
 
 <DemoButtonLoading compact />
 
-## Status
+## API reference
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### ButtonRootElement
+
+Custom element: `<button-root>`
+
+| Attribute                 | Type      | Default | Description                                          |
+| ------------------------- | --------- | ------- | ---------------------------------------------------- |
+| `disabled`                | `boolean` | `false` | Whether the button should ignore user interaction.   |
+| `focusable-when-disabled` | `boolean` | `false` | Whether the button remains focusable while disabled. |
 
 export const metadata = {
-  keywords: ['Lit Button', 'Button', 'Base UI Lit', 'Accessible button'],
+  keywords: [
+    'Lit Button',
+    'Button Component',
+    'Focusable Disabled Button',
+    'Accessible Button',
+    'Loading State Button',
+    'Base UI Lit',
+  ],
 };

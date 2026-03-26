@@ -1,15 +1,16 @@
-import { BaseHTMLElement, ensureId } from '../utils/index.ts';
+import type { BaseUIChangeEventDetails } from '../types';
+import { BaseHTMLElement, ensureId } from '../utils';
 import {
   FIELDSET_STATE_CHANGE_EVENT,
   getClosestFieldsetRoot,
   getFieldsetContextFromElement,
-} from '../fieldset/shared.ts';
+} from '../fieldset/shared';
 import {
   FORM_STATE_CHANGE_EVENT,
   getFormRuntimeOrNull,
   type FormFieldEntry,
   type FormRuntime,
-} from '../form/shared.ts';
+} from '../form/shared';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,13 @@ const DEFAULT_VALIDITY_STATE: ValidityStateObject = {
 
 type TransitionStatus = 'starting' | 'ending' | undefined;
 type InputLikeElement = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+type FieldValidationMode = 'onSubmit' | 'onBlur' | 'onChange';
+type FieldValidate =
+  | ((
+      value: unknown,
+      formValues: Record<string, unknown>,
+    ) => string | string[] | null | Promise<string | string[] | null>)
+  | undefined;
 
 type ValidityStateObject = {
   badInput: boolean;
@@ -79,6 +87,92 @@ export interface FieldErrorState extends FieldRootState {
 }
 export interface FieldControlState extends FieldRootState {}
 export interface FieldItemState extends FieldRootState {}
+
+export interface FieldRootActions {
+  validate: () => void;
+}
+
+export interface FieldRootProps {
+  /**
+   * Whether the component should ignore user interaction.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * Identifies the field when a form is submitted.
+   */
+  name?: string | undefined;
+  /**
+   * A function for custom validation.
+   */
+  validate?: FieldValidate;
+  /**
+   * Determines when the field should be validated.
+   * @default 'onSubmit'
+   */
+  validationMode?: FieldValidationMode | undefined;
+  /**
+   * How long to wait between validation callbacks in `onChange` mode.
+   * Specified in milliseconds.
+   * @default 0
+   */
+  validationDebounceTime?: number | undefined;
+  /**
+   * Whether the field is invalid.
+   */
+  invalid?: boolean | undefined;
+  /**
+   * Whether the field's value has changed from its initial value.
+   */
+  dirty?: boolean | undefined;
+  /**
+   * Whether the field has been touched.
+   */
+  touched?: boolean | undefined;
+  /**
+   * A ref to imperative actions.
+   */
+  actionsRef?: { current: FieldRootActions | null } | undefined;
+}
+
+export interface FieldLabelProps {}
+
+export interface FieldDescriptionProps {}
+
+export interface FieldErrorProps {}
+
+export type FieldControlChangeEventReason = 'none';
+
+export type FieldControlChangeEventDetails =
+  BaseUIChangeEventDetails<FieldControlChangeEventReason>;
+
+export interface FieldControlProps {
+  /**
+   * Callback fired when the `value` changes.
+   */
+  onValueChange?:
+    | ((value: string, eventDetails: FieldControlChangeEventDetails) => void)
+    | undefined;
+  /**
+   * The default value of the input.
+   */
+  defaultValue?: string | number | readonly string[] | undefined;
+}
+
+export interface FieldValidityProps {
+  /**
+   * Render function that receives validity state.
+   */
+  renderValidity?: ((state: FieldValidityState) => unknown) | undefined;
+}
+
+export interface FieldItemProps {
+  /**
+   * Whether interaction with the wrapped control should be blocked.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+}
 
 interface FieldRuntime {
   getFieldState(): FieldRootState;
@@ -154,6 +248,55 @@ function isElementFilled(element: InputLikeElement | null) {
   return element.value !== '';
 }
 
+function stringifyFieldControlValue(value: string | number | readonly string[]) {
+  return Array.isArray(value) ? value.join(',') : String(value);
+}
+
+function syncFieldPartStateAttributes(element: HTMLElement, state: FieldRootState) {
+  element.toggleAttribute('data-disabled', state.disabled);
+  element.toggleAttribute('data-touched', state.touched);
+  element.toggleAttribute('data-dirty', state.dirty);
+  element.toggleAttribute('data-focused', state.focused);
+  element.toggleAttribute('data-filled', state.filled);
+
+  if (state.valid === true) {
+    element.setAttribute('data-valid', '');
+    element.removeAttribute('data-invalid');
+  } else if (state.valid === false) {
+    element.removeAttribute('data-valid');
+    element.setAttribute('data-invalid', '');
+  } else {
+    element.removeAttribute('data-valid');
+    element.removeAttribute('data-invalid');
+  }
+}
+
+function createFieldControlChangeEventDetails(
+  event: Event,
+  trigger: Element | undefined,
+): FieldControlChangeEventDetails {
+  let canceled = false;
+  let propagationAllowed = false;
+
+  return {
+    reason: 'none',
+    event,
+    trigger,
+    cancel() {
+      canceled = true;
+    },
+    allowPropagation() {
+      propagationAllowed = true;
+    },
+    get isCanceled() {
+      return canceled;
+    },
+    get isPropagationAllowed() {
+      return propagationAllowed;
+    },
+  };
+}
+
 function hasOnlyValueMissing(state: ValidityStateObject) {
   if (state.valid || !state.valueMissing) return false;
   const keys = Object.keys(DEFAULT_VALIDITY_STATE) as Array<keyof ValidityStateObject>;
@@ -176,7 +319,7 @@ function setFieldRuntime(root: HTMLElement | null, runtime: FieldRuntime | null)
 
 function getFieldRuntime(root: Element | null): FieldRuntime | null {
   if (!(root instanceof HTMLElement)) return null;
-  return ((root as HTMLElement & { [FIELD_RUNTIME]?: FieldRuntime })[FIELD_RUNTIME] ?? null);
+  return (root as HTMLElement & { [FIELD_RUNTIME]?: FieldRuntime })[FIELD_RUNTIME] ?? null;
 }
 
 // ─── FieldRootElement ────────────────────────────────────────────────────────────
@@ -196,18 +339,44 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
   disabled = false;
 
   /** Validation mode: 'onSubmit' (default), 'onBlur', 'onChange'. */
-  validationMode: 'onSubmit' | 'onBlur' | 'onChange' | undefined;
+  validationMode: FieldValidationMode | undefined;
 
   /** Validation function. Set via `.validate=${fn}`. */
-  validate:
-    | ((
-        value: unknown,
-        formValues: Record<string, unknown>,
-      ) => string | string[] | null | Promise<string | string[] | null>)
-    | undefined;
+  validate: FieldValidate;
 
   /** Field name for form integration. */
   name: string | undefined;
+
+  /** How long to wait between validation callbacks in `onChange` mode. */
+  validationDebounceTime = 0;
+
+  /** Whether the field is invalid. */
+  invalid: boolean | undefined;
+
+  /** Controlled dirty state. */
+  dirty: boolean | undefined;
+
+  /** Controlled touched state. */
+  touched: boolean | undefined;
+
+  private actionsRefValue: { current: FieldRootActions | null } | undefined;
+  get actionsRef(): { current: FieldRootActions | null } | undefined {
+    return this.actionsRefValue;
+  }
+  set actionsRef(value: { current: FieldRootActions | null } | undefined) {
+    if (this.actionsRefValue != null && this.actionsRefValue.current === this.fieldActions) {
+      this.actionsRefValue.current = null;
+    }
+
+    this.actionsRefValue = value;
+    if (value != null) {
+      value.current = this.fieldActions;
+    }
+  }
+
+  private readonly fieldActions: FieldRootActions = {
+    validate: () => this.validateCurrentControl(),
+  };
 
   private _controlElement: HTMLElement | null = null;
   private _labelIds = new Set<string>();
@@ -232,6 +401,7 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
   private _form: HTMLFormElement | null = null;
   private _formRuntime: FormRuntime | null = null;
   private _disabledCaptureCleanup: (() => void) | null = null;
+  private _validationTimeoutId: number | null = null;
 
   connectedCallback() {
     this.setAttribute(FIELD_ROOT_ATTRIBUTE, '');
@@ -264,6 +434,10 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
     this.removeEventListener('change', this._handleChange);
     this.removeEventListener('keydown', this._handleKeyDown);
 
+    if (this.actionsRefValue != null) {
+      this.actionsRefValue.current = null;
+    }
+    this._clearPendingValidation();
     this._detachForm();
     this._syncFieldsetRoot(null);
     this._disabledCaptureCleanup?.();
@@ -284,7 +458,8 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
       this._publishStateChange();
     }
     if (name === 'validation-mode') {
-      this.validationMode = this.getAttribute('validation-mode') as 'onSubmit' | 'onBlur' | 'onChange' | undefined ?? undefined;
+      this.validationMode =
+        (this.getAttribute('validation-mode') as FieldValidationMode | undefined) ?? undefined;
     }
   }
 
@@ -292,13 +467,17 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
 
   getFieldState(): FieldRootState {
     const disabled = this.disabled || this._getFieldsetContext()?.disabled === true;
+    const touched = this.touched ?? this._touched;
+    const dirty = this.dirty ?? this._dirty;
+    const valid = this.invalid === true ? false : this._validityData.state.valid;
+
     return {
       disabled,
-      dirty: this._dirty,
+      dirty,
       filled: this._filled,
       focused: this._focused,
-      touched: this._touched,
-      valid: this._validityData.state.valid,
+      touched,
+      valid,
     };
   }
 
@@ -327,7 +506,9 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
         focusTarget: this._controlElement,
         validityTarget: isInputLikeElement(this._controlElement)
           ? this._controlElement
-          : this._controlElement.querySelector('input, textarea, select') as InputLikeElement | null,
+          : (this._controlElement.querySelector(
+              'input, textarea, select',
+            ) as InputLikeElement | null),
       };
     }
 
@@ -402,6 +583,7 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
   }
 
   handleControlBlur(element: InputLikeElement) {
+    this._clearPendingValidation();
     this._focused = false;
     this._touched = true;
     this._publishStateChange();
@@ -419,9 +601,15 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
     const shouldValidateOnChange = this._shouldValidateOnChange();
 
     if (!shouldValidateOnChange) {
+      this._clearPendingValidation();
       if (this.getFieldState().valid === false) {
         void this._commit(currentValue, true);
       }
+      return;
+    }
+
+    if (this.validationDebounceTime > 0) {
+      this._scheduleValidationCommit(currentValue);
       return;
     }
 
@@ -512,23 +700,7 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
   }
 
   private _syncStateAttributes() {
-    const state = this.getFieldState();
-    this.toggleAttribute('data-disabled', state.disabled);
-    this.toggleAttribute('data-touched', state.touched);
-    this.toggleAttribute('data-dirty', state.dirty);
-    this.toggleAttribute('data-focused', state.focused);
-    this.toggleAttribute('data-filled', state.filled);
-
-    if (state.valid === true) {
-      this.setAttribute('data-valid', '');
-      this.removeAttribute('data-invalid');
-    } else if (state.valid === false) {
-      this.removeAttribute('data-valid');
-      this.setAttribute('data-invalid', '');
-    } else {
-      this.removeAttribute('data-valid');
-      this.removeAttribute('data-invalid');
-    }
+    syncFieldPartStateAttributes(this, this.getFieldState());
   }
 
   private _publishStateChange() {
@@ -557,6 +729,23 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
       this.syncAssociations();
       this._publishStateChange();
     });
+  }
+
+  private _clearPendingValidation() {
+    if (this._validationTimeoutId == null) {
+      return;
+    }
+
+    clearTimeout(this._validationTimeoutId);
+    this._validationTimeoutId = null;
+  }
+
+  private _scheduleValidationCommit(value: unknown) {
+    this._clearPendingValidation();
+    this._validationTimeoutId = window.setTimeout(() => {
+      this._validationTimeoutId = null;
+      void this._commit(value);
+    }, this.validationDebounceTime);
   }
 
   private _captureInitialValue() {
@@ -644,6 +833,7 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
   }
 
   private _handleFormSubmit = () => {
+    this._clearPendingValidation();
     this._submitAttempted = true;
     this._markedDirty = true;
     const { validityTarget } = this.getControlTargets();
@@ -683,7 +873,13 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
       event.stopPropagation();
     };
 
-    const events: Array<keyof HTMLElementEventMap> = ['click', 'change', 'input', 'keydown', 'keyup'];
+    const events: Array<keyof HTMLElementEventMap> = [
+      'click',
+      'change',
+      'input',
+      'keydown',
+      'keyup',
+    ];
     events.forEach((eventName) => {
       this.addEventListener(eventName, stopInteraction, true);
     });
@@ -767,7 +963,8 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
     this._validityData = {
       value,
       state: nextState,
-      error: defaultValidationMessage || (Array.isArray(result) ? (result[0] ?? '') : (result ?? '')),
+      error:
+        defaultValidationMessage || (Array.isArray(result) ? (result[0] ?? '') : (result ?? '')),
       errors: validationErrors,
       initialValue: this._validityData.initialValue,
     };
@@ -776,10 +973,15 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
   }
 
   private _validateCurrentControl(submitAttempted = true) {
+    this._clearPendingValidation();
     this._markedDirty = true;
     if (submitAttempted) this._submitAttempted = true;
     const { validityTarget } = this.getControlTargets();
     void this._commit(getElementValue(validityTarget));
+  }
+
+  private validateCurrentControl() {
+    this._validateCurrentControl();
   }
 
   private _getFormValues(): Record<string, unknown> {
@@ -821,6 +1023,14 @@ export class FieldControlElement extends BaseHTMLElement {
   private _input: HTMLInputElement | null = null;
   private _handler = () => this._syncAttributes();
 
+  /** Callback fired when the `value` changes. Set via `.onValueChange=${fn}`. */
+  onValueChange:
+    | ((value: string, eventDetails: FieldControlChangeEventDetails) => void)
+    | undefined;
+
+  /** Default value for the generated input. */
+  defaultValue: string | number | readonly string[] | undefined;
+
   connectedCallback() {
     this.style.display = 'contents';
     this._root = this.closest('field-root') as FieldRootElement | null;
@@ -832,6 +1042,14 @@ export class FieldControlElement extends BaseHTMLElement {
       this.appendChild(this._input);
     }
 
+    if (this.defaultValue !== undefined && this._input.value === '') {
+      const defaultValue = stringifyFieldControlValue(this.defaultValue);
+      this._input.defaultValue = defaultValue;
+      this._input.value = defaultValue;
+    }
+
+    this._input.addEventListener('input', this._handleInput);
+
     if (this._root) {
       this._root.registerControl(this._input);
       this._root.addEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
@@ -841,6 +1059,7 @@ export class FieldControlElement extends BaseHTMLElement {
   }
 
   disconnectedCallback() {
+    this._input?.removeEventListener('input', this._handleInput);
     if (this._root) {
       this._root.unregisterControl(this._input);
       this._root.removeEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
@@ -848,11 +1067,24 @@ export class FieldControlElement extends BaseHTMLElement {
     this._root = null;
   }
 
+  private _handleInput = (event: Event) => {
+    if (!this._input) {
+      return;
+    }
+
+    this.onValueChange?.(
+      this._input.value,
+      createFieldControlChangeEventDetails(event, this._input),
+    );
+  };
+
   private _syncAttributes() {
     if (!this._root || !this._input) return;
     const state = this._root.getFieldState();
 
     this._input.disabled = state.disabled;
+    syncFieldPartStateAttributes(this, state);
+    syncFieldPartStateAttributes(this._input, state);
 
     if (state.valid === false) {
       this._input.setAttribute('aria-invalid', 'true');
@@ -911,8 +1143,7 @@ export class FieldLabelElement extends BaseHTMLElement {
 
   private _syncAttributes() {
     if (!this._root) return;
-    const state = this._root.getFieldState();
-    this.toggleAttribute('data-disabled', state.disabled);
+    syncFieldPartStateAttributes(this, this._root.getFieldState());
   }
 }
 
@@ -930,6 +1161,7 @@ if (!customElements.get('field-label')) {
  */
 export class FieldDescriptionElement extends BaseHTMLElement {
   private _root: FieldRootElement | null = null;
+  private _handler = () => this._syncAttributes();
 
   connectedCallback() {
     this._root = this.closest('field-root') as FieldRootElement | null;
@@ -938,14 +1170,26 @@ export class FieldDescriptionElement extends BaseHTMLElement {
 
     if (this._root) {
       this._root.registerDescription(this.id);
+      this._root.addEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
     }
+
+    queueMicrotask(() => this._syncAttributes());
   }
 
   disconnectedCallback() {
     if (this._root) {
       this._root.unregisterDescription(this.id);
+      this._root.removeEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
     }
     this._root = null;
+  }
+
+  private _syncAttributes() {
+    if (!this._root) {
+      return;
+    }
+
+    syncFieldPartStateAttributes(this, this._root.getFieldState());
   }
 }
 
@@ -994,34 +1238,42 @@ export class FieldErrorElement extends BaseHTMLElement {
     try {
       const validityData = this._root.getValidationData();
       const formError = this._root.getFormError();
+      const fieldState = this._root.getFieldState();
 
-      const shouldShow = formError != null || validityData.state.valid === false;
+      const shouldShow = formError != null || fieldState.valid === false;
 
       if (shouldShow) {
         this.removeAttribute('hidden');
         this.style.display = '';
 
         // Set content from error messages
-        const content = formError != null
-          ? (Array.isArray(formError) ? formError.join(', ') : formError)
-          : validityData.errors.length > 0
-            ? validityData.errors.join(', ')
-            : validityData.error;
+        const content =
+          formError != null
+            ? Array.isArray(formError)
+              ? formError.join(', ')
+              : formError
+            : validityData.errors.length > 0
+              ? validityData.errors.join(', ')
+              : validityData.error;
 
         if (content && !this.hasChildNodes()) {
           this.textContent = content;
-        } else if (content && this.childNodes.length === 1 && this.firstChild?.nodeType === Node.TEXT_NODE) {
+        } else if (
+          content &&
+          this.childNodes.length === 1 &&
+          this.firstChild?.nodeType === Node.TEXT_NODE
+        ) {
           this.textContent = content;
         }
 
         this._root.setErrorRendered(this.id, true);
-        this.setAttribute('data-invalid', '');
       } else {
         this.setAttribute('hidden', '');
         this.style.display = 'none';
         this._root.setErrorRendered(this.id, false);
-        this.removeAttribute('data-invalid');
       }
+
+      syncFieldPartStateAttributes(this, fieldState);
     } finally {
       this._syncing = false;
     }
@@ -1045,7 +1297,7 @@ export class FieldValidityElement extends BaseHTMLElement {
   renderValidity: ((state: FieldValidityState) => unknown) | undefined;
 
   private _root: FieldRootElement | null = null;
-  private _handler = () => this._syncContent();
+  private _handler = () => this._sync();
 
   connectedCallback() {
     this._root = this.closest('field-root') as FieldRootElement | null;
@@ -1054,7 +1306,7 @@ export class FieldValidityElement extends BaseHTMLElement {
       this._root.addEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
     }
 
-    queueMicrotask(() => this._syncContent());
+    queueMicrotask(() => this._sync());
   }
 
   disconnectedCallback() {
@@ -1064,8 +1316,16 @@ export class FieldValidityElement extends BaseHTMLElement {
     this._root = null;
   }
 
-  private _syncContent() {
-    if (!this._root || !this.renderValidity) return;
+  private _sync() {
+    if (!this._root) {
+      return;
+    }
+
+    syncFieldPartStateAttributes(this, this._root.getFieldState());
+    if (!this.renderValidity) {
+      return;
+    }
+
     const validityState = this._root.getValidityState();
     this.renderValidity(validityState);
   }
@@ -1091,20 +1351,28 @@ export class FieldItemElement extends BaseHTMLElement {
   disabled = false;
 
   private _captureCleanup: (() => void) | null = null;
+  private _root: FieldRootElement | null = null;
+  private _handler = () => this._syncAttributes();
 
   connectedCallback() {
     this.disabled = this.hasAttribute('disabled');
+    this._root = this.closest('field-root') as FieldRootElement | null;
+    this._root?.addEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
     this._syncDisabledCapture();
+    this._syncAttributes();
   }
 
   disconnectedCallback() {
     this._captureCleanup?.();
     this._captureCleanup = null;
+    this._root?.removeEventListener(FIELD_STATE_CHANGE_EVENT, this._handler);
+    this._root = null;
   }
 
   attributeChangedCallback() {
     this.disabled = this.hasAttribute('disabled');
     this._syncDisabledCapture();
+    this._syncAttributes();
   }
 
   private _syncDisabledCapture() {
@@ -1113,8 +1381,6 @@ export class FieldItemElement extends BaseHTMLElement {
 
     if (!this.disabled) return;
 
-    this.setAttribute('data-disabled', '');
-
     const stopInteraction = (event: Event) => {
       if (event.target === this) return;
       event.preventDefault();
@@ -1122,7 +1388,13 @@ export class FieldItemElement extends BaseHTMLElement {
       event.stopImmediatePropagation();
     };
 
-    const events: Array<keyof HTMLElementEventMap> = ['click', 'change', 'input', 'keydown', 'keyup'];
+    const events: Array<keyof HTMLElementEventMap> = [
+      'click',
+      'change',
+      'input',
+      'keydown',
+      'keyup',
+    ];
     events.forEach((eventName) => {
       this.addEventListener(eventName, stopInteraction, true);
     });
@@ -1133,6 +1405,22 @@ export class FieldItemElement extends BaseHTMLElement {
       });
     };
   }
+
+  private _syncAttributes() {
+    const state = this._root?.getFieldState() ?? {
+      disabled: false,
+      touched: false,
+      dirty: false,
+      valid: null,
+      filled: false,
+      focused: false,
+    };
+
+    syncFieldPartStateAttributes(this, {
+      ...state,
+      disabled: state.disabled || this.disabled,
+    });
+  }
 }
 
 if (!customElements.get('field-item')) {
@@ -1141,31 +1429,51 @@ if (!customElements.get('field-item')) {
 
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
+export const Field = {
+  Root: FieldRootElement,
+  Label: FieldLabelElement,
+  Control: FieldControlElement,
+  Description: FieldDescriptionElement,
+  Error: FieldErrorElement,
+  Validity: FieldValidityElement,
+  Item: FieldItemElement,
+} as const;
+
 export namespace FieldRoot {
+  export type Actions = FieldRootActions;
+  export type Props = FieldRootProps;
   export type State = FieldRootState;
 }
 
 export namespace FieldLabel {
+  export type Props = FieldLabelProps;
   export type State = FieldLabelState;
 }
 
 export namespace FieldDescription {
+  export type Props = FieldDescriptionProps;
   export type State = FieldDescriptionState;
 }
 
 export namespace FieldError {
+  export type Props = FieldErrorProps;
   export type State = FieldErrorState;
 }
 
 export namespace FieldControl {
+  export type Props = FieldControlProps;
   export type State = FieldControlState;
+  export type ChangeEventReason = FieldControlChangeEventReason;
+  export type ChangeEventDetails = FieldControlChangeEventDetails;
 }
 
 export namespace FieldValidity {
+  export type Props = FieldValidityProps;
   export type State = FieldValidityState;
 }
 
 export namespace FieldItem {
+  export type Props = FieldItemProps;
   export type State = FieldItemState;
 }
 

@@ -28,6 +28,7 @@ export class ButtonRootElement extends ReactiveElement {
   override connectedCallback() {
     super.connectedCallback();
     this.addEventListener('click', this._handleClick);
+    this.addEventListener('mousedown', this._handleMouseDown);
     this.addEventListener('keydown', this._handleKeyDown);
     this.addEventListener('keyup', this._handleKeyUp);
     this.addEventListener('pointerdown', this._handlePointerDown);
@@ -37,6 +38,7 @@ export class ButtonRootElement extends ReactiveElement {
   override disconnectedCallback() {
     super.disconnectedCallback();
     this.removeEventListener('click', this._handleClick);
+    this.removeEventListener('mousedown', this._handleMouseDown);
     this.removeEventListener('keydown', this._handleKeyDown);
     this.removeEventListener('keyup', this._handleKeyUp);
     this.removeEventListener('pointerdown', this._handlePointerDown);
@@ -88,23 +90,30 @@ export class ButtonRootElement extends ReactiveElement {
   private _handleClick = (event: MouseEvent) => {
     if (this.disabled) {
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
+  };
+
+  private _handleMouseDown = (event: MouseEvent) => {
+    if (this.disabled) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
     }
   };
 
   private _handlePointerDown = (event: PointerEvent) => {
     if (this.disabled) {
       event.preventDefault();
+      event.stopImmediatePropagation();
     }
   };
 
   private _handleKeyDown = (event: KeyboardEvent) => {
-    if (this.disabled && this.focusableWhenDisabled && event.key !== 'Tab') {
-      event.preventDefault();
-      return;
-    }
-
     if (this.disabled) {
+      if (this.focusableWhenDisabled && event.key !== 'Tab') {
+        event.preventDefault();
+      }
+      event.stopImmediatePropagation();
       return;
     }
 
@@ -125,6 +134,7 @@ export class ButtonRootElement extends ReactiveElement {
 
   private _handleKeyUp = (event: KeyboardEvent) => {
     if (this.disabled) {
+      event.stopImmediatePropagation();
       return;
     }
 
@@ -144,6 +154,19 @@ if (!customElements.get('button-root')) {
   customElements.define('button-root', ButtonRootElement);
 }
 
+export interface ButtonRootProps {
+  /**
+   * Whether the button should ignore user interaction.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * Whether the button should be focusable when disabled.
+   * @default false
+   */
+  focusableWhenDisabled?: boolean | undefined;
+}
+
 export interface ButtonRootState {
   /**
    * Whether the button should ignore user interaction.
@@ -152,6 +175,7 @@ export interface ButtonRootState {
 }
 
 export namespace ButtonRoot {
+  export type Props = ButtonRootProps;
   export type State = ButtonRootState;
 }
 

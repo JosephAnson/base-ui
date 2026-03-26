@@ -61,8 +61,7 @@
     "./unstable-use-media-query": "./src/unstable-use-media-query/index.ts",
     "./use-button": "./src/use-button/index.ts",
     "./use-render": "./src/use-render/index.ts",
-    "./types": "./src/types/index.ts",
-    "./utils": "./src/utils/index.ts"
+    "./types": "./src/types/index.ts"
   },
   "type": "module",
   "scripts": {

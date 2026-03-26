@@ -5,7 +5,7 @@ import {
   createRadioGroupId,
   setRadioGroupRuntimeState,
   type RadioGroupRuntimeState,
-} from './shared.ts';
+} from './shared';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -27,9 +27,50 @@ export interface RadioGroupState {
 export interface RadioGroupChangeEventDetails {
   event: Event;
   cancel(): void;
+  allowPropagation(): void;
   readonly isCanceled: boolean;
+  readonly isPropagationAllowed: boolean;
   reason: 'none';
+  trigger: Element | undefined;
 }
+
+export interface RadioGroupProps {
+  /**
+   * Controlled selected value.
+   */
+  value?: unknown | undefined;
+  /**
+   * Default selected value for uncontrolled mode.
+   */
+  defaultValue?: unknown | undefined;
+  /**
+   * Whether the group is disabled.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * Whether the group is read-only.
+   * @default false
+   */
+  readOnly?: boolean | undefined;
+  /**
+   * Whether the group is required.
+   * @default false
+   */
+  required?: boolean | undefined;
+  /**
+   * Shared input name for form submission.
+   */
+  name?: string | undefined;
+  /**
+   * Callback fired when the selected value changes.
+   */
+  onValueChange?:
+    | ((value: unknown, eventDetails: RadioGroupChangeEventDetails) => void)
+    | undefined;
+}
+
+export type RadioGroupChangeEventReason = RadioGroupChangeEventDetails['reason'];
 
 // ─── RadioGroupElement ──────────────────────────────────────────────────────────
 
@@ -53,9 +94,7 @@ export class RadioGroupElement extends ReactiveElement {
   declare name: string | undefined;
 
   /** Callback fired when the selected value changes. Set via `.onValueChange=${fn}`. */
-  onValueChange:
-    | ((value: unknown, eventDetails: RadioGroupChangeEventDetails) => void)
-    | undefined;
+  onValueChange: ((value: unknown, eventDetails: RadioGroupChangeEventDetails) => void) | undefined;
 
   private _value: unknown = undefined;
   private _valueIsControlled = false;
@@ -113,9 +152,7 @@ export class RadioGroupElement extends ReactiveElement {
 
     if (!this._initialized) {
       this._initialized = true;
-      this._initialValue = this._valueIsControlled
-        ? this._value
-        : this._internalValue;
+      this._initialValue = this._valueIsControlled ? this._value : this._internalValue;
       this._groupId = createRadioGroupId();
     }
 
@@ -260,10 +297,7 @@ export class RadioGroupElement extends ReactiveElement {
     };
   }
 
-  private _commitValue(
-    nextValue: unknown,
-    eventDetails: RadioGroupChangeEventDetails,
-  ): boolean {
+  private _commitValue(nextValue: unknown, eventDetails: RadioGroupChangeEventDetails): boolean {
     this.onValueChange?.(nextValue, eventDetails);
 
     if (eventDetails.isCanceled) {
@@ -343,9 +377,7 @@ export class RadioGroupElement extends ReactiveElement {
   }
 
   private _getOrderedControls(): OrderedControlEntry[] {
-    const controls = Array.from(
-      this.querySelectorAll<HTMLElement>('radio-root'),
-    );
+    const controls = Array.from(this.querySelectorAll<HTMLElement>('radio-root'));
 
     return controls
       .map((control) => {
@@ -421,11 +453,7 @@ export class RadioGroupElement extends ReactiveElement {
         );
         const control = entry?.control;
 
-        if (
-          !control ||
-          !control.isConnected ||
-          control === control.ownerDocument?.activeElement
-        ) {
+        if (!control || !control.isConnected || control === control.ownerDocument?.activeElement) {
           return;
         }
 
@@ -466,39 +494,47 @@ function getMovementDirection(key: string, root: HTMLElement | null): number {
 function getDirection(root: HTMLElement | null): 'ltr' | 'rtl' {
   if (!root) return 'ltr';
   const documentElement = root.ownerDocument?.documentElement;
-  const dir =
-    root.closest('[dir]')?.getAttribute('dir') ??
-    documentElement?.getAttribute('dir');
+  const dir = root.closest('[dir]')?.getAttribute('dir') ?? documentElement?.getAttribute('dir');
   return dir === 'rtl' ? 'rtl' : 'ltr';
 }
 
-function createChangeEventDetails(
-  event: Event,
-): RadioGroupChangeEventDetails {
+function createChangeEventDetails(event: Event): RadioGroupChangeEventDetails {
   let isCanceled = false;
+  let isPropagationAllowed = false;
 
   return {
     cancel() {
       isCanceled = true;
     },
+    allowPropagation() {
+      isPropagationAllowed = true;
+    },
     event,
     get isCanceled() {
       return isCanceled;
     },
+    get isPropagationAllowed() {
+      return isPropagationAllowed;
+    },
     reason: 'none',
+    trigger: event.target instanceof Element ? event.target : undefined,
   };
 }
 
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
+export const RadioGroup = RadioGroupElement;
+
 export namespace RadioGroup {
+  export type Props = RadioGroupProps;
   export type State = RadioGroupState;
+  export type ChangeEventReason = RadioGroupChangeEventReason;
   export type ChangeEventDetails = RadioGroupChangeEventDetails;
 }
 
 // ─── Re-export shared types for consumers ───────────────────────────────────────
 
-export type { RadioGroupRuntimeState } from './shared.ts';
+export type { RadioGroupRuntimeState } from './shared';
 
 // ─── Global type declarations ───────────────────────────────────────────────────
 

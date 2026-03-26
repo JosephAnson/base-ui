@@ -1,8 +1,29 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import './index.ts';
-import type { ProgressRootElement, ProgressValueElement } from './index.ts';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import {
+  ProgressIndicatorElement,
+  ProgressLabelElement,
+  ProgressRootElement,
+  ProgressTrackElement,
+  ProgressValueElement,
+  type ProgressIndicator,
+  type ProgressIndicatorProps,
+  type ProgressIndicatorState,
+  type ProgressLabel,
+  type ProgressLabelProps,
+  type ProgressLabelState,
+  type ProgressRoot,
+  type ProgressRootProps,
+  type ProgressRootState,
+  type ProgressStatus,
+  type ProgressTrack,
+  type ProgressTrackProps,
+  type ProgressTrackState,
+  type ProgressValue,
+  type ProgressValueProps,
+  type ProgressValueState,
+} from './index';
 
 describe('progress', () => {
   const containers = new Set<HTMLDivElement>();
@@ -13,6 +34,7 @@ describe('progress', () => {
       container.remove();
     });
     containers.clear();
+    vi.restoreAllMocks();
   });
 
   function render(result: ReturnType<typeof html>) {
@@ -24,11 +46,32 @@ describe('progress', () => {
   }
 
   async function waitForUpdate() {
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
   }
 
+  it('exposes namespace aliases for props and state', () => {
+    expect(customElements.get('progress-root')).toBe(ProgressRootElement);
+    expect(customElements.get('progress-track')).toBe(ProgressTrackElement);
+    expect(customElements.get('progress-indicator')).toBe(ProgressIndicatorElement);
+    expect(customElements.get('progress-label')).toBe(ProgressLabelElement);
+    expect(customElements.get('progress-value')).toBe(ProgressValueElement);
+    expectTypeOf<ProgressRootProps>().toEqualTypeOf<ProgressRoot.Props>();
+    expectTypeOf<ProgressRootState>().toEqualTypeOf<ProgressRoot.State>();
+    expectTypeOf<ProgressTrackProps>().toEqualTypeOf<ProgressTrack.Props>();
+    expectTypeOf<ProgressTrackState>().toEqualTypeOf<ProgressTrack.State>();
+    expectTypeOf<ProgressIndicatorProps>().toEqualTypeOf<ProgressIndicator.Props>();
+    expectTypeOf<ProgressIndicatorState>().toEqualTypeOf<ProgressIndicator.State>();
+    expectTypeOf<ProgressLabelProps>().toEqualTypeOf<ProgressLabel.Props>();
+    expectTypeOf<ProgressLabelState>().toEqualTypeOf<ProgressLabel.State>();
+    expectTypeOf<ProgressValueProps>().toEqualTypeOf<ProgressValue.Props>();
+    expectTypeOf<ProgressValueState>().toEqualTypeOf<ProgressValue.State>();
+    expectTypeOf<ProgressStatus>().toEqualTypeOf<ProgressRootState['status']>();
+  });
+
   it('renders the expected root aria attributes', async () => {
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${30}>
         <progress-label>Downloading</progress-label>
         <progress-value data-testid="value"></progress-value>
@@ -39,7 +82,7 @@ describe('progress', () => {
     `);
     await waitForUpdate();
 
-    const root = container.querySelector('progress-root')!;
+    const root = view.querySelector('progress-root') as HTMLElement;
 
     expect(root).toHaveAttribute('role', 'progressbar');
     expect(root).toHaveAttribute('aria-valuenow', '30');
@@ -53,37 +96,60 @@ describe('progress', () => {
   });
 
   it('wires up label via aria-labelledby', async () => {
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${50}>
         <progress-label>Downloading</progress-label>
       </progress-root>
     `);
     await waitForUpdate();
 
-    const root = container.querySelector('progress-root')!;
-    const label = container.querySelector('progress-label')!;
+    const root = view.querySelector('progress-root') as HTMLElement;
+    const label = view.querySelector('progress-label') as HTMLElement;
 
     expect(root).toHaveAttribute('aria-labelledby', label.id);
     expect(label).toHaveAttribute('role', 'presentation');
   });
 
+  it('preserves an explicit aria-labelledby attribute', async () => {
+    const view = render(html`
+      <span id="external-progress-label">Downloading</span>
+      <progress-root aria-labelledby="external-progress-label" .value=${50}>
+        <progress-label>Ignored auto label</progress-label>
+      </progress-root>
+    `);
+    await waitForUpdate();
+
+    const root = view.querySelector('progress-root') as HTMLElement;
+    expect(root).toHaveAttribute('aria-labelledby', 'external-progress-label');
+  });
+
+  it('preserves an explicit aria-valuetext attribute', async () => {
+    const view = render(html`
+      <progress-root aria-valuetext="30 files uploaded" .value=${30}></progress-root>
+    `);
+    await waitForUpdate();
+
+    expect(view.querySelector('progress-root')).toHaveAttribute(
+      'aria-valuetext',
+      '30 files uploaded',
+    );
+  });
+
   it('displays formatted value in progress-value', async () => {
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${30}>
         <progress-value data-testid="value"></progress-value>
       </progress-root>
     `);
     await waitForUpdate();
 
-    const value = container.querySelector('[data-testid="value"]')!;
-    expect(value.textContent).toBe(
-      (0.3).toLocaleString(undefined, { style: 'percent' }),
-    );
+    const value = view.querySelector('[data-testid="value"]') as HTMLElement;
+    expect(value.textContent).toBe((0.3).toLocaleString(undefined, { style: 'percent' }));
     expect(value).toHaveAttribute('aria-hidden', 'true');
   });
 
   it('computes indicator width from progress range', async () => {
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${33}>
         <progress-track>
           <progress-indicator data-testid="indicator"></progress-indicator>
@@ -92,15 +158,27 @@ describe('progress', () => {
     `);
     await waitForUpdate();
 
-    const indicator = container.querySelector('[data-testid="indicator"]')! as HTMLElement;
+    const indicator = view.querySelector('[data-testid="indicator"]') as HTMLElement;
     expect(indicator.style.width).toBe('33%');
     expect(indicator.style.insetInlineStart).toBe('0');
     expect(indicator.style.height).toBe('inherit');
     expect(indicator).toHaveAttribute('data-progressing');
   });
 
+  it('sets zero width when value is 0', async () => {
+    const view = render(html`
+      <progress-root .value=${0}>
+        <progress-indicator data-testid="indicator"></progress-indicator>
+      </progress-root>
+    `);
+    await waitForUpdate();
+
+    const indicator = view.querySelector('[data-testid="indicator"]') as HTMLElement;
+    expect(indicator.style.width).toBe('0%');
+  });
+
   it('marks indeterminate progress and omits aria-valuenow', async () => {
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${null}>
         <progress-value data-testid="value"></progress-value>
         <progress-track>
@@ -110,18 +188,18 @@ describe('progress', () => {
     `);
     await waitForUpdate();
 
-    const root = container.querySelector('progress-root')!;
-    const indicator = container.querySelector('[data-testid="indicator"]')! as HTMLElement;
+    const root = view.querySelector('progress-root') as HTMLElement;
+    const indicator = view.querySelector('[data-testid="indicator"]') as HTMLElement;
 
     expect(root).not.toHaveAttribute('aria-valuenow');
     expect(root).toHaveAttribute('aria-valuetext', 'indeterminate progress');
     expect(root).toHaveAttribute('data-indeterminate');
-    expect(container.querySelector('[data-testid="value"]')!.textContent).toBe('');
+    expect(view.querySelector('[data-testid="value"]')?.textContent).toBe('');
     expect(indicator.style.width).toBe('');
   });
 
   it('marks every part with complete state when value reaches max', async () => {
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${100}>
         <progress-label data-testid="label">Export</progress-label>
         <progress-value data-testid="value"></progress-value>
@@ -132,15 +210,15 @@ describe('progress', () => {
     `);
     await waitForUpdate();
 
-    expect(container.querySelector('progress-root')).toHaveAttribute('data-complete');
-    expect(container.querySelector('[data-testid="label"]')).toHaveAttribute('data-complete');
-    expect(container.querySelector('[data-testid="value"]')).toHaveAttribute('data-complete');
-    expect(container.querySelector('[data-testid="track"]')).toHaveAttribute('data-complete');
-    expect(container.querySelector('[data-testid="indicator"]')).toHaveAttribute('data-complete');
+    expect(view.querySelector('progress-root')).toHaveAttribute('data-complete');
+    expect(view.querySelector('[data-testid="label"]')).toHaveAttribute('data-complete');
+    expect(view.querySelector('[data-testid="value"]')).toHaveAttribute('data-complete');
+    expect(view.querySelector('[data-testid="track"]')).toHaveAttribute('data-complete');
+    expect(view.querySelector('[data-testid="indicator"]')).toHaveAttribute('data-complete');
   });
 
   it('updates root aria value on reactivity', async () => {
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${50}>
         <progress-track>
           <progress-indicator></progress-indicator>
@@ -149,7 +227,7 @@ describe('progress', () => {
     `);
     await waitForUpdate();
 
-    const root = container.querySelector('progress-root')! as ProgressRootElement;
+    const root = view.querySelector('progress-root') as ProgressRootElement;
     expect(root).toHaveAttribute('aria-valuenow', '50');
 
     root.value = 77;
@@ -166,18 +244,15 @@ describe('progress', () => {
     };
     const expectedValue = new Intl.NumberFormat(undefined, format).format(30);
 
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${30} .format=${format}>
         <progress-value data-testid="value"></progress-value>
       </progress-root>
     `);
     await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="value"]')!.textContent).toBe(expectedValue);
-    expect(container.querySelector('progress-root')).toHaveAttribute(
-      'aria-valuetext',
-      expectedValue,
-    );
+    expect(view.querySelector('[data-testid="value"]')?.textContent).toBe(expectedValue);
+    expect(view.querySelector('progress-root')).toHaveAttribute('aria-valuetext', expectedValue);
   });
 
   it('uses the provided locale when formatting the value', async () => {
@@ -188,14 +263,14 @@ describe('progress', () => {
     };
     const expectedValue = new Intl.NumberFormat('de-DE', format).format(70.51);
 
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${70.51} .locale=${'de-DE'} .format=${format}>
         <progress-value data-testid="value"></progress-value>
       </progress-root>
     `);
     await waitForUpdate();
 
-    expect(container.querySelector('[data-testid="value"]')!.textContent).toBe(expectedValue);
+    expect(view.querySelector('[data-testid="value"]')?.textContent).toBe(expectedValue);
   });
 
   it('supports custom renderValue on progress-value', async () => {
@@ -203,14 +278,14 @@ describe('progress', () => {
       (formattedValue: string | null, _value: number | null) => `Custom: ${formattedValue}`,
     );
 
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${30}>
         <progress-value .renderValue=${renderSpy} data-testid="value"></progress-value>
       </progress-root>
     `);
     await waitForUpdate();
 
-    const value = container.querySelector('[data-testid="value"]')! as ProgressValueElement;
+    const value = view.querySelector('[data-testid="value"]') as ProgressValueElement;
     expect(renderSpy).toHaveBeenCalled();
     expect(value.textContent).toContain('Custom:');
   });
@@ -218,7 +293,7 @@ describe('progress', () => {
   it('passes indeterminate markers to renderValue', async () => {
     const renderSpy = vi.fn((formattedValue: string | null) => formattedValue);
 
-    const container = render(html`
+    render(html`
       <progress-root .value=${null}>
         <progress-value .renderValue=${renderSpy}></progress-value>
       </progress-root>
@@ -245,15 +320,15 @@ describe('progress', () => {
   });
 
   it('supports custom min/max range', async () => {
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${15} .min=${10} .max=${20}>
         <progress-indicator data-testid="indicator"></progress-indicator>
       </progress-root>
     `);
     await waitForUpdate();
 
-    const root = container.querySelector('progress-root')!;
-    const indicator = container.querySelector('[data-testid="indicator"]')! as HTMLElement;
+    const root = view.querySelector('progress-root') as HTMLElement;
+    const indicator = view.querySelector('[data-testid="indicator"]') as HTMLElement;
 
     expect(root).toHaveAttribute('aria-valuemin', '10');
     expect(root).toHaveAttribute('aria-valuemax', '20');
@@ -266,25 +341,20 @@ describe('progress', () => {
       (_formatted: string | null, value: number | null) => `${value} items`,
     );
 
-    const container = render(html`
+    const view = render(html`
       <progress-root .value=${42} .getAriaValueText=${getAriaValueText}></progress-root>
     `);
     await waitForUpdate();
 
-    expect(container.querySelector('progress-root')).toHaveAttribute(
-      'aria-valuetext',
-      '42 items',
-    );
+    expect(view.querySelector('progress-root')).toHaveAttribute('aria-valuetext', '42 items');
     expect(getAriaValueText).toHaveBeenCalled();
   });
 
   it('includes NVDA force-announcement span', async () => {
-    const container = render(html`
-      <progress-root .value=${50}></progress-root>
-    `);
+    const view = render(html` <progress-root .value=${50}></progress-root> `);
     await waitForUpdate();
 
-    const nvdaSpan = container.querySelector('progress-root span[role="presentation"]');
+    const nvdaSpan = view.querySelector('progress-root span[role="presentation"]');
     expect(nvdaSpan).toBeInTheDocument();
     expect(nvdaSpan?.textContent).toBe('x');
   });

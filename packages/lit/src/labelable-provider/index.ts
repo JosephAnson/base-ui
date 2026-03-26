@@ -1,4 +1,4 @@
-import { BaseHTMLElement, ensureId } from '../utils/index.ts';
+import { BaseHTMLElement } from '../utils';
 
 /**
  * Context for label-control associations.
@@ -10,7 +10,24 @@ export interface LabelableContext {
   registerControlId: (source: symbol, id: string | null | undefined) => void;
   registerLabelId: (id: string | undefined) => void;
   registerMessageId: (id: string, add: boolean) => void;
-  getDescriptionProps: () => Record<string, string | undefined>;
+  getDescriptionProps: (
+    externalProps?: Record<string, string | undefined>,
+  ) => Record<string, string | undefined>;
+}
+
+let labelableControlIdCounter = 0;
+
+function createDefaultControlId() {
+  labelableControlIdCounter += 1;
+  return `base-ui-labelable-control-${labelableControlIdCounter}`;
+}
+
+function mergeDescribedByIds(...values: Array<string | undefined>) {
+  const ids = values
+    .flatMap((value) => value?.split(/\s+/).filter(Boolean) ?? [])
+    .filter((value, index, array) => array.indexOf(value) === index);
+
+  return ids.join(' ') || undefined;
 }
 
 /**
@@ -19,7 +36,7 @@ export interface LabelableContext {
  */
 export function getLabelableContext(element: Element): LabelableContext | null {
   const provider = element.closest('labelable-provider') as LabelableProviderElement | null;
-  return provider?._context ?? null;
+  return provider?.contextValue ?? null;
 }
 
 /**
@@ -44,66 +61,152 @@ export function focusElementWithVisible(element: HTMLElement): void {
  * Documentation: [Base UI LabelableProvider](https://base-ui.com/react/utils/labelable-provider)
  */
 export class LabelableProviderElement extends BaseHTMLElement {
-  private _controlIds = new Map<symbol, string | null | undefined>();
-  private _labelId: string | undefined;
-  private _messageIds: string[] = [];
+  static get observedAttributes() {
+    return ['control-id', 'label-id'];
+  }
+
+  private defaultControlId = createDefaultControlId();
+  private controlIds = new Map<symbol, string | null | undefined>();
+  private controlIdValue: string | null | undefined;
+  private labelIdValue: string | undefined;
+  private messageIdsValue: string[] = [];
+
+  get controlId(): string | null | undefined {
+    return this.controlIdValue;
+  }
+
+  set controlId(value: string | null | undefined) {
+    this.controlIdValue = value;
+    this.syncStringAttribute('control-id', value);
+    this.syncContext();
+  }
+
+  get labelId(): string | undefined {
+    return this.labelIdValue;
+  }
+
+  set labelId(value: string | undefined) {
+    this.labelIdValue = value;
+    this.syncStringAttribute('label-id', value);
+    this.syncContext();
+  }
 
   /** @internal — exposed for getLabelableContext */
-  _context: LabelableContext = {
-    controlId: undefined,
+  contextValue: LabelableContext = {
+    controlId: this.resolveControlId(),
     labelId: undefined,
     messageIds: [],
-    registerControlId: (source, id) => this._registerControlId(source, id),
-    registerLabelId: (id) => this._registerLabelId(id),
-    registerMessageId: (id, add) => this._registerMessageId(id, add),
-    getDescriptionProps: () => this._getDescriptionProps(),
+    registerControlId: (source, id) => this.registerControlIdInternal(source, id),
+    registerLabelId: (id) => this.registerLabelIdInternal(id),
+    registerMessageId: (id, add) => this.registerMessageIdInternal(id, add),
+    getDescriptionProps: (externalProps) => this.getDescriptionPropsInternal(externalProps),
   };
 
   connectedCallback() {
     this.style.display = 'contents';
+    this.syncContext();
   }
 
-  private _registerControlId(source: symbol, id: string | null | undefined) {
-    if (id === undefined || id === null) {
-      this._controlIds.delete(source);
-    } else {
-      this._controlIds.set(source, id);
+  attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null) {
+    if (name === 'control-id') {
+      this.controlIdValue = newValue;
     }
-    // Use the most recently registered non-null ID
-    this._context.controlId = this._resolveControlId();
+
+    if (name === 'label-id') {
+      this.labelIdValue = newValue ?? undefined;
+    }
+
+    this.syncContext();
   }
 
-  private _registerLabelId(id: string | undefined) {
-    this._labelId = id;
-    this._context.labelId = id;
+  private registerControlIdInternal(source: symbol, id: string | null | undefined) {
+    if (id === undefined) {
+      this.controlIds.delete(source);
+    } else {
+      this.controlIds.set(source, id);
+    }
+
+    this.syncContext();
   }
 
-  private _registerMessageId(id: string, add: boolean) {
+  private registerLabelIdInternal(id: string | undefined) {
+    this.labelId = id;
+  }
+
+  private registerMessageIdInternal(id: string, add: boolean) {
     if (add) {
-      if (!this._messageIds.includes(id)) {
-        this._messageIds.push(id);
+      if (!this.messageIdsValue.includes(id)) {
+        this.messageIdsValue.push(id);
       }
     } else {
-      this._messageIds = this._messageIds.filter((mid) => mid !== id);
+      this.messageIdsValue = this.messageIdsValue.filter((mid) => mid !== id);
     }
-    this._context.messageIds = [...this._messageIds];
+
+    this.syncContext();
   }
 
-  private _getDescriptionProps(): Record<string, string | undefined> {
-    const describedBy = this._messageIds.length > 0
-      ? this._messageIds.join(' ')
-      : undefined;
-    return { 'aria-describedby': describedBy };
+  private getDescriptionPropsInternal(
+    externalProps: Record<string, string | undefined> = {},
+  ): Record<string, string | undefined> {
+    const describedBy = mergeDescribedByIds(
+      this.getParentMessageIds().join(' '),
+      this.messageIdsValue.join(' '),
+      externalProps['aria-describedby'],
+    );
+
+    return {
+      ...externalProps,
+      'aria-describedby': describedBy,
+    };
   }
 
-  private _resolveControlId(): string | null | undefined {
+  private getParentMessageIds() {
+    const parentProvider = this.parentElement?.closest(
+      'labelable-provider',
+    ) as LabelableProviderElement | null;
+
+    return parentProvider?.contextValue.messageIds ?? [];
+  }
+
+  private resolveControlId(): string | null | undefined {
     let resolved: string | null | undefined;
-    for (const id of this._controlIds.values()) {
-      if (id != null) {
+
+    for (const id of this.controlIds.values()) {
+      if (id !== undefined) {
         resolved = id;
       }
     }
-    return resolved;
+
+    if (resolved !== undefined) {
+      return resolved;
+    }
+
+    if (this.controlIdValue !== undefined) {
+      return this.controlIdValue;
+    }
+
+    return this.defaultControlId;
+  }
+
+  private syncContext() {
+    this.contextValue.controlId = this.resolveControlId();
+    this.contextValue.labelId = this.labelIdValue;
+    this.contextValue.messageIds = [...this.messageIdsValue];
+  }
+
+  private syncStringAttribute(name: string, value: string | null | undefined) {
+    const nextValue = value ?? null;
+
+    if (nextValue === null) {
+      if (this.hasAttribute(name)) {
+        this.removeAttribute(name);
+      }
+      return;
+    }
+
+    if (this.getAttribute(name) !== nextValue) {
+      this.setAttribute(name, nextValue);
+    }
   }
 }
 
@@ -111,11 +214,16 @@ if (!customElements.get('labelable-provider')) {
   customElements.define('labelable-provider', LabelableProviderElement);
 }
 
+export interface LabelableProviderState {}
+
+export interface LabelableProviderProps {
+  controlId?: string | null | undefined;
+  labelId?: string | undefined;
+}
+
 export namespace LabelableProvider {
-  export interface Props {
-    controlId?: string;
-    labelId?: string;
-  }
+  export type Props = LabelableProviderProps;
+  export type State = LabelableProviderState;
 }
 
 declare global {

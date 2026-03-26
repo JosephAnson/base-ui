@@ -1,12 +1,17 @@
 # Radio Group
 
 <Subtitle>A group of radio buttons for selecting one option.</Subtitle>
-<Meta name="description" content="A group of radio buttons for selecting one option." />
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit radio group component for selecting one option."
+/>
 
 ## Anatomy
 
+Import the custom elements and assemble the group with [`radio-root`](/lit/components/radio):
+
 ```html title="Anatomy"
-<radio-group-root>
+<radio-group>
   <radio-root value="option-a">
     <radio-indicator></radio-indicator>
     Option A
@@ -19,13 +24,46 @@
     <radio-indicator></radio-indicator>
     Option C
   </radio-root>
-</radio-group-root>
+</radio-group>
 ```
 
-## Status
+## API reference
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### RadioGroupElement
+
+Custom element: `<radio-group>`
+
+| Property                  | Type                       | Default | Description                                                   |
+| ------------------------- | -------------------------- | ------- | ------------------------------------------------------------- |
+| `.value`                  | `unknown`                  | —       | Controlled selected value.                                    |
+| `.defaultValue`           | `unknown`                  | —       | Initial selected value in uncontrolled mode.                  |
+| `disabled`                | `boolean`                  | `false` | Disables the group and all child radios.                      |
+| `read-only` / `.readOnly` | `boolean`                  | `false` | Prevents selection changes while keeping the group focusable. |
+| `required`                | `boolean`                  | `false` | Marks the group as required.                                  |
+| `name`                    | `string \| undefined`      | —       | Applied to the hidden radio inputs for form submission.       |
+| `.onValueChange`          | `(value, details) => void` | —       | Called when the selected value changes.                       |
+
+## Behavior notes
+
+- `radio-group` manages roving `tabindex` across its child radios.
+- Arrow-key navigation wraps around the group and updates the checked value.
+- Form submission includes the checked radio value when `name` is provided.
+- When no radio is checked, the form data entry for the group is `null`, matching native radio behavior.
+
+## Data attributes
+
+`radio-group` can receive:
+
+- `data-disabled`
+- `data-dirty`
+- `data-filled`
+- `data-focused`
+- `data-readonly`
+- `data-required`
+- `data-touched`
+- `data-valid`
+- `data-invalid`
 
 export const metadata = {
-  keywords: ['Lit Radio Group', 'Radio Group', 'Base UI Lit', 'Radio buttons'],
+  keywords: ['Lit Radio Group', 'Radio Group', 'Form Controls', 'Base UI Lit', 'Radio buttons'],
 };

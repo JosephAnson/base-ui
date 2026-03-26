@@ -17,7 +17,9 @@ describe('mergeProps', () => {
 
     type OnClick = typeof mergedProps.onClick;
 
-    expectTypeOf<OnClick>().toEqualTypeOf<((event: BaseUIEvent<PointerEvent>) => any) | undefined>();
+    expectTypeOf<OnClick>().toEqualTypeOf<
+      ((event: BaseUIEvent<PointerEvent>) => any) | undefined
+    >();
     mergedProps.onClick?.({ nativeEvent: new MouseEvent('click') } as any);
     mergedProps.onKeyDown?.({ nativeEvent: new KeyboardEvent('keydown') } as any);
     mergedProps.onPaste?.({ nativeEvent: new Event('paste') } as any);
@@ -201,6 +203,82 @@ describe('mergeProps', () => {
 
     mergedProps.onClick?.({ nativeEvent: new MouseEvent('click') } as any);
     expect(log).toEqual(['1', '3']);
+  });
+
+  it('makes a lone synthetic event handler preventable', () => {
+    let prevented = false;
+
+    const mergedProps = mergeProps<'button'>(
+      {},
+      {
+        onMouseDown(event: BaseUIEvent<MouseEvent>) {
+          event.preventBaseUIHandler();
+          prevented = event.baseUIHandlerPrevented === true;
+        },
+      },
+    );
+
+    mergedProps.onMouseDown?.({ nativeEvent: new MouseEvent('mousedown') } as any);
+
+    expect(prevented).toBe(true);
+  });
+
+  it('makes a first-position synthetic event handler preventable', () => {
+    let prevented = false;
+
+    const mergedProps = mergeProps<'button'>(
+      {
+        onMouseDown(event: BaseUIEvent<MouseEvent>) {
+          event.preventBaseUIHandler();
+          prevented = event.baseUIHandlerPrevented === true;
+        },
+      },
+      {
+        id: 'test-button',
+      },
+    );
+
+    mergedProps.onMouseDown?.({ nativeEvent: new MouseEvent('mousedown') } as any);
+
+    expect(prevented).toBe(true);
+  });
+
+  it('makes a first-position synthetic event handler preventable in mergePropsN', () => {
+    let prevented = false;
+
+    const mergedProps = mergePropsN<'button'>([
+      {
+        onMouseDown(event: BaseUIEvent<MouseEvent>) {
+          event.preventBaseUIHandler();
+          prevented = event.baseUIHandlerPrevented === true;
+        },
+      },
+      {
+        id: 'test-button',
+      },
+    ]);
+
+    mergedProps.onMouseDown?.({ nativeEvent: new MouseEvent('mousedown') } as any);
+
+    expect(prevented).toBe(true);
+  });
+
+  it('makes a lone obscure synthetic event handler preventable', () => {
+    let prevented = false;
+
+    const mergedProps = mergeProps<'button'>(
+      {},
+      {
+        onContextMenu(event: BaseUIEvent<MouseEvent>) {
+          event.preventBaseUIHandler();
+          prevented = event.baseUIHandlerPrevented === true;
+        },
+      },
+    );
+
+    mergedProps.onContextMenu?.({ nativeEvent: new MouseEvent('contextmenu') } as any);
+
+    expect(prevented).toBe(true);
   });
 
   it('merges styles', () => {
@@ -463,12 +541,12 @@ describe('mergeProps', () => {
       expect(mergePropsN([])).toEqual({});
     });
 
-    it('returns the single props entry unchanged', () => {
+    it('returns a shallow copy for a single props entry', () => {
       const props = {
         id: 'test-id',
       };
 
-      expect(mergePropsN([props])).toBe(props);
+      expect(mergePropsN([props])).toEqual(props);
     });
 
     it('merges arrays using the same right-to-left handler order', () => {

@@ -1,7 +1,10 @@
 # Separator
 
-<Subtitle>A visual or semantic separator primitive.</Subtitle>
-<Meta name="description" content="A visual or semantic separator primitive." />
+<Subtitle>A separator element accessible to screen readers.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled separator component that is accessible to screen readers."
+/>
 
 import { DemoSeparatorHero } from './demos/hero';
 
@@ -9,14 +12,32 @@ import { DemoSeparatorHero } from './demos/hero';
 
 ## Anatomy
 
+Import the element and use it as a single part:
+
 ```html title="Anatomy"
+<script type="module">
+  import '@base-ui/lit/separator';
+</script>
+
 <separator-root orientation="horizontal"></separator-root>
 ```
 
-## Status
+## API reference
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+import { TypesSeparator } from './types';
+
+<TypesSeparator />
 
 export const metadata = {
-  keywords: ['Lit Separator', 'Separator', 'Base UI Lit'],
+  keywords: [
+    'Separator',
+    'Divider Component',
+    'Divider',
+    'Horizontal Rule',
+    'Horizontal Divider',
+    'Vertical Divider',
+    'Accessible Separator',
+    'Screen Reader Separator',
+    'Base UI',
+  ],
 };

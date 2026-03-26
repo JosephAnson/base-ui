@@ -44,6 +44,14 @@ if (!customElements.get('separator-root')) {
   customElements.define('separator-root', SeparatorRootElement);
 }
 
+export interface SeparatorRootProps {
+  /**
+   * The orientation of the separator.
+   * @default 'horizontal'
+   */
+  orientation?: Orientation | undefined;
+}
+
 export interface SeparatorRootState {
   /**
    * The orientation of the separator.
@@ -52,6 +60,7 @@ export interface SeparatorRootState {
 }
 
 export namespace SeparatorRoot {
+  export type Props = SeparatorRootProps;
   export type State = SeparatorRootState;
 }
 

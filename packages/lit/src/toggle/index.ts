@@ -24,7 +24,9 @@ export class ToggleRootElement extends ReactiveElement {
   declare value: string | undefined;
 
   /** Callback fired when the pressed state changes. Set via `.onPressedChange=${fn}`. */
-  onPressedChange: ((pressed: boolean, event: Event) => void) | undefined;
+  onPressedChange:
+    | ((pressed: boolean, eventDetails: ToggleRootChangeEventDetails) => void)
+    | undefined;
 
   private _internalPressed = false;
   private _initialized = false;
@@ -77,10 +79,7 @@ export class ToggleRootElement extends ReactiveElement {
     this.removeEventListener('keyup', this._handleKeyUp);
 
     if (this._group) {
-      this._group.removeEventListener(
-        'base-ui-toggle-group-state-change',
-        this._groupStateHandler,
-      );
+      this._group.removeEventListener('base-ui-toggle-group-state-change', this._groupStateHandler);
       this._group = null;
     }
   }
@@ -107,15 +106,25 @@ export class ToggleRootElement extends ReactiveElement {
     if (effectiveDisabled) return;
 
     const nextPressed = !this.getPressed();
+    const eventDetails = createChangeEventDetails(event ?? new Event('change'));
 
     // When inside a toggle-group, delegate to the group
     if (this._group && this.value !== undefined) {
-      this.onPressedChange?.(nextPressed, event ?? new Event('change'));
-      this._group.setGroupValue(this.value, nextPressed, event ?? new Event('change'));
+      this.onPressedChange?.(nextPressed, eventDetails);
+
+      if (eventDetails.isCanceled) {
+        return;
+      }
+
+      this._group.setGroupValue(this.value, nextPressed, eventDetails.event);
       return;
     }
 
-    this.onPressedChange?.(nextPressed, event ?? new Event('change'));
+    this.onPressedChange?.(nextPressed, eventDetails);
+
+    if (eventDetails.isCanceled) {
+      return;
+    }
 
     // Update internal state (uncontrolled mode)
     if (this.pressed === undefined) {
@@ -152,7 +161,7 @@ export class ToggleRootElement extends ReactiveElement {
   private _handleClick = (event: MouseEvent) => {
     if (this._isDisabled()) {
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
       return;
     }
     this.toggle(event);
@@ -161,6 +170,7 @@ export class ToggleRootElement extends ReactiveElement {
   private _handleKeyDown = (event: KeyboardEvent) => {
     if (this._isDisabled()) {
       event.preventDefault();
+      event.stopImmediatePropagation();
       return;
     }
 
@@ -176,7 +186,10 @@ export class ToggleRootElement extends ReactiveElement {
   };
 
   private _handleKeyUp = (event: KeyboardEvent) => {
-    if (this._isDisabled()) return;
+    if (this._isDisabled()) {
+      event.stopImmediatePropagation();
+      return;
+    }
     if (event.target !== this) return;
 
     if (event.key === ' ') {
@@ -187,6 +200,36 @@ export class ToggleRootElement extends ReactiveElement {
 
 if (!customElements.get('toggle-root')) {
   customElements.define('toggle-root', ToggleRootElement);
+}
+
+export interface ToggleRootProps {
+  /**
+   * Whether the toggle button is currently pressed.
+   * This is the controlled counterpart of `defaultPressed`.
+   */
+  pressed?: boolean | undefined;
+  /**
+   * Whether the toggle button is currently pressed.
+   * This is the uncontrolled counterpart of `pressed`.
+   * @default false
+   */
+  defaultPressed?: boolean | undefined;
+  /**
+   * Whether the component should ignore user interaction.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * Callback fired when the pressed state is changed.
+   */
+  onPressedChange?:
+    | ((pressed: boolean, eventDetails: ToggleRootChangeEventDetails) => void)
+    | undefined;
+  /**
+   * A unique string that identifies the toggle when used
+   * inside a toggle group.
+   */
+  value?: string | undefined;
 }
 
 export interface ToggleRootState {
@@ -200,8 +243,36 @@ export interface ToggleRootState {
   disabled: boolean;
 }
 
+export interface ToggleRootChangeEventDetails {
+  event: Event;
+  cancel(): void;
+  readonly isCanceled: boolean;
+  reason: 'none';
+}
+
+export type ToggleChangeEventReason = ToggleRootChangeEventDetails['reason'];
+export type ToggleChangeEventDetails = ToggleRootChangeEventDetails;
+
 export namespace ToggleRoot {
+  export type Props = ToggleRootProps;
   export type State = ToggleRootState;
+  export type ChangeEventReason = ToggleChangeEventReason;
+  export type ChangeEventDetails = ToggleChangeEventDetails;
+}
+
+function createChangeEventDetails(event: Event): ToggleRootChangeEventDetails {
+  let canceled = false;
+
+  return {
+    event,
+    cancel() {
+      canceled = true;
+    },
+    get isCanceled() {
+      return canceled;
+    },
+    reason: 'none',
+  };
 }
 
 declare global {
