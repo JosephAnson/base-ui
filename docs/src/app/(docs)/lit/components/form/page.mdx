@@ -16,8 +16,15 @@ import { TypesForm } from './types';
 
 Form is composed together with [Field](/lit/components/field). Import the custom elements and place them together:
 
-```html title="Anatomy"
-<form-root>
+`<form-root>` is the Base UI wrapper and it enhances the nested native `<form>` element rather than replacing it.
+
+```ts title="Anatomy"
+import { html } from 'lit';
+import '@base-ui/lit/field';
+import '@base-ui/lit/form';
+
+html`<form-root>
+  <!-- form-root enhances the nested native form -->
   <form>
     <field-root>
       <field-label>Homepage</field-label>
@@ -25,7 +32,7 @@ Form is composed together with [Field](/lit/components/field). Import the custom
       <field-error></field-error>
     </field-root>
   </form>
-</form-root>
+</form-root>`;
 ```
 
 ## Examples

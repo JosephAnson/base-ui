@@ -123,6 +123,15 @@ describe('radio', () => {
     expect(input.tabIndex).toBe(-1);
   });
 
+  it('does not forward the value prop as a host attribute', async () => {
+    const { groupElement } = renderInGroup(html`<radio-root .value=${'test'}></radio-root>`);
+    await flushUpdates();
+
+    const radio = groupElement.querySelector('radio-root') as RadioRootElement;
+
+    expect(radio).not.toHaveAttribute('value');
+  });
+
   it('uses aria-disabled instead of HTML disabled and mirrors readOnly and required', async () => {
     const view = render(html`
       <radio-root .disabled=${true} .readOnly=${true} .required=${true}></radio-root>
@@ -160,6 +169,32 @@ describe('radio', () => {
 
     expect(explicitRadio).toHaveAttribute('aria-labelledby');
     expect(implicitRadio).toHaveAttribute('aria-labelledby');
+  });
+
+  it('updates fallback aria-labelledby when the radio id changes', async () => {
+    const view = render(html`
+      <div>
+        <label for="radio-input-a">Label A</label>
+        <label for="radio-input-b">Label B</label>
+        <div data-base-ui-radio-group="">
+          <radio-root id="radio-input-a" .value=${'a'}></radio-root>
+        </div>
+      </div>
+    `);
+    await flushUpdates();
+
+    const radio = getRadio(view);
+    const labelA = view.querySelector('label[for="radio-input-a"]') as HTMLLabelElement;
+    const labelB = view.querySelector('label[for="radio-input-b"]') as HTMLLabelElement;
+
+    expect(radio).toHaveAttribute('aria-labelledby', labelA.id);
+
+    radio.id = 'radio-input-b';
+    await flushUpdates();
+
+    expect(labelB.id).not.toBe('');
+    expect(labelA.id).not.toBe(labelB.id);
+    expect(radio).toHaveAttribute('aria-labelledby', labelB.id);
   });
 
   it('shows as checked when group value matches, including null values', async () => {

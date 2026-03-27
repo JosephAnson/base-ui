@@ -1,61 +1,120 @@
 # Radio
 
-<Subtitle>An individual radio control used inside a radio group.</Subtitle>
+<Subtitle>An easily stylable radio button component.</Subtitle>
 <Meta
   name="description"
-  content="A high-quality, unstyled Lit radio component used inside a radio group."
+  content="A high-quality, unstyled Lit radio button component that is easy to style."
 />
 
 import { DemoRadioHero } from './demos/hero';
+import { TypesRadio } from './types';
 
 <DemoRadioHero />
 
+## Usage guidelines
+
+- **Form controls must have an accessible name**: It can be created using `<label>` elements, or the `Field` and `Fieldset` components. See [Labeling a radio group](#labeling-a-radio-group) and the [forms guide](/react/handbook/forms).
+
 ## Anatomy
 
-Use `radio-root` together with [`radio-group`](/lit/components/radio-group):
+Radio is always placed within Radio Group. Import the custom elements and place them together:
 
-```html title="Anatomy"
-<radio-group>
-  <radio-root value="system">
+```ts title="Anatomy"
+import { html } from 'lit';
+import '@base-ui/lit/radio';
+import '@base-ui/lit/radio-group';
+
+html`<radio-group>
+  <radio-root value="ssd">
     <radio-indicator></radio-indicator>
-    System
   </radio-root>
-</radio-group>
+</radio-group>`;
+```
+
+## Examples
+
+### Labeling a radio group
+
+Label the group with `aria-labelledby` and a sibling label element:
+
+```ts title="Using aria-labelledby to label a radio group"
+html`<div id="storage-type-label">Storage type</div>
+  <radio-group aria-labelledby="storage-type-label">
+    <!-- ... -->
+  </radio-group>`;
+```
+
+An enclosing `<label>` is the simplest labeling pattern for each radio:
+
+```ts title="Using an enclosing label to label a radio button"
+html`<label>
+  <radio-root value="ssd"></radio-root>
+  SSD
+</label>`;
+```
+
+### Form integration
+
+Use [Field](/lit/components/field) and [Fieldset](/lit/components/fieldset) for group labeling and form integration. In Lit, `<form-root>` provides the Base UI form behavior and enhances a nested native `<form>`:
+
+```ts title="Using Radio Group in a form"
+html`<form-root>
+  <!-- form-root enhances the nested native form -->
+  <form>
+    <field-root name="storageType">
+      <fieldset-root>
+        <fieldset-legend>Storage type</fieldset-legend>
+        <radio-group>
+          <field-item>
+            <field-label>
+              <radio-root value="ssd"></radio-root>
+              SSD
+            </field-label>
+          </field-item>
+          <field-item>
+            <field-label>
+              <radio-root value="hdd"></radio-root>
+              HDD
+            </field-label>
+          </field-item>
+        </radio-group>
+      </fieldset-root>
+    </field-root>
+  </form>
+</form-root>`;
 ```
 
 ## API reference
 
-### RadioRootElement
+### RadioGroup
 
-Custom element: `<radio-root>`
+Provides a shared state to a series of radio buttons. Renders a `<radio-group>` custom element.
 
-| Property                  | Type      | Default | Description                                       |
-| ------------------------- | --------- | ------- | ------------------------------------------------- |
-| `.value`                  | `unknown` | —       | Value used to identify this radio inside a group. |
-| `disabled`                | `boolean` | `false` | Disables the radio.                               |
-| `read-only` / `.readOnly` | `boolean` | `false` | Prevents the radio from being selected.           |
-| `required`                | `boolean` | `false` | Marks the radio as required.                      |
+<TypesRadio.RadioGroup />
 
-`radio-root` renders a hidden native `<input type="radio">` internally for form participation and label association.
+### Root
 
-### RadioIndicatorElement
+<TypesRadio.Root />
 
-Custom element: `<radio-indicator>`
+### Indicator
 
-| Attribute / Property            | Type      | Default | Description                                              |
-| ------------------------------- | --------- | ------- | -------------------------------------------------------- |
-| `keep-mounted` / `.keepMounted` | `boolean` | `false` | Keeps the indicator mounted when the radio is unchecked. |
-
-## Data attributes
-
-`radio-root` and `radio-indicator` can receive:
-
-- `data-checked`
-- `data-unchecked`
-- `data-disabled`
-- `data-readonly`
-- `data-required`
+<TypesRadio.Indicator />
 
 export const metadata = {
-  keywords: ['Lit Radio', 'Radio', 'Radio Group', 'Form Controls', 'Base UI Lit'],
+  keywords: [
+    'Lit Radio Button',
+    'Radio Group Component',
+    'Radio Button',
+    'Radio Input',
+    'Single Choice',
+    'Exclusive Choice',
+    'Mutually Exclusive',
+    'Option Selector',
+    'Option Button',
+    'Form Radio Control',
+    'Accessible Radio Group',
+    'Customizable Radio',
+    'Headless Lit Components',
+    'Base UI',
+  ],
 };

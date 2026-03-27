@@ -19,7 +19,6 @@ export default function ExampleForm() {
 
     renderTemplate(
       html`<form-root
-        class=${styles.Form}
         .errors=${errors}
         .onSubmit=${async (event: SubmitEvent) => {
           event.preventDefault();
@@ -34,21 +33,23 @@ export default function ExampleForm() {
           setLoading(false);
         }}
       >
-        <field-root name="url" class=${styles.Field}>
-          <field-label class=${styles.Label}>Homepage</field-label>
-          <field-control
-            class=${styles.Input}
-            .defaultValue=${'https://example.com'}
-            pattern="https?://.*"
-            placeholder="https://example.com"
-            required
-            type="url"
-          ></field-control>
-          <field-error class=${styles.Error}></field-error>
-        </field-root>
-        <button class=${styles.Button} ?disabled=${loading} type="submit">
-          ${loading ? 'Submitting...' : 'Submit'}
-        </button>
+        <form class=${styles.Form}>
+          <field-root name="url" class=${styles.Field}>
+            <field-label class=${styles.Label}>Homepage</field-label>
+            <field-control
+              class=${styles.Input}
+              .defaultValue=${'https://example.com'}
+              pattern="https?://.*"
+              placeholder="https://example.com"
+              required
+              type="url"
+            ></field-control>
+            <field-error class=${styles.Error}></field-error>
+          </field-root>
+          <button class=${styles.Button} ?disabled=${loading} type="submit">
+            ${loading ? 'Submitting...' : 'Submit'}
+          </button>
+        </form>
       </form-root>`,
       host,
     );

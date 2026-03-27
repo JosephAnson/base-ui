@@ -588,19 +588,34 @@ Displays the status of a task that takes a long time.
 
 ## Radio
 
-An individual radio control used inside a radio group.
+An easily stylable radio button component.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Radio, Radio, Radio Group, Form Controls, Base UI Lit
+- Keywords: Lit Radio Button, Radio Group Component, Radio Button, Radio Input, Single Choice, Exclusive Choice, Mutually Exclusive, Option Selector, Option Button, Form Radio Control, Accessible Radio Group, Customizable Radio, Headless Lit Components, Base UI
 - Sections:
+  - Usage guidelines
   - Anatomy
+  - Examples
+    - Labeling a radio group
+    - Form integration
   - API reference
-    - RadioRootElement
-    - RadioIndicatorElement
-  - Data attributes
+    - RadioGroup
+    - Root
+    - Indicator
+- Exports:
+  - Root
+    - Props: disabled, id, readOnly, required, value
+    - Data Attributes: data-checked, data-disabled, data-readonly, data-required, data-unchecked
+  - Indicator
+    - Props: keepMounted
+    - Data Attributes: data-checked, data-disabled, data-readonly, data-required, data-unchecked
+  - RadioGroup
+    - Props: defaultValue, disabled, name, onValueChange, readOnly, required, value
+    - Data Attributes: data-dirty, data-disabled, data-filled, data-focused, data-invalid, data-readonly, data-required, data-touched, data-valid
+- Types: Indicator.DataAttributes, Indicator.Props, Indicator.State, IndicatorApiProps, Radio, RadioDocumentation, RadioGroup.ChangeEventDetails, RadioGroup.ChangeEventReason, RadioGroup.DataAttributes, RadioGroup.Props, RadioGroup.State, RadioGroupApiProps, Root.ChangeEventDetails, Root.ChangeEventReason, Root.DataAttributes, Root.Props, Root.State, RootApiProps
 
 </details>
 

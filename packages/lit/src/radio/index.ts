@@ -91,6 +91,10 @@ export type RadioRootChangeEventReason = RadioRootChangeEventDetails['reason'];
  * Documentation: [Base UI Radio](https://base-ui.com/react/components/radio)
  */
 export class RadioRootElement extends ReactiveElement {
+  static override get observedAttributes() {
+    return [...super.observedAttributes, 'id'];
+  }
+
   static properties = {
     disabled: { type: Boolean },
     readOnly: { type: Boolean, attribute: 'read-only' },
@@ -155,6 +159,20 @@ export class RadioRootElement extends ReactiveElement {
 
     this._input?.remove();
     this._input = null;
+  }
+
+  override attributeChangedCallback(
+    name: string,
+    oldValue: string | null,
+    newValue: string | null,
+  ) {
+    super.attributeChangedCallback(name, oldValue, newValue);
+
+    if (name === 'id' && oldValue !== newValue) {
+      queueMicrotask(() => {
+        this._syncAriaLabelledBy();
+      });
+    }
   }
 
   protected override updated() {
