@@ -7,29 +7,30 @@
 />
 
 import { DemoToggleHero } from './demos/hero';
+import { TypesToggle } from './types';
 
 <DemoToggleHero />
 
 ## Anatomy
 
-Import the custom element and use it as a single part:
+Import the helper and use it as a single part:
 
-```html title="Anatomy"
-<toggle-root>Bold</toggle-root>
+```ts title="Anatomy"
+import { Toggle } from '@base-ui/lit/toggle';
+import { html } from 'lit';
+
+html`${Toggle({ children: 'Bold' })}`;
 ```
 
 ## API reference
 
-### ToggleRootElement
+<TypesToggle />
 
-Custom element: `<toggle-root>`
+### Toggle Data Attributes
 
-| Attribute         | Type      | Default      | Description                                        |
-| ----------------- | --------- | ------------ | -------------------------------------------------- |
-| `pressed`         | `boolean` | uncontrolled | Controlled pressed state.                          |
-| `default-pressed` | `boolean` | `false`      | Initial pressed state in uncontrolled mode.        |
-| `disabled`        | `boolean` | `false`      | Whether the toggle should ignore user interaction. |
-| `value`           | `string`  | `undefined`  | Identifier used inside a toggle group.             |
+| Attribute      | Description                                |
+| -------------- | ------------------------------------------ |
+| `data-pressed` | Present when the toggle button is pressed. |
 
 export const metadata = {
   keywords: [

@@ -1,50 +1,78 @@
-# LocalizationProvider
+# Localization Provider
 
-<Subtitle>Defines the temporal locale provider for Base UI temporal components.</Subtitle>
+<Subtitle>Defines the locale to use in the temporal components.</Subtitle>
 <Meta
   name="description"
-  content="A provider element for supplying date-fns Locale or compatible locale to Base UI Lit temporal components."
+  content="A localization provider component that defines the locale to use in the temporal components."
 />
 
-## Usage
+import { DemoLocalizationProviderHero } from './demos/hero';
+
+<DemoLocalizationProviderHero />
+
+## Anatomy
+
+Import the element plus the `date-fns` library locale and wrap them around your app.
+
+If every temporal component in your app shares the same locale, you should use the provider once at the root of your application.
 
 ```html title="Anatomy"
-<localization-provider>
-  <calendar-root>...</calendar-root>
+<script type="module">
+  import '@base-ui/lit/localization-provider';
+</script>
+
+<localization-provider id="app-locale">
+  <!-- Your app or a group of components -->
 </localization-provider>
 ```
 
-Set the locale programmatically:
-
-```ts title="Setting locale"
+```ts title="Setting the locale"
 import { fr } from 'date-fns/locale/fr';
 
-const provider = document.querySelector('localization-provider');
-provider.temporalLocale = fr;
+const provider = document.querySelector('#app-locale');
+
+if (provider instanceof HTMLElement && provider.tagName === 'LOCALIZATION-PROVIDER') {
+  provider.temporalLocale = fr;
+}
 ```
 
-### Reading context
+## Examples
 
-```ts title="Using getLocalizationContext"
-import { getLocalizationContext } from '@base-ui/lit/localization-provider';
+### Nesting locales
 
-const { temporalLocale } = getLocalizationContext(element);
-```
+The `<LocalizationProvider>` can be nested to change the locale for a part of the application.
 
-## API
+This could be useful when you need some temporal components in your application to use a different locale than the rest of your app.
 
-### `LocalizationProviderElement`
+import { DemoLocalizationProviderNesting } from './demos/nesting';
 
-Custom element: `<localization-provider>`
+<DemoLocalizationProviderNesting />
 
-| Property         | Type     | Default     | Description                               |
-| ---------------- | -------- | ----------- | ----------------------------------------- |
-| `temporalLocale` | `object` | `undefined` | The locale to use in temporal components. |
+### Start of week
 
-### `getLocalizationContext(element: Element): LocalizationContext`
+Start of the week is handled by the date library locale. You can override the default start of the week by spreading the locale and setting `options.weekStartsOn` to a value between `0` (Sunday) and `6` (Saturday).
 
-Returns `{ temporalLocale }` from the nearest `<localization-provider>` ancestor.
+import { DemoLocalizationProviderStartOfWeek } from './demos/start-of-week';
 
-export const metadata = {
-  keywords: ['Lit LocalizationProvider', 'Locale', 'i18n', 'Base UI Lit'],
-};
+<DemoLocalizationProviderStartOfWeek />
+
+## API reference
+
+import { TypesGetLocalizationContext, TypesLocalizationProvider } from './types';
+
+<TypesLocalizationProvider />
+
+### getLocalizationContext
+
+<TypesGetLocalizationContext hideDescription />
+
+export const metadata =
+  /** @type {import('@mui/internal-docs-infra/createSitemap/types').NextMetadata} */ ({
+    keywords: ['Localization', 'Locale', 'Temporal', 'Date Fns', 'Base UI'],
+    robots: {
+      index: false,
+    },
+    other: {
+      audience: 'private',
+    },
+  });

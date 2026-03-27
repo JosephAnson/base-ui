@@ -1,45 +1,150 @@
 # useRender
 
-<Subtitle>Utility for building renderable Lit primitives with overridable roots.</Subtitle>
-<Meta
-  name="description"
-  content="Utility for building renderable Lit primitives with overridable roots."
-/>
+<Subtitle>Utility for enabling a render prop in custom components.</Subtitle>
+<Meta name="description" content="Utility for enabling a render prop in custom Lit components." />
 
-The `useRender` utility lets Lit primitives expose a `render` override while keeping Base UI state attributes and merged props behavior.
+The `useRender` utility lets you build custom components that provide a `render` prop to override the default rendered element.
 
 import { DemoUseRenderRender } from './demos/render';
 import { DemoUseRenderRenderCallback } from './demos/render-callback';
+import { TypesUseRender } from './types';
 
 ## Examples
 
+A `render` prop for a custom Text component lets consumers use it to replace the default rendered `p` element with a different tag or template.
+
 <DemoUseRenderRender />
 
-The callback form receives the merged props bag and state so the caller can control exactly how the final root is assembled.
+The callback version of the `render` prop enables more control of how props are applied, and also passes the internal `state` of a component.
 
 <DemoUseRenderRenderCallback />
 
 ## Merging props
 
-`useRender` is designed to work with `mergeProps`, so package primitives can combine their internal props with caller-supplied props before the final template is rendered.
+The `mergeProps` function merges two or more sets of Lit props together. It safely merges three types of props:
 
-```ts title="Using useRender"
+1. Event handlers, so that all are invoked
+2. `className` strings
+3. `style` properties
+
+`mergeProps` merges objects from left to right, so that subsequent objects' properties in the arguments overwrite previous ones. Merging props is useful when creating custom components, as well as inside the callback version of the `render` prop for any Base UI component.
+
+```ts title="Using mergeProps in the render callback"
+import { html } from 'lit';
+import { mergeProps } from '@base-ui/lit/merge-props';
+import { useRender } from '@base-ui/lit/use-render';
+import styles from './index.module.css';
+
+function Button() {
+  return useRender({
+    defaultTagName: 'button',
+    render: (props) => {
+      const mergedProps = mergeProps(props, {
+        className: styles.Button,
+      });
+
+      return html`<button
+        class=${String(mergedProps.className ?? '')}
+        type=${String(mergedProps.type ?? 'button')}
+        @click=${mergedProps.onclick as (event: Event) => void}
+      >
+        ${mergedProps.children}
+      </button>`;
+    },
+  });
+}
+```
+
+## Merging refs
+
+When building custom components, you often need to control a ref internally while still letting external consumers pass their own. The `ref` option in `useRender` supports a single ref or an array of refs, and works with both callback refs and `{ current }` objects.
+
+```ts title="Merging refs" {4,8} "internalRef"
+import { useRender } from '@base-ui/lit/use-render';
+
+function Text(render: useRender.RenderProp, externalRef?: { current: HTMLElement | null }) {
+  const internalRef = { current: null as HTMLElement | null };
+
+  return useRender({
+    defaultTagName: 'p',
+    ref: [externalRef, internalRef],
+    render,
+  });
+}
+```
+
+## TypeScript
+
+To type props, there are two interfaces:
+
+- `useRender.ComponentProps` for a component's external (public) props. It types the `render` prop and HTML attributes.
+- `useRender.ElementProps` for the element's internal (private) props. It types HTML attributes alone.
+
+```ts title="Typing props" {1,4}
 import { html } from 'lit';
 import { mergeProps } from '@base-ui/lit/merge-props';
 import { useRender } from '@base-ui/lit/use-render';
 
+interface ButtonProps extends useRender.ComponentProps<'button'> {}
+
+function Button({ render, ...props }: ButtonProps) {
+  const defaultProps: useRender.ElementProps<'button'> = {
+    className: 'Button',
+    type: 'button',
+    children: 'Click me',
+  };
+
+  return useRender({
+    defaultTagName: 'button',
+    render,
+    props: mergeProps(defaultProps, props),
+  });
+}
+```
+
+## Migrating from Radix UI
+
+Radix UI uses an `asChild` prop, while Base UI uses a `render` prop. Learn more about how composition works in Base UI in the [composition guide](/react/handbook/composition).
+
+In Base UI Lit, `useRender` lets you implement a `render` prop for custom primitives:
+
+```ts title="Base UI render prop"
+import { useRender } from '@base-ui/lit/use-render';
+
+function Button({ render, ...props }: { render?: useRender.RenderProp } & Record<string, unknown>) {
+  return useRender({
+    defaultTagName: 'button',
+    render,
+    props,
+  });
+}
+```
+
+## Render prop and polymorphism
+
+The `render` prop is primarily designed for composing event handlers and behavioral props. In most cases it should render the same tag as the default element.
+
+Using `render` for polymorphism (rendering a different tag) requires more care, as some default props may not be valid on the new element. For example, `type="button"` is only valid on a `<button>`. Since the component can't know what element `render` will produce ahead of time, props like these need an explicit signal. This is why Base UI's [Button](/lit/components/button) provides a `nativeButton` prop to control which defaults are applied.
+
+## API reference
+
+```ts title="Usage"
 const template = useRender({
-  defaultTagName: 'button',
-  props: mergeProps({ className: 'Button', type: 'button' }, { children: 'Click me' }),
-  render: (props) =>
-    html`<button class=${String(props.className ?? '')}>${props.children}</button>`,
+  // Input parameters
 });
 ```
 
-## Status
-
-The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
+<TypesUseRender />
 
 export const metadata = {
-  keywords: ['Lit useRender', 'useRender', 'Base UI Lit', 'Render override'],
+  keywords: [
+    'Base UI Lit useRender',
+    'Lit Render Prop Utility',
+    'Merge Props Helper',
+    'Merge Refs Utility',
+    'Radix asChild Migration',
+    'Component Composition',
+    'Props Spreading',
+    'Custom Components',
+  ],
 };

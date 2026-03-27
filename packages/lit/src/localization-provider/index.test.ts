@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
 import { render, html } from 'lit';
+import '../calendar';
+import type { CalendarRootElement } from '../calendar';
 import {
   getLocalizationContext,
   LocalizationProviderElement,
@@ -84,5 +86,56 @@ describe('localization-provider', () => {
     `);
     const ctx = getLocalizationContext(container.querySelector('#target')!);
     expect(ctx.temporalLocale).toBeUndefined();
+  });
+
+  it('provides weekStartsOn defaults to descendant calendar roots', () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+
+    const provider = document.createElement('localization-provider') as LocalizationProviderElement;
+    const calendar = document.createElement('calendar-root') as CalendarRootElement;
+    provider.append(calendar);
+    container.append(provider);
+
+    provider.temporalLocale = {
+      code: 'en-US',
+      options: { weekStartsOn: 1 },
+    };
+
+    expect(calendar.getWeeks()[0]?.[0]?.getDay()).toBe(1);
+    expect(calendar.getWeekdayNames()[0]?.toLowerCase()).toContain('mon');
+  });
+
+  it('uses the nearest provider for descendant calendar roots', () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+
+    const outerProvider = document.createElement(
+      'localization-provider',
+    ) as LocalizationProviderElement;
+    const innerProvider = document.createElement(
+      'localization-provider',
+    ) as LocalizationProviderElement;
+    const outerCalendar = document.createElement('calendar-root') as CalendarRootElement;
+    const innerCalendar = document.createElement('calendar-root') as CalendarRootElement;
+
+    outerCalendar.id = 'outer';
+    innerCalendar.id = 'inner';
+
+    outerProvider.append(outerCalendar, innerProvider);
+    innerProvider.append(innerCalendar);
+    container.append(outerProvider);
+
+    outerProvider.temporalLocale = {
+      code: 'en-US',
+      options: { weekStartsOn: 1 },
+    };
+    innerProvider.temporalLocale = {
+      code: 'en-US',
+      options: { weekStartsOn: 0 },
+    };
+
+    expect(outerCalendar.getWeeks()[0]?.[0]?.getDay()).toBe(1);
+    expect(innerCalendar.getWeeks()[0]?.[0]?.getDay()).toBe(0);
   });
 });

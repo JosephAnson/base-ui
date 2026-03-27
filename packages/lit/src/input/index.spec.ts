@@ -14,9 +14,8 @@ Input({ render: html`<textarea></textarea>` });
 Input({
   render: (props) =>
     html`<textarea
-      @change=${props.onChange}
-      @input=${props.onInput}
       class=${String(props.className ?? '')}
+      .ref=${props.ref}
       .value=${String(props.value ?? '')}
     ></textarea>`,
 });

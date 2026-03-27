@@ -3,30 +3,34 @@
 Restarted under the strict parity workflow in `.claude/plan/README.md`.
 
 Rules for every target:
+
 - Do not move to the next component until the current one passes the full workflow.
 - Every meaningful React test case must be ported, adapted for Lit, or explicitly marked not applicable.
 - Browser blackbox validation against the React docs page is required before a component is marked complete.
 - Earlier target-level passes are provisional only and do not count as verified progress.
 
 ## Tier 0: Foundation
+
 - [x] `utils` (#1)
 - [x] `types` (#2)
 - [x] `direction-provider` (#3)
 - [x] `labelable-provider` (#4)
 
 ## Tier 1: Simple Standalone
+
 - [x] `separator` (#5)
-- [ ] `button` (#6)
-- [ ] `toggle` (#7)
-- [ ] `toggle-group` (#8)
-- [ ] `use-button` (#9)
-- [ ] `merge-props` (#10)
-- [ ] `input` (#11)
-- [ ] `avatar` (#12)
-- [ ] `csp-provider` (#13)
-- [ ] `localization-provider` (#14)
+- [x] `button` (#6)
+- [x] `toggle` (#7)
+- [x] `toggle-group` (#8)
+- [x] `use-button` (#9)
+- [x] `merge-props` (#10)
+- [x] `input` (#11)
+- [x] `avatar` (#12)
+- [x] `csp-provider` (#13)
+- [x] `localization-provider` (#14)
 
 ## Tier 2: Form Primitives
+
 - [ ] `switch` (#15)
 - [ ] `progress` (#16)
 - [ ] `meter` (#17)
@@ -36,6 +40,7 @@ Rules for every target:
 - [ ] `field` (#21)
 
 ## Tier 3: Composite / Keyboard Navigation
+
 - [ ] `composite` (#22)
 - [ ] `radio-group` (#23)
 - [ ] `radio` (#24)
@@ -46,6 +51,7 @@ Rules for every target:
 - [ ] `accordion` (#29)
 
 ## Tier 4: Floating/Positioned
+
 - [ ] `popover` (#30)
 - [ ] `tooltip` (#31)
 - [ ] `preview-card` (#32)
@@ -60,6 +66,7 @@ Rules for every target:
 - [ ] `autocomplete` (#41)
 
 ## Tier 5: Specialty
+
 - [ ] `navigation-menu` (#42)
 - [ ] `slider` (#43)
 - [ ] `number-field` (#44)
@@ -71,9 +78,11 @@ Rules for every target:
 - [ ] `temporal-adapter-date-fns` (#50)
 
 ## Tier 6: Meta Utilities
-- [ ] `use-render` (#51)
+
+- [x] `use-render` (#51)
 - [ ] `unstable-use-media-query` (#52)
 
 ## Summary
+
 - Status: restarted from beginning under strict validation gate
-- Verified entries: 5 / 52
+- Verified entries: 15 / 52

@@ -1,4 +1,8 @@
 import { BaseHTMLElement, ensureId } from '../utils/index.ts';
+import {
+  getLocalizationContext,
+  LOCALIZATION_PROVIDER_CHANGE_EVENT,
+} from '../localization-provider/index.ts';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -196,10 +200,14 @@ export class CalendarRootElement extends BaseHTMLElement {
   isDateUnavailable: ((date: Date) => boolean) | undefined;
 
   /** Day of the week to start on (0=Sunday, 1=Monday). */
-  weekStartsOn: 0 | 1 = 0;
+  private _weekStartsOn: 0 | 1 = 0;
+
+  private _hasExplicitWeekStartsOn = false;
 
   /** Locale for formatting (default 'en-US'). */
-  locale = 'en-US';
+  private _locale = 'en-US';
+
+  private _hasExplicitLocale = false;
 
   /** Number of months to jump when navigating. */
   monthPageSize = 1;
@@ -222,6 +230,26 @@ export class CalendarRootElement extends BaseHTMLElement {
   private _initialized = false;
   private _lastPublishedStateKey: string | null = null;
   private _activeDate: Date | null = null;
+
+  get weekStartsOn(): 0 | 1 {
+    return this._weekStartsOn;
+  }
+
+  set weekStartsOn(val: 0 | 1) {
+    this._hasExplicitWeekStartsOn = true;
+    this._weekStartsOn = val;
+    this._publishStateChange();
+  }
+
+  get locale(): string {
+    return this._locale;
+  }
+
+  set locale(val: string) {
+    this._hasExplicitLocale = true;
+    this._locale = val;
+    this._publishStateChange();
+  }
 
   get value(): Date | null | undefined {
     return this._value;
@@ -265,11 +293,19 @@ export class CalendarRootElement extends BaseHTMLElement {
       }
     }
     this.style.display = 'contents';
+    this.addEventListener(
+      LOCALIZATION_PROVIDER_CHANGE_EVENT,
+      this._handleLocalizationProviderChange as EventListener,
+    );
     this._syncAttributes();
     queueMicrotask(() => this._publishStateChange());
   }
 
   disconnectedCallback() {
+    this.removeEventListener(
+      LOCALIZATION_PROVIDER_CHANGE_EVENT,
+      this._handleLocalizationProviderChange as EventListener,
+    );
     this._lastPublishedStateKey = null;
   }
 
@@ -295,11 +331,11 @@ export class CalendarRootElement extends BaseHTMLElement {
   }
 
   getWeeks(): Date[][] {
-    return getMonthWeeks(this.getVisibleDate(), this.weekStartsOn);
+    return getMonthWeeks(this.getVisibleDate(), this._getResolvedWeekStartsOn());
   }
 
   getWeekdayNames(): string[] {
-    return getWeekdayNames(this.weekStartsOn, this.locale);
+    return getWeekdayNames(this._getResolvedWeekStartsOn(), this._getResolvedLocale());
   }
 
   selectDate(date: Date, event: Event) {
@@ -381,6 +417,37 @@ export class CalendarRootElement extends BaseHTMLElement {
     this.toggleAttribute('data-invalid', this.invalid);
   }
 
+  private _getResolvedWeekStartsOn(): 0 | 1 {
+    if (this._hasExplicitWeekStartsOn) {
+      return this._weekStartsOn;
+    }
+
+    const weekStartsOn = (getLocalizationContext(this).temporalLocale as {
+      options?: { weekStartsOn?: number | undefined } | undefined;
+    } | undefined)?.options?.weekStartsOn;
+
+    return weekStartsOn === 1 ? 1 : 0;
+  }
+
+  private _getResolvedLocale(): string {
+    if (this._hasExplicitLocale) {
+      return this._locale;
+    }
+
+    const code = (getLocalizationContext(this).temporalLocale as { code?: string | undefined } | undefined)
+      ?.code;
+
+    return code || 'en-US';
+  }
+
+  private _handleLocalizationProviderChange = () => {
+    if (this._hasExplicitLocale && this._hasExplicitWeekStartsOn) {
+      return;
+    }
+
+    this._publishStateChange();
+  };
+
   private _publishStateChange() {
     const value = this.getValue();
     const nextKey = [
@@ -390,6 +457,8 @@ export class CalendarRootElement extends BaseHTMLElement {
       this.readOnly ? 'ro' : '',
       this.invalid ? 'i' : '',
       this._activeDate ? this._activeDate.getTime() : '',
+      this._getResolvedWeekStartsOn(),
+      this._getResolvedLocale(),
     ].join('|');
 
     if (nextKey === this._lastPublishedStateKey) return;

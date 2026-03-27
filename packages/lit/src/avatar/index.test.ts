@@ -136,6 +136,34 @@ describe('avatar', () => {
     expect(fallback).toHaveAttribute('hidden');
   });
 
+  it('updates rendered image attributes after the image has loaded', async () => {
+    const view = render(html`
+      <avatar-root>
+        <avatar-image src="avatar.png" alt="Ada" width="48" height="48"></avatar-image>
+      </avatar-root>
+    `);
+    await waitForUpdate();
+
+    MockImage.instances[0].emitLoad();
+    await waitForUpdate();
+
+    const avatarImage = view.querySelector('avatar-image') as AvatarImageElement;
+    const img = avatarImage.querySelector('img') as HTMLImageElement;
+
+    expect(img.alt).toBe('Ada');
+    expect(img.width).toBe(48);
+    expect(img.height).toBe(48);
+
+    avatarImage.setAttribute('alt', 'Grace');
+    avatarImage.setAttribute('width', '64');
+    avatarImage.setAttribute('height', '64');
+    await waitForUpdate();
+
+    expect(img.alt).toBe('Grace');
+    expect(img.width).toBe(64);
+    expect(img.height).toBe(64);
+  });
+
   it('shows fallback when image fails to load', async () => {
     const view = render(html`
       <avatar-root>
@@ -179,6 +207,24 @@ describe('avatar', () => {
     expect(fallback).toHaveAttribute('hidden');
 
     vi.advanceTimersByTime(100);
+
+    expect(fallback).not.toHaveAttribute('hidden');
+  });
+
+  it('updates fallback visibility when delay changes after mount', async () => {
+    vi.useFakeTimers();
+
+    const view = render(html`
+      <avatar-root>
+        <avatar-fallback delay="100">LT</avatar-fallback>
+      </avatar-root>
+    `);
+
+    const fallback = view.querySelector('avatar-fallback') as HTMLElement;
+
+    expect(fallback).toHaveAttribute('hidden');
+
+    fallback.removeAttribute('delay');
 
     expect(fallback).not.toHaveAttribute('hidden');
   });

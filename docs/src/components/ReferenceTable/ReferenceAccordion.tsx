@@ -23,6 +23,49 @@ interface Props extends React.ComponentPropsWithoutRef<any> {
   hideDefault?: boolean;
 }
 
+function getReactNodeText(node: React.ReactNode): string {
+  if (node == null || typeof node === 'boolean') {
+    return '';
+  }
+
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node);
+  }
+
+  if (Array.isArray(node)) {
+    return node.map(getReactNodeText).join('');
+  }
+
+  if (React.isValidElement(node)) {
+    return getReactNodeText(node.props.children);
+  }
+
+  return '';
+}
+
+function getDisplayShortType(
+  name: string,
+  prop: EnhancedProperty,
+): { shortType: React.ReactNode; shortTypeText: string } {
+  const detailedTypeText = getReactNodeText(prop.detailedType ?? prop.type);
+
+  if (
+    name === 'render' &&
+    prop.shortTypeText === 'ReactElement | function' &&
+    (prop.typeText.includes('TemplateResult') || detailedTypeText.includes('TemplateResult'))
+  ) {
+    return {
+      shortType: <TableCode>TemplateResult | function</TableCode>,
+      shortTypeText: 'TemplateResult | function',
+    };
+  }
+
+  return {
+    shortType: prop.shortType ?? prop.type,
+    shortTypeText: prop.shortTypeText ?? 'type',
+  };
+}
+
 export function ReferenceAccordion({
   data,
   name: partName,
@@ -56,14 +99,12 @@ export function ReferenceAccordion({
       {Object.keys(data).map((name, index) => {
         const prop = data[name];
 
-        // Use shortType if available (set by useTypes), otherwise use the full type
-        const displayShortType = prop.shortType ?? prop.type;
+        const { shortType: displayShortType, shortTypeText } = getDisplayShortType(name, prop);
         const displayDetailedType = prop.detailedType ?? prop.type;
 
         // anchor hash for each prop
         const id = `${partName.replace('.', '')}-${name}`;
 
-        const shortTypeText = prop.shortTypeText ?? 'type';
         const defaultText = prop.defaultText;
 
         return (

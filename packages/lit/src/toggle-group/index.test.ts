@@ -1,19 +1,16 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import './index';
+import { reset as resetErrors } from '@base-ui/utils/error';
+import * as toggleGroupModule from './index';
 import '../toggle/index';
-import type {
-  ToggleGroupRoot,
-  ToggleGroupRootChangeEventDetails,
-  ToggleGroupRootProps,
-  ToggleGroupRootState,
-} from './index';
+import type { ToggleGroupRootChangeEventDetails } from './index';
 
 describe('ToggleGroupRootElement', () => {
   const containers = new Set<HTMLDivElement>();
 
   afterEach(async () => {
+    resetErrors();
     containers.forEach((container) => {
       renderTemplate(nothing, container);
       container.remove();
@@ -51,9 +48,19 @@ describe('ToggleGroupRootElement', () => {
   }
 
   it('exposes namespace aliases for props, state, and change event details', () => {
-    expectTypeOf<ToggleGroupRootProps>().toEqualTypeOf<ToggleGroupRoot.Props>();
-    expectTypeOf<ToggleGroupRootState>().toEqualTypeOf<ToggleGroupRoot.State>();
-    expectTypeOf<ToggleGroupRootChangeEventDetails>().toEqualTypeOf<ToggleGroupRoot.ChangeEventDetails>();
+    expect(customElements.get('toggle-group-root')).toBe(toggleGroupModule.ToggleGroupRootElement);
+    expect(toggleGroupModule.ToggleGroup).toBe(toggleGroupModule.ToggleGroupRootElement);
+    expectTypeOf<import('./index').ToggleGroupRootProps>().toEqualTypeOf<
+      toggleGroupModule.ToggleGroupRoot.Props
+    >();
+    expectTypeOf<import('./index').ToggleGroupRootState>().toEqualTypeOf<
+      toggleGroupModule.ToggleGroupRoot.State
+    >();
+    expectTypeOf<ToggleGroupRootChangeEventDetails>().toEqualTypeOf<
+      toggleGroupModule.ToggleGroupRoot.ChangeEventDetails
+    >();
+    expectTypeOf<import('./index').ToggleGroupProps>().toEqualTypeOf<toggleGroupModule.ToggleGroup.Props>();
+    expectTypeOf<import('./index').ToggleGroupState>().toEqualTypeOf<toggleGroupModule.ToggleGroup.State>();
   });
 
   // ── Rendering ──────────────────────────────────────────────────────────
@@ -273,10 +280,69 @@ describe('ToggleGroupRootElement', () => {
 
     const a = view.querySelector('[data-testid="a"]') as HTMLElement;
     expect(a).toHaveAttribute('data-disabled');
+    expect(a).toHaveAttribute('aria-disabled', 'true');
 
     click(a);
     await flush();
     expect(a).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('keeps enabled items interactive when only sibling items are disabled', async () => {
+    const view = render(html`
+      <toggle-group-root>
+        <toggle-root value="a" data-testid="a">A</toggle-root>
+        <toggle-root value="b" data-testid="b" disabled>B</toggle-root>
+      </toggle-group-root>
+    `);
+    await flush();
+
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
+    const b = view.querySelector('[data-testid="b"]') as HTMLElement;
+
+    expect(a).toHaveAttribute('aria-disabled', 'false');
+    expect(a).not.toHaveAttribute('data-disabled');
+    expect(b).toHaveAttribute('aria-disabled', 'true');
+    expect(b).toHaveAttribute('data-disabled');
+  });
+
+  it('supports toggles without explicit group values', async () => {
+    const view = render(html`
+      <toggle-group-root>
+        <toggle-root data-testid="a">A</toggle-root>
+        <toggle-root value="" data-testid="b">B</toggle-root>
+      </toggle-group-root>
+    `);
+    await flush();
+
+    const a = view.querySelector('[data-testid="a"]') as HTMLElement;
+    const b = view.querySelector('[data-testid="b"]') as HTMLElement;
+
+    click(a);
+    await flush();
+    expect(a).toHaveAttribute('aria-pressed', 'true');
+    expect(b).toHaveAttribute('aria-pressed', 'false');
+
+    click(b);
+    await flush();
+    expect(a).toHaveAttribute('aria-pressed', 'false');
+    expect(b).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('warns once when group values are initialized and toggles omit explicit values', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(html`
+      <toggle-group-root .defaultValue=${['one']}>
+        <toggle-root>A</toggle-root>
+        <toggle-root>B</toggle-root>
+      </toggle-group-root>
+    `);
+    await flush();
+
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+      'Base UI: A `<Toggle>` component rendered in a `<ToggleGroup>` has no explicit `value` prop. This will cause issues between the Toggle Group and Toggle values. Provide the `<Toggle>` with a `value` prop matching the `<ToggleGroup>` values prop type.',
+    );
+    errorSpy.mockRestore();
   });
 
   // ── Keyboard navigation ───────────────────────────────────────────────

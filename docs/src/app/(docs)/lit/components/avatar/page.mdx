@@ -7,15 +7,18 @@
 />
 
 import { DemoAvatarHero } from './demos/hero';
+import { TypesAvatar } from './types';
 
 <DemoAvatarHero />
 
 ## Anatomy
 
+Import the custom elements and assemble its parts:
+
 ```html title="Anatomy"
 <avatar-root>
-  <avatar-image src="/avatar.jpg" alt="Ada Lovelace"></avatar-image>
-  <avatar-fallback>AL</avatar-fallback>
+  <avatar-image src="" />
+  <avatar-fallback>LT</avatar-fallback>
 </avatar-root>
 ```
 
@@ -23,26 +26,30 @@ import { DemoAvatarHero } from './demos/hero';
 
 ### Root
 
-Custom element: `<avatar-root>`
-
-Tracks shared image loading status for the image and fallback parts.
+<TypesAvatar.Root />
 
 ### Image
 
-Custom element: `<avatar-image>`
-
-| Property                | Type               | Default | Description                                     |
-| ----------------------- | ------------------ | ------- | ----------------------------------------------- |
-| `onLoadingStatusChange` | `(status) => void` | —       | Callback fired when the loading status changes. |
+<TypesAvatar.Image />
 
 ### Fallback
 
-Custom element: `<avatar-fallback>`
-
-| Attribute | Type     | Default | Description                                                    |
-| --------- | -------- | ------- | -------------------------------------------------------------- |
-| `delay`   | `number` | —       | How long to wait before showing the fallback, in milliseconds. |
+<TypesAvatar.Fallback />
 
 export const metadata = {
-  keywords: ['Lit Avatar', 'Avatar', 'Base UI Lit', 'Custom avatar'],
+  keywords: [
+    'Lit Avatar',
+    'Avatar Component',
+    'Profile Image UI',
+    'User Image',
+    'User Avatar',
+    'Profile Picture',
+    'Account Image',
+    'Profile Icon',
+    'Initials Fallback',
+    'Accessible Avatar',
+    'Headless Lit Components',
+    'Customizable Avatar',
+    'Base UI',
+  ],
 };

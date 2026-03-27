@@ -1,4 +1,24 @@
 import { ReactiveElement } from 'lit';
+import type { BaseUIChangeEventDetails } from '../types';
+import { useRender } from '../use-render';
+
+type InputLikeElement = HTMLInputElement | HTMLTextAreaElement;
+type InputValue = string | number | readonly string[] | undefined;
+
+interface InputBehaviorOptions {
+  disabled: boolean;
+  defaultValue: InputValue;
+  onValueChange: ((value: string, eventDetails: InputChangeEventDetails) => void) | undefined;
+  value: InputValue;
+}
+
+interface InputBehaviorState {
+  focused: boolean;
+  initialValue: string;
+  touched: boolean;
+}
+
+const inputBehaviorState = new WeakMap<InputLikeElement, InputBehaviorState>();
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -29,15 +49,7 @@ export interface InputState {
   focused: boolean;
 }
 
-export interface InputChangeEventDetails {
-  event: Event;
-  cancel(): void;
-  allowPropagation(): void;
-  readonly isCanceled: boolean;
-  readonly isPropagationAllowed: boolean;
-  reason: 'none';
-  trigger: Element | undefined;
-}
+export type InputChangeEventDetails = BaseUIChangeEventDetails<'none'>;
 
 export type InputChangeEventReason = InputChangeEventDetails['reason'];
 
@@ -71,16 +83,16 @@ export class InputRootElement extends ReactiveElement {
 
   private initialValue = '';
   private initialized = false;
-  private controlledValue: string | number | readonly string[] | undefined;
-  defaultValue: string | number | readonly string[] | undefined;
-  private inputElement: HTMLInputElement | HTMLTextAreaElement | null = null;
+  private controlledValue: InputValue;
+  defaultValue: InputValue;
+  private inputElement: InputLikeElement | null = null;
 
   /** Controlled value. Set via `.value=${val}`. */
-  get value(): string | number | readonly string[] | undefined {
+  get value(): InputValue {
     return this.controlledValue;
   }
 
-  set value(val: string | number | readonly string[] | undefined) {
+  set value(val: InputValue) {
     this.controlledValue = val;
     if (this.inputElement && val !== undefined) {
       const stringValue = stringifyInputValue(val);
@@ -123,41 +135,37 @@ export class InputRootElement extends ReactiveElement {
   }
 
   private findInput() {
-    const el = this.querySelector('input, textarea') as
-      | HTMLInputElement
-      | HTMLTextAreaElement
-      | null;
-    if (el) {
-      this.attachInput(el);
+    const element = this.querySelector('input, textarea') as InputLikeElement | null;
+    if (element) {
+      this.attachInput(element);
     }
   }
 
-  private attachInput(el: HTMLInputElement | HTMLTextAreaElement) {
-    this.inputElement = el;
+  private attachInput(element: InputLikeElement) {
+    this.inputElement = element;
 
-    // Apply controlled value if set before input was found
     if (this.controlledValue !== undefined) {
-      el.value = stringifyInputValue(this.controlledValue);
+      element.value = stringifyInputValue(this.controlledValue);
     } else if (!this.initialized && this.defaultValue !== undefined) {
-      el.value = stringifyInputValue(this.defaultValue);
+      element.value = stringifyInputValue(this.defaultValue);
     }
 
     if (!this.initialized) {
       this.initialized = true;
-      this.initialValue = el.value;
+      this.initialValue = element.value;
       this.stateData = {
         disabled: this.disabled,
         touched: false,
         dirty: false,
-        valid: readValidityState(el),
-        filled: el.value !== '',
+        valid: readValidityState(element),
+        filled: element.value !== '',
         focused: false,
       };
     }
 
-    el.addEventListener('input', this.handleInput);
-    el.addEventListener('focus', this.handleFocus);
-    el.addEventListener('blur', this.handleBlur);
+    element.addEventListener('input', this.handleInput);
+    element.addEventListener('focus', this.handleFocus);
+    element.addEventListener('blur', this.handleBlur);
     this.syncDataAttributes();
   }
 
@@ -171,26 +179,25 @@ export class InputRootElement extends ReactiveElement {
   }
 
   private handleInput = (event: Event) => {
-    const el = event.currentTarget as HTMLInputElement | HTMLTextAreaElement;
-    const newValue = el.value;
+    const element = event.currentTarget as InputLikeElement;
+    const nextValue = element.value;
 
-    this.onValueChange?.(newValue, createChangeEventDetails(event, el));
+    this.onValueChange?.(nextValue, createChangeEventDetails(event, element));
 
-    // Restore controlled value
     if (this.controlledValue !== undefined) {
-      el.value = stringifyInputValue(this.controlledValue);
+      element.value = stringifyInputValue(this.controlledValue);
     }
 
     this.updateState({
       dirty:
         (this.controlledValue !== undefined
           ? stringifyInputValue(this.controlledValue)
-          : newValue) !== this.initialValue,
+          : nextValue) !== this.initialValue,
       filled:
         (this.controlledValue !== undefined
           ? stringifyInputValue(this.controlledValue)
-          : newValue) !== '',
-      valid: readValidityState(el),
+          : nextValue) !== '',
+      valid: readValidityState(element),
     });
   };
 
@@ -207,40 +214,23 @@ export class InputRootElement extends ReactiveElement {
   };
 
   private updateState(partial: Partial<InputState>) {
-    const next: InputState = { ...this.stateData, ...partial };
+    const nextState: InputState = { ...this.stateData, ...partial };
 
-    if (isEqualInputState(this.stateData, next)) {
+    if (isEqualInputState(this.stateData, nextState)) {
       return;
     }
 
-    this.stateData = next;
+    this.stateData = nextState;
     this.syncDataAttributes();
   }
 
   private syncDataAttributes() {
-    const el = this.inputElement;
-    if (!el) {
+    const element = this.inputElement;
+    if (!element) {
       return;
     }
 
-    const s = this.stateData;
-    el.disabled = s.disabled;
-    el.toggleAttribute('data-disabled', s.disabled);
-    el.toggleAttribute('data-touched', s.touched);
-    el.toggleAttribute('data-dirty', s.dirty);
-    el.toggleAttribute('data-filled', s.filled);
-    el.toggleAttribute('data-focused', s.focused);
-
-    if (s.valid === true) {
-      el.setAttribute('data-valid', '');
-      el.removeAttribute('data-invalid');
-    } else if (s.valid === false) {
-      el.removeAttribute('data-valid');
-      el.setAttribute('data-invalid', '');
-    } else {
-      el.removeAttribute('data-valid');
-      el.removeAttribute('data-invalid');
-    }
+    syncStateDataAttributes(element, this.stateData);
   }
 }
 
@@ -248,11 +238,200 @@ if (!customElements.get('input-root')) {
   customElements.define('input-root', InputRootElement);
 }
 
-export const Input = InputRootElement;
+// ─── Input Helper ───────────────────────────────────────────────────────────────
+
+export interface InputRootProps {
+  /**
+   * Whether the component should ignore user interaction.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * Callback fired when the `value` changes. Use when controlled.
+   */
+  onValueChange?: ((value: string, eventDetails: InputChangeEventDetails) => void) | undefined;
+  /**
+   * The default value of the input. Use when uncontrolled.
+   */
+  defaultValue?: InputValue;
+  /**
+   * The value of the input. Use when controlled.
+   */
+  value?: InputValue;
+}
+
+export interface InputProps extends InputRootProps, useRender.ComponentProps<'input', InputState> {}
+
+/**
+ * A native input element that automatically works with Base UI render props.
+ * Renders an `<input>` element by default.
+ *
+ * Documentation: [Base UI Input](https://base-ui.com/react/components/input)
+ */
+export function Input(props: Input.Props) {
+  const { defaultValue, disabled = false, onValueChange, render, value, ...elementProps } = props;
+
+  return useRender({
+    defaultTagName: 'input',
+    render,
+    ref: createInputBehaviorRef({
+      defaultValue,
+      disabled,
+      onValueChange,
+      value,
+    }),
+    props: {
+      defaultValue:
+        defaultValue === undefined || value !== undefined
+          ? undefined
+          : stringifyInputValue(defaultValue),
+      disabled,
+      value: value === undefined ? undefined : stringifyInputValue(value),
+      ...elementProps,
+    },
+  });
+}
+
+export namespace InputRoot {
+  export type Props = InputRootProps;
+  export type State = InputState;
+  export type ChangeEventReason = InputChangeEventReason;
+  export type ChangeEventDetails = InputChangeEventDetails;
+}
+
+export namespace Input {
+  export type Props = InputProps;
+  export type State = InputState;
+  export type ChangeEventReason = InputChangeEventReason;
+  export type ChangeEventDetails = InputChangeEventDetails;
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
-function stringifyInputValue(value: string | number | readonly string[] | undefined): string {
+function createInputBehaviorRef(options: InputBehaviorOptions) {
+  let cleanup: (() => void) | null = null;
+
+  return (element: Element | null) => {
+    cleanup?.();
+    cleanup = null;
+
+    if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) {
+      return;
+    }
+
+    cleanup = applyInputBehavior(element, options);
+  };
+}
+
+function applyInputBehavior(element: InputLikeElement, options: InputBehaviorOptions) {
+  const state = getOrCreateInputBehaviorState(element, options);
+
+  syncInputBehavior(element, state, options);
+
+  const handleInput = (event: Event) => {
+    const currentTarget = event.currentTarget as InputLikeElement;
+    const nextValue = currentTarget.value;
+
+    options.onValueChange?.(nextValue, createChangeEventDetails(event, currentTarget));
+
+    if (options.value !== undefined) {
+      currentTarget.value = stringifyInputValue(options.value);
+    }
+
+    syncInputBehavior(currentTarget, state, options);
+  };
+
+  const handleFocus = (event: FocusEvent) => {
+    state.focused = true;
+    syncInputBehavior(event.currentTarget as InputLikeElement, state, options);
+  };
+
+  const handleBlur = (event: FocusEvent) => {
+    state.focused = false;
+    state.touched = true;
+    syncInputBehavior(event.currentTarget as InputLikeElement, state, options);
+  };
+
+  element.addEventListener('input', handleInput);
+  element.addEventListener('focus', handleFocus);
+  element.addEventListener('blur', handleBlur);
+
+  return () => {
+    element.removeEventListener('input', handleInput);
+    element.removeEventListener('focus', handleFocus);
+    element.removeEventListener('blur', handleBlur);
+  };
+}
+
+function getOrCreateInputBehaviorState(
+  element: InputLikeElement,
+  options: InputBehaviorOptions,
+): InputBehaviorState {
+  let state = inputBehaviorState.get(element);
+
+  if (state != null) {
+    return state;
+  }
+
+  if (options.value !== undefined) {
+    element.value = stringifyInputValue(options.value);
+  } else if (options.defaultValue !== undefined) {
+    element.value = stringifyInputValue(options.defaultValue);
+  }
+
+  state = {
+    focused: element.ownerDocument.activeElement === element,
+    initialValue: element.value,
+    touched: false,
+  };
+
+  inputBehaviorState.set(element, state);
+  return state;
+}
+
+function syncInputBehavior(
+  element: InputLikeElement,
+  state: InputBehaviorState,
+  options: InputBehaviorOptions,
+) {
+  if (options.value !== undefined) {
+    element.value = stringifyInputValue(options.value);
+  }
+
+  const currentValue =
+    options.value !== undefined ? stringifyInputValue(options.value) : element.value;
+
+  syncStateDataAttributes(element, {
+    disabled: options.disabled,
+    touched: state.touched,
+    dirty: currentValue !== state.initialValue,
+    valid: readValidityState(element),
+    filled: currentValue !== '',
+    focused: state.focused,
+  });
+}
+
+function syncStateDataAttributes(element: InputLikeElement, state: InputState) {
+  element.disabled = state.disabled;
+  element.toggleAttribute('data-disabled', state.disabled);
+  element.toggleAttribute('data-touched', state.touched);
+  element.toggleAttribute('data-dirty', state.dirty);
+  element.toggleAttribute('data-filled', state.filled);
+  element.toggleAttribute('data-focused', state.focused);
+
+  if (state.valid === true) {
+    element.setAttribute('data-valid', '');
+    element.removeAttribute('data-invalid');
+  } else if (state.valid === false) {
+    element.removeAttribute('data-valid');
+    element.setAttribute('data-invalid', '');
+  } else {
+    element.removeAttribute('data-valid');
+    element.removeAttribute('data-invalid');
+  }
+}
+
+function stringifyInputValue(value: InputValue): string {
   if (value == null) {
     return '';
   }
@@ -264,7 +443,7 @@ function stringifyInputValue(value: string | number | readonly string[] | undefi
   return String(value);
 }
 
-function readValidityState(element: HTMLInputElement | HTMLTextAreaElement | null): boolean | null {
+function readValidityState(element: InputLikeElement | null): boolean | null {
   if (!element) {
     return null;
   }
@@ -307,37 +486,6 @@ function createChangeEventDetails(
     reason: 'none',
     trigger,
   };
-}
-
-// ─── Namespace exports ──────────────────────────────────────────────────────────
-
-export interface InputRootProps {
-  /**
-   * Whether the component should ignore user interaction.
-   * @default false
-   */
-  disabled?: boolean | undefined;
-  /**
-   * Callback fired when the `value` changes. Use when controlled.
-   */
-  onValueChange?: ((value: string, eventDetails: InputChangeEventDetails) => void) | undefined;
-  /**
-   * The default value of the input. Use when uncontrolled.
-   */
-  defaultValue?: string | number | readonly string[] | undefined;
-  /**
-   * The value of the input. Use when controlled.
-   */
-  value?: string | number | readonly string[] | undefined;
-}
-
-export type InputProps = InputRootProps;
-
-export namespace InputRoot {
-  export type Props = InputRootProps;
-  export type State = InputState;
-  export type ChangeEventReason = InputChangeEventReason;
-  export type ChangeEventDetails = InputChangeEventDetails;
 }
 
 // ─── Global type declarations ───────────────────────────────────────────────────

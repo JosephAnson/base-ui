@@ -32,13 +32,13 @@
       "exportPath": "./avatar",
       "sourcePath": "./src/avatar/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./button",
       "sourcePath": "./src/button/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./calendar",
@@ -86,7 +86,7 @@
       "exportPath": "./csp-provider",
       "sourcePath": "./src/csp-provider/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./dialog",
@@ -128,7 +128,7 @@
       "exportPath": "./input",
       "sourcePath": "./src/input/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./labelable-provider",
@@ -140,7 +140,7 @@
       "exportPath": "./localization-provider",
       "sourcePath": "./src/localization-provider/index.ts",
       "category": "utility",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./menu",
@@ -158,7 +158,7 @@
       "exportPath": "./merge-props",
       "sourcePath": "./src/merge-props/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./meter",
@@ -272,13 +272,13 @@
       "exportPath": "./toggle",
       "sourcePath": "./src/toggle/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./toggle-group",
       "sourcePath": "./src/toggle-group/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./toolbar",
@@ -308,13 +308,13 @@
       "exportPath": "./use-button",
       "sourcePath": "./src/use-button/index.ts",
       "category": "utility",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./use-render",
       "sourcePath": "./src/use-render/index.ts",
       "category": "utility",
-      "status": "pending"
+      "status": "verified"
     }
   ]
 }

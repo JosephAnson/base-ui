@@ -1,9 +1,11 @@
 import { ReactiveElement } from 'lit';
+import type { BaseUIChangeEventDetails } from '../types';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
+export const TOGGLE_GROUP_ITEM_ATTRIBUTE = 'data-base-ui-toggle-item';
 const TOGGLE_GROUP_ROOT_ATTRIBUTE = 'data-base-ui-toggle-group-root';
-const TOGGLE_GROUP_STATE_CHANGE_EVENT = 'base-ui-toggle-group-state-change';
+export const TOGGLE_GROUP_STATE_CHANGE_EVENT = 'base-ui-toggle-group-state-change';
 
 type ToggleGroupOrientation = 'horizontal' | 'vertical';
 
@@ -24,12 +26,7 @@ export interface ToggleGroupRootState {
   orientation: ToggleGroupOrientation;
 }
 
-export interface ToggleGroupRootChangeEventDetails {
-  event: Event;
-  cancel(): void;
-  readonly isCanceled: boolean;
-  reason: 'none';
-}
+export type ToggleGroupRootChangeEventDetails = BaseUIChangeEventDetails<'none'>;
 
 // ─── ToggleGroupRootElement ─────────────────────────────────────────────────────
 
@@ -74,8 +71,8 @@ export class ToggleGroupRootElement extends ReactiveElement {
     | ((groupValue: string[], eventDetails: ToggleGroupRootChangeEventDetails) => void)
     | undefined;
 
-  private _internalValue: string[] = [];
-  private _initialized = false;
+  private internalValue: string[] = [];
+  private initialized = false;
 
   constructor() {
     super();
@@ -92,38 +89,44 @@ export class ToggleGroupRootElement extends ReactiveElement {
   override connectedCallback() {
     super.connectedCallback();
 
-    if (!this._initialized) {
-      this._initialized = true;
-      this._internalValue = this.value
-        ? [...this.value]
-        : this.defaultValue
-          ? [...this.defaultValue]
-          : [];
+    if (!this.initialized) {
+      this.initialized = true;
+      if (this.value) {
+        this.internalValue = [...this.value];
+      } else if (this.defaultValue) {
+        this.internalValue = [...this.defaultValue];
+      } else {
+        this.internalValue = [];
+      }
     }
 
     this.setAttribute(TOGGLE_GROUP_ROOT_ATTRIBUTE, '');
     this.setAttribute('role', 'group');
     this.style.display = 'contents';
 
-    this.addEventListener('keydown', this._handleKeyDown);
+    this.addEventListener('keydown', this.handleKeyDown);
 
-    this._syncAttributes();
+    this.syncAttributes();
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    this.removeEventListener('keydown', this._handleKeyDown);
+    this.removeEventListener('keydown', this.handleKeyDown);
   }
 
   protected override updated() {
-    this._syncAttributes();
+    this.syncAttributes();
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
 
   /** Returns the current array of pressed values. */
   getValue(): readonly string[] {
-    return this.value ?? this._internalValue;
+    return this.value ?? this.internalValue;
+  }
+
+  get isValueInitialized(): boolean {
+    return this.value !== undefined || this.defaultValue !== undefined;
   }
 
   /** Whether a specific value is pressed in the group. */
@@ -145,12 +148,10 @@ export class ToggleGroupRootElement extends ReactiveElement {
       } else {
         newValue = currentValue.filter((v) => v !== toggleValue);
       }
+    } else if (nextPressed) {
+      newValue = [toggleValue];
     } else {
-      if (nextPressed) {
-        newValue = [toggleValue];
-      } else {
-        newValue = [];
-      }
+      newValue = [];
     }
 
     const eventDetails = createChangeEventDetails(event);
@@ -162,23 +163,24 @@ export class ToggleGroupRootElement extends ReactiveElement {
 
     // Update internal state (uncontrolled mode)
     if (this.value === undefined) {
-      this._internalValue = newValue;
+      this.internalValue = newValue;
+    } else {
+      this.requestUpdate();
     }
 
-    this._syncAttributes();
-    this._publishStateChange();
-    this.requestUpdate();
+    this.syncAttributes();
+    this.publishStateChange();
   }
 
   // ── Private ─────────────────────────────────────────────────────────────
 
-  private _syncAttributes() {
+  private syncAttributes() {
     this.setAttribute('data-orientation', this.orientation);
     this.toggleAttribute('data-disabled', this.disabled);
     this.toggleAttribute('data-multiple', this.multiple);
   }
 
-  private _publishStateChange() {
+  private publishStateChange() {
     this.dispatchEvent(
       new CustomEvent(TOGGLE_GROUP_STATE_CHANGE_EVENT, { bubbles: false, cancelable: false }),
     );
@@ -186,29 +188,44 @@ export class ToggleGroupRootElement extends ReactiveElement {
 
   // ── Keyboard navigation (roving tabindex) ─────────────────────────────
 
-  private _getToggleItems(): HTMLElement[] {
-    return Array.from(this.querySelectorAll<HTMLElement>('toggle-root')).filter(
-      (el) => !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true',
-    );
+  private getToggleItems(): HTMLElement[] {
+    return Array.from(
+      this.querySelectorAll<HTMLElement>(`toggle-root, [${TOGGLE_GROUP_ITEM_ATTRIBUTE}]`),
+    ).filter((el) => !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true');
   }
 
-  private _handleKeyDown = (event: KeyboardEvent) => {
-    if (this.disabled) return;
+  private handleKeyDown = (event: KeyboardEvent) => {
+    if (this.disabled) {
+      return;
+    }
 
     const target = event.target;
-    if (!(target instanceof HTMLElement) || target.tagName.toLowerCase() !== 'toggle-root') return;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
 
-    const delta = this._getNavigationDelta(event.key);
-    if (delta == null) return;
+    const toggleItem = target.closest<HTMLElement>(`toggle-root, [${TOGGLE_GROUP_ITEM_ATTRIBUTE}]`);
+    if (!toggleItem || !this.contains(toggleItem)) {
+      return;
+    }
+
+    const delta = this.getNavigationDelta(event.key);
+    if (delta == null) {
+      return;
+    }
 
     event.preventDefault();
     event.stopPropagation();
 
-    const items = this._getToggleItems();
-    if (items.length === 0) return;
+    const items = this.getToggleItems();
+    if (items.length === 0) {
+      return;
+    }
 
-    const currentIndex = items.indexOf(target);
-    if (currentIndex === -1) return;
+    const currentIndex = items.indexOf(toggleItem);
+    if (currentIndex === -1) {
+      return;
+    }
 
     let nextItem: HTMLElement;
 
@@ -228,39 +245,57 @@ export class ToggleGroupRootElement extends ReactiveElement {
     }
 
     nextItem.focus();
-    this._syncTabIndices(nextItem);
+    this.syncTabIndices(nextItem);
   };
 
-  private _getNavigationDelta(key: string): number | null {
+  private getNavigationDelta(key: string): number | null {
     if (this.orientation === 'vertical') {
-      if (key === 'ArrowDown') return 1;
-      if (key === 'ArrowUp') return -1;
-      if (key === 'Home') return -Infinity;
-      if (key === 'End') return Infinity;
+      if (key === 'ArrowDown') {
+        return 1;
+      }
+      if (key === 'ArrowUp') {
+        return -1;
+      }
+      if (key === 'Home') {
+        return -Infinity;
+      }
+      if (key === 'End') {
+        return Infinity;
+      }
       return null;
     }
 
-    const dir = this._getDirection();
+    const dir = this.getDirection();
     const forward = dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight';
     const backward = dir === 'rtl' ? 'ArrowRight' : 'ArrowLeft';
 
-    if (key === forward) return 1;
-    if (key === backward) return -1;
-    if (key === 'Home') return -Infinity;
-    if (key === 'End') return Infinity;
+    if (key === forward) {
+      return 1;
+    }
+    if (key === backward) {
+      return -1;
+    }
+    if (key === 'Home') {
+      return -Infinity;
+    }
+    if (key === 'End') {
+      return Infinity;
+    }
     return null;
   }
 
-  private _getDirection(): 'ltr' | 'rtl' {
+  private getDirection(): 'ltr' | 'rtl' {
     const scoped = this.closest('[dir]')?.getAttribute('dir');
     const doc = this.ownerDocument.documentElement.getAttribute('dir');
     return scoped === 'rtl' || doc === 'rtl' ? 'rtl' : 'ltr';
   }
 
   /** Update tab indices so only one item is tabbable (roving tabindex). */
-  _syncTabIndices(activeItem?: HTMLElement) {
-    const items = this._getToggleItems();
-    if (items.length === 0) return;
+  syncTabIndices(activeItem?: HTMLElement) {
+    const items = this.getToggleItems();
+    if (items.length === 0) {
+      return;
+    }
 
     const current = activeItem ?? items[0];
 
@@ -273,6 +308,8 @@ export class ToggleGroupRootElement extends ReactiveElement {
 if (!customElements.get('toggle-group-root')) {
   customElements.define('toggle-group-root', ToggleGroupRootElement);
 }
+
+export const ToggleGroup = ToggleGroupRootElement;
 
 export namespace ToggleGroupRoot {
   export type Props = ToggleGroupRootProps;
@@ -321,19 +358,36 @@ export interface ToggleGroupRootProps {
   multiple?: boolean | undefined;
 }
 
+export type ToggleGroupProps = ToggleGroupRootProps;
+export type ToggleGroupState = ToggleGroupRootState;
 export type ToggleGroupChangeEventReason = ToggleGroupRootChangeEventDetails['reason'];
 export type ToggleGroupChangeEventDetails = ToggleGroupRootChangeEventDetails;
 
+export namespace ToggleGroup {
+  export type Props = ToggleGroupProps;
+  export type State = ToggleGroupState;
+  export type ChangeEventReason = ToggleGroupChangeEventReason;
+  export type ChangeEventDetails = ToggleGroupChangeEventDetails;
+}
+
 function createChangeEventDetails(event: Event): ToggleGroupRootChangeEventDetails {
   let canceled = false;
+  let propagationAllowed = false;
 
   return {
     event,
+    trigger: event.target instanceof Element ? event.target : undefined,
+    allowPropagation() {
+      propagationAllowed = true;
+    },
     cancel() {
       canceled = true;
     },
     get isCanceled() {
       return canceled;
+    },
+    get isPropagationAllowed() {
+      return propagationAllowed;
     },
     reason: 'none',
   };

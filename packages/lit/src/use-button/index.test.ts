@@ -141,6 +141,22 @@ describe('use-button', () => {
       expect(onAction).toHaveBeenCalledTimes(1);
     });
 
+    it('activates composite links with Space on keydown', () => {
+      const element = createElement('a');
+      const { onAction, onClick } = createClickRecorder(element);
+
+      element.href = '#test';
+      applyButtonBehavior(element, { native: false, composite: true, onAction });
+
+      dispatchKeyEvent(element, 'keydown', ' ');
+      expect(onClick).toHaveBeenCalledTimes(1);
+      expect(onAction).toHaveBeenCalledTimes(1);
+
+      dispatchKeyEvent(element, 'keyup', ' ');
+      expect(onClick).toHaveBeenCalledTimes(1);
+      expect(onAction).toHaveBeenCalledTimes(1);
+    });
+
     it('activates native composite buttons with Space only once', () => {
       const element = createElement('button');
       const onAction = vi.fn();
@@ -168,6 +184,27 @@ describe('use-button', () => {
         native: false,
         composite: true,
         role: 'menuitem',
+        onAction,
+      });
+
+      dispatchKeyEvent(element, 'keydown', ' ');
+
+      expect(onClick).toHaveBeenCalledTimes(0);
+      expect(onAction).toHaveBeenCalledTimes(0);
+    });
+
+    it('does not activate composite gridcells when Space was prevented for text navigation', () => {
+      const element = createElement('div');
+      const onAction = vi.fn();
+      const onClick = vi.fn();
+
+      element.tabIndex = 0;
+      element.addEventListener('click', onClick);
+      element.addEventListener('keydown', (event) => event.preventDefault());
+      applyButtonBehavior(element, {
+        native: false,
+        composite: true,
+        role: 'gridcell',
         onAction,
       });
 
@@ -257,6 +294,64 @@ describe('use-button', () => {
       expect(onMouseDown).not.toHaveBeenCalled();
       expect(onPointerDown).not.toHaveBeenCalled();
     });
+
+    it('preserves native submit semantics on composite buttons', () => {
+      const form = document.createElement('form');
+      const button = document.createElement('button');
+      const handleSubmit = vi.fn((event: Event) => {
+        event.preventDefault();
+      });
+
+      button.type = 'submit';
+      form.addEventListener('submit', handleSubmit);
+      form.append(button);
+      container.append(form);
+
+      applyButtonBehavior(button, { composite: true });
+
+      dispatchKeyEvent(button, 'keydown', ' ');
+      expect(handleSubmit).toHaveBeenCalledTimes(1);
+
+      dispatchKeyEvent(button, 'keyup', ' ');
+      expect(handleSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    it('preserves native reset semantics on composite buttons', () => {
+      const form = document.createElement('form');
+      const input = document.createElement('input');
+      const button = document.createElement('button');
+      const handleReset = vi.fn((event: Event) => {
+        event.preventDefault();
+      });
+
+      input.value = 'changed';
+      button.type = 'reset';
+      form.append(input, button);
+      form.addEventListener('reset', handleReset);
+      container.append(form);
+
+      applyButtonBehavior(button, { composite: true });
+
+      dispatchKeyEvent(button, 'keydown', ' ');
+      expect(handleReset).toHaveBeenCalledTimes(1);
+
+      dispatchKeyEvent(button, 'keyup', ' ');
+      expect(handleReset).toHaveBeenCalledTimes(1);
+    });
+
+    it('activates non-native buttons with Space on keyup even if keyup was prevented', () => {
+      const element = createElement('div');
+      const { onAction, onClick } = createClickRecorder(element);
+
+      element.addEventListener('keyup', (event) => event.preventDefault());
+      applyButtonBehavior(element, { native: false, onAction });
+
+      dispatchKeyEvent(element, 'keydown', ' ');
+      dispatchKeyEvent(element, 'keyup', ' ');
+
+      expect(onClick).toHaveBeenCalledTimes(1);
+      expect(onAction).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('syncButtonAttributes', () => {
@@ -294,6 +389,22 @@ describe('use-button', () => {
       syncButtonAttributes(element, { native: false, role: 'switch' });
 
       expect(element).toHaveAttribute('role', 'switch');
+    });
+
+    it('uses an explicit tabIndex for native buttons', () => {
+      const element = createElement('button');
+
+      syncButtonAttributes(element, { tabIndex: 3 });
+
+      expect(element.tabIndex).toBe(3);
+    });
+
+    it('uses an explicit tabIndex for non-native buttons', () => {
+      const element = createElement('div');
+
+      syncButtonAttributes(element, { native: false, tabIndex: 3 });
+
+      expect(element.tabIndex).toBe(3);
     });
   });
 

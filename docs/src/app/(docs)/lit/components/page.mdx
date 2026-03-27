@@ -98,16 +98,26 @@ A text input with suggestions and filtering.
 
 ## Avatar
 
-An avatar primitive for Lit templates.
+An easily stylable avatar component.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Avatar, Avatar, Base UI Lit, Custom avatar
+- Keywords: Lit Avatar, Avatar Component, Profile Image UI, User Image, User Avatar, Profile Picture, Account Image, Profile Icon, Initials Fallback, Accessible Avatar, Headless Lit Components, Customizable Avatar, Base UI
 - Sections:
   - Anatomy
-  - Status
+  - API reference
+    - Root
+    - Image
+    - Fallback
+- Exports:
+  - Root
+  - Image
+    - Props: onLoadingStatusChange
+  - Fallback
+    - Props: delay
+- Types: Avatar, Fallback.Props, Fallback.State, FallbackApiProps, Image.Props, Image.State, ImageApiProps, ImageLoadingStatus, Root.Props, Root.State, RootApiProps
 
 </details>
 
@@ -329,16 +339,22 @@ A native form element with consolidated error handling in Lit.
 
 ## Input
 
-A Lit input primitive with Base UI form behavior.
+A native input element that automatically works with [Field](/lit/components/field).
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Input, Input, Base UI Lit, Form input
+- Keywords: Lit Input, Input Component, Input Field, Form Input Field, Text Field, Text Input, Text Box, Form Input, Textarea Alternative, Controlled Input, Form Element, Accessible Input, Headless Lit Components, Base UI
 - Sections:
+  - Usage guidelines
   - Anatomy
-  - Status
+  - API reference
+    - Input Data Attributes
+- Exports:
+  - Input
+    - Props: defaultValue, disabled, onValueChange, render, value
+- Types: InputApiProps, InputState
 
 </details>
 
@@ -639,16 +655,21 @@ A notification toast that appears temporarily.
 
 ## Toggle
 
-A pressable toggle primitive.
+A two-state button that can be on or off.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Toggle, Toggle, Base UI Lit, Pressed state
+- Keywords: Lit Toggle, Toggle Button Component, Two State Button, Pressed State Button, Accessible Toggle, Base UI Lit
 - Sections:
   - Anatomy
-  - Status
+  - API reference
+    - Toggle Data Attributes
+- Exports:
+  - Toggle
+    - Props: defaultPressed, disabled, nativeButton, onPressedChange, pressed, render, value
+- Types: ToggleApiProps, ToggleChangeEventDetails, ToggleState
 
 </details>
 
@@ -656,16 +677,23 @@ A pressable toggle primitive.
 
 ## Toggle Group
 
-A group of toggle buttons for selecting one or more options.
+Provides a shared state to a series of toggle buttons.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Toggle Group, Toggle Group, Base UI Lit, Toggle buttons
+- Keywords: Lit Toggle Group, Toggle Button Group, Segmented Control, Button Set, Radio Group Alternative, Exclusive Selection Toggle, Multi Select Toggle Buttons, Accessible Toggle Group, Headless Lit Components, Base UI
 - Sections:
   - Anatomy
-  - Status
+  - Examples
+    - Multiple
+  - API reference
+    - ToggleGroup Data Attributes
+- Exports:
+  - ToggleGroup
+    - Props: defaultValue, disabled, loopFocus, multiple, onValueChange, orientation, value
+- Types: ToggleGroupApiProps, ToggleGroupChangeEventDetails, ToggleGroupOrientation, ToggleGroupState
 
 </details>
 

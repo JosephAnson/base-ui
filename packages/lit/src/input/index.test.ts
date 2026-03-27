@@ -5,8 +5,10 @@ import './index';
 import {
   Input,
   InputRootElement,
+  type Input,
   type InputChangeEventDetails,
   type InputChangeEventReason,
+  type InputProps,
   type InputRoot,
   type InputRootProps,
   type InputState,
@@ -37,50 +39,44 @@ describe('input', () => {
     });
   }
 
-  it('exposes the runtime input export and namespace aliases', () => {
-    expect(Input).toBe(InputRootElement);
+  it('exposes input and input-root namespace aliases', () => {
+    expectTypeOf<InputProps>().toEqualTypeOf<Input.Props>();
+    expectTypeOf<InputState>().toEqualTypeOf<Input.State>();
+    expectTypeOf<InputChangeEventReason>().toEqualTypeOf<Input.ChangeEventReason>();
+    expectTypeOf<InputChangeEventDetails>().toEqualTypeOf<Input.ChangeEventDetails>();
     expectTypeOf<InputRootProps>().toEqualTypeOf<InputRoot.Props>();
     expectTypeOf<InputState>().toEqualTypeOf<InputRoot.State>();
     expectTypeOf<InputChangeEventReason>().toEqualTypeOf<InputRoot.ChangeEventReason>();
     expectTypeOf<InputChangeEventDetails>().toEqualTypeOf<InputRoot.ChangeEventDetails>();
   });
 
-  it('renders input-root with a native input child', () => {
-    const view = render(html`
-      <input-root>
-        <input placeholder="Enter your name" />
-      </input-root>
-    `);
-    const root = view.querySelector('input-root') as InputRootElement;
+  it('renders a native input by default from the helper', async () => {
+    const view = render(html`${Input({ placeholder: 'Enter your name' })}`);
+    await waitForUpdate();
+
     const input = view.querySelector('input') as HTMLInputElement;
 
-    expect(root).toBeInTheDocument();
     expect(input).toBeInTheDocument();
     expect(input).toHaveAttribute('placeholder', 'Enter your name');
   });
 
-  it('applies disabled state and data-disabled attribute', async () => {
-    const view = render(html`
-      <input-root .disabled=${true}>
-        <input />
-      </input-root>
-    `);
+  it('supports rendering a textarea from the helper and assigns refs', async () => {
+    const ref = { current: null as HTMLTextAreaElement | null };
+    const view = render(html`${Input({ ref, render: html`<textarea></textarea>` })}`);
+    await waitForUpdate();
+
+    const textarea = view.querySelector('textarea') as HTMLTextAreaElement;
+
+    expect(textarea).toBeInTheDocument();
+    expect(ref.current).toBe(textarea);
+  });
+
+  it('calls onValueChange when helper input value changes', async () => {
+    const handleValueChange = vi.fn();
+    const view = render(html`${Input({ onValueChange: handleValueChange })}`);
     await waitForUpdate();
 
     const input = view.querySelector('input') as HTMLInputElement;
-    expect(input.disabled).toBe(true);
-    expect(input).toHaveAttribute('data-disabled');
-  });
-
-  it('calls onValueChange when input value changes', () => {
-    const handleValueChange = vi.fn();
-    const view = render(html`
-      <input-root .onValueChange=${handleValueChange}>
-        <input />
-      </input-root>
-    `);
-    const input = view.querySelector('input') as HTMLInputElement;
-
     input.value = 'Alice';
     const event = new InputEvent('input', { bubbles: true });
     input.dispatchEvent(event);
@@ -98,77 +94,11 @@ describe('input', () => {
     );
   });
 
-  it('tracks focus and blur state with data attributes', async () => {
-    const view = render(html`
-      <input-root>
-        <input />
-      </input-root>
-    `);
-    const input = view.querySelector('input') as HTMLInputElement;
-
-    expect(input).not.toHaveAttribute('data-focused');
-    expect(input).not.toHaveAttribute('data-touched');
-
-    input.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
-    await waitForUpdate();
-    expect(input).toHaveAttribute('data-focused');
-
-    input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
-    await waitForUpdate();
-    expect(input).not.toHaveAttribute('data-focused');
-    expect(input).toHaveAttribute('data-touched');
-  });
-
-  it('tracks dirty and filled state', async () => {
-    const view = render(html`
-      <input-root>
-        <input />
-      </input-root>
-    `);
-    const input = view.querySelector('input') as HTMLInputElement;
-
-    expect(input).not.toHaveAttribute('data-dirty');
-    expect(input).not.toHaveAttribute('data-filled');
-
-    input.value = 'Alice';
-    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    await waitForUpdate();
-
-    expect(input).toHaveAttribute('data-dirty');
-    expect(input).toHaveAttribute('data-filled');
-  });
-
-  it('tracks validity state with data-valid and data-invalid', async () => {
-    const view = render(html`
-      <input-root>
-        <input required />
-      </input-root>
-    `);
-    await waitForUpdate();
-
-    const input = view.querySelector('input') as HTMLInputElement;
-
-    // Focus to trigger state update
-    input.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
-    await waitForUpdate();
-
-    expect(input).toHaveAttribute('data-invalid');
-
-    input.value = 'Alice';
-    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    await waitForUpdate();
-
-    expect(input).toHaveAttribute('data-valid');
-    expect(input).not.toHaveAttribute('data-invalid');
-  });
-
-  it('preserves controlled value after input', () => {
+  it('preserves the controlled helper value after input', async () => {
     const handleValueChange = vi.fn();
-    const view = render(html`
-      <input-root .value=${'Alice'} .onValueChange=${handleValueChange}>
-        <input />
-      </input-root>
-    `);
+    const view = render(html`${Input({ value: 'Alice', onValueChange: handleValueChange })}`);
+    await waitForUpdate();
+
     const input = view.querySelector('input') as HTMLInputElement;
 
     expect(input.value).toBe('Alice');
@@ -180,44 +110,63 @@ describe('input', () => {
       'Alicia',
       expect.objectContaining({ reason: 'none' }),
     );
-    // Value should be restored to controlled value
     expect(input.value).toBe('Alice');
+    expect(input).toHaveAttribute('data-filled');
+    expect(input).not.toHaveAttribute('data-dirty');
   });
 
-  it('supports defaultValue on the root element', async () => {
-    const view = render(html`
-      <input-root .defaultValue=${'Default email'}>
-        <input />
-      </input-root>
-    `);
+  it('supports defaultValue on the helper', async () => {
+    const view = render(html`${Input({ defaultValue: 'Default email' })}`);
     await waitForUpdate();
 
     const input = view.querySelector('input') as HTMLInputElement;
 
     expect(input.value).toBe('Default email');
+    expect(input).toHaveAttribute('data-filled');
   });
 
-  it('updates the rendered input when the controlled value changes', async () => {
-    const view = render(html`
-      <input-root .value=${'Alice'}>
-        <input />
-      </input-root>
-    `);
+  it('applies disabled helper state to the rendered control', async () => {
+    const view = render(html`${Input({ disabled: true })}`);
     await waitForUpdate();
 
-    const root = view.querySelector('input-root') as InputRootElement;
     const input = view.querySelector('input') as HTMLInputElement;
 
-    expect(input.value).toBe('Alice');
-
-    root.value = 'Bob';
-    await waitForUpdate();
-
-    expect(input.value).toBe('Bob');
-    expect(root.getState().filled).toBe(true);
+    expect(input.disabled).toBe(true);
+    expect(input).toHaveAttribute('data-disabled');
   });
 
-  it('works with textarea elements', async () => {
+  it('tracks focus, touch, dirty, filled, and validity on the helper control', async () => {
+    const view = render(html`${Input({ required: true })}`);
+    await waitForUpdate();
+
+    const input = view.querySelector('input') as HTMLInputElement;
+
+    expect(input).not.toHaveAttribute('data-focused');
+    expect(input).not.toHaveAttribute('data-touched');
+
+    input.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+    await waitForUpdate();
+
+    expect(input).toHaveAttribute('data-focused');
+    expect(input).toHaveAttribute('data-invalid');
+
+    input.value = 'Alice';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await waitForUpdate();
+
+    expect(input).toHaveAttribute('data-dirty');
+    expect(input).toHaveAttribute('data-filled');
+    expect(input).toHaveAttribute('data-valid');
+    expect(input).not.toHaveAttribute('data-invalid');
+
+    input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+    await waitForUpdate();
+
+    expect(input).not.toHaveAttribute('data-focused');
+    expect(input).toHaveAttribute('data-touched');
+  });
+
+  it('supports textarea rendering from the low-level root element', async () => {
     const handleValueChange = vi.fn();
     const view = render(html`
       <input-root .onValueChange=${handleValueChange}>
@@ -227,7 +176,6 @@ describe('input', () => {
     await waitForUpdate();
 
     const textarea = view.querySelector('textarea') as HTMLTextAreaElement;
-
     textarea.value = 'Notes';
     const event = new InputEvent('input', { bubbles: true });
     textarea.dispatchEvent(event);
@@ -241,17 +189,18 @@ describe('input', () => {
     );
   });
 
-  it('uses display:contents on the root element', () => {
+  it('uses display:contents on the low-level root element', () => {
     const view = render(html`
       <input-root>
         <input />
       </input-root>
     `);
     const root = view.querySelector('input-root') as InputRootElement;
+
     expect(root.style.display).toBe('contents');
   });
 
-  it('cleans up event listeners on disconnect', async () => {
+  it('cleans up low-level root listeners on disconnect', () => {
     const handleValueChange = vi.fn();
     const view = render(html`
       <input-root .onValueChange=${handleValueChange}>
@@ -259,32 +208,13 @@ describe('input', () => {
       </input-root>
     `);
     const input = view.querySelector('input') as HTMLInputElement;
-
     const root = view.querySelector('input-root') as InputRootElement;
+
     root.remove();
 
     input.value = 'test';
     input.dispatchEvent(new InputEvent('input', { bubbles: true }));
 
-    // Should not fire after disconnect
     expect(handleValueChange).not.toHaveBeenCalled();
-  });
-
-  it('reports initial state via getState()', async () => {
-    const view = render(html`
-      <input-root>
-        <input />
-      </input-root>
-    `);
-    await waitForUpdate();
-
-    const root = view.querySelector('input-root') as InputRootElement;
-    const state = root.getState();
-
-    expect(state.disabled).toBe(false);
-    expect(state.touched).toBe(false);
-    expect(state.dirty).toBe(false);
-    expect(state.filled).toBe(false);
-    expect(state.focused).toBe(false);
   });
 });

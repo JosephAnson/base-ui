@@ -111,8 +111,15 @@ export class AvatarImageElement extends BaseHTMLElement {
     this.rootElement = null;
   }
 
-  attributeChangedCallback() {
+  attributeChangedCallback(name: string) {
     if (this.rootElement) {
+      if (name === 'alt' || name === 'width' || name === 'height') {
+        if (this.imgElement) {
+          this.ensureImgElement();
+        }
+        return;
+      }
+
       this.syncImageLoading();
     }
   }
@@ -274,12 +281,7 @@ export class AvatarFallbackElement extends BaseHTMLElement {
 
     this.rootElement.addEventListener(STATUS_CHANGE_EVENT, this.statusHandler);
 
-    const delay = this.getDelay();
-    if (delay !== undefined) {
-      this.delayPassed = false;
-      this.startDelay(delay);
-    }
-
+    this.syncDelay();
     this.syncVisibility();
   }
 
@@ -290,7 +292,12 @@ export class AvatarFallbackElement extends BaseHTMLElement {
   }
 
   attributeChangedCallback() {
-    // Delay changed — only relevant if we haven't passed it yet
+    if (!this.rootElement) {
+      return;
+    }
+
+    this.syncDelay();
+    this.syncVisibility();
   }
 
   private getDelay(): number | undefined {
@@ -317,6 +324,19 @@ export class AvatarFallbackElement extends BaseHTMLElement {
       clearTimeout(this.timeoutId);
       this.timeoutId = null;
     }
+  }
+
+  private syncDelay() {
+    const delay = this.getDelay();
+
+    if (delay === undefined) {
+      this.clearDelay();
+      this.delayPassed = true;
+      return;
+    }
+
+    this.delayPassed = false;
+    this.startDelay(delay);
   }
 
   private syncVisibility() {

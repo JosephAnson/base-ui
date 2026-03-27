@@ -258,10 +258,14 @@ import {
   type ToastDescriptionState as RootToastDescriptionState,
   type ToastCloseState as RootToastCloseState,
   type ToastActionState as RootToastActionState,
+  Toggle as rootToggle,
   ToggleRootElement as rootToggleRootElement,
+  type ToggleChangeEventDetails as RootToggleChangeEventDetails,
+  type ToggleProps as RootToggleProps,
   type ToggleRootChangeEventDetails as RootToggleRootChangeEventDetails,
   type ToggleRootProps as RootToggleRootProps,
   type ToggleRootState as RootToggleRootState,
+  type ToggleState as RootToggleState,
   ToolbarRootElement as rootToolbarRootElement,
   type ToolbarRootState as RootToolbarRootState,
   type ToolbarGroupState as RootToolbarGroupState,
@@ -269,10 +273,14 @@ import {
   type ToolbarLinkState as RootToolbarLinkState,
   type ToolbarInputState as RootToolbarInputState,
   type ToolbarSeparatorState as RootToolbarSeparatorState,
+  ToggleGroup as rootToggleGroup,
+  type ToggleGroupChangeEventDetails as RootToggleGroupChangeEventDetails,
+  type ToggleGroupProps as RootToggleGroupProps,
   ToggleGroupRootElement as rootToggleGroupRootElement,
   type ToggleGroupRootChangeEventDetails as RootToggleGroupRootChangeEventDetails,
   type ToggleGroupRootProps as RootToggleGroupRootProps,
   type ToggleGroupRootState as RootToggleGroupRootState,
+  type ToggleGroupState as RootToggleGroupState,
   Avatar as rootAvatar,
   AvatarRootElement as rootAvatarRootElement,
   type AvatarRootProps as RootAvatarRootProps,
@@ -363,9 +371,15 @@ import { Switch as subpathSwitch } from '@base-ui/lit/switch';
 import { Tooltip as subpathTooltip } from '@base-ui/lit/tooltip';
 import { TabsRootElement as subpathTabsRootElement } from '@base-ui/lit/tabs';
 import { ToastProviderElement as subpathToastProviderElement } from '@base-ui/lit/toast';
-import { ToggleRootElement as subpathToggleRootElement } from '@base-ui/lit/toggle';
+import {
+  Toggle as subpathToggle,
+  ToggleRootElement as subpathToggleRootElement,
+} from '@base-ui/lit/toggle';
 import { ToolbarRootElement as subpathToolbarRootElement } from '@base-ui/lit/toolbar';
-import { ToggleGroupRootElement as subpathToggleGroupRootElement } from '@base-ui/lit/toggle-group';
+import {
+  ToggleGroup as subpathToggleGroup,
+  ToggleGroupRootElement as subpathToggleGroupRootElement,
+} from '@base-ui/lit/toggle-group';
 import {
   Avatar as subpathAvatar,
   AvatarRootElement as subpathAvatarRootElement,
@@ -687,9 +701,12 @@ import type {
   ToastActionState as SubpathToastActionState,
 } from '@base-ui/lit/toast';
 import type {
+  ToggleChangeEventDetails as SubpathToggleChangeEventDetails,
+  ToggleProps as SubpathToggleProps,
   ToggleRootChangeEventDetails as SubpathToggleRootChangeEventDetails,
   ToggleRootProps as SubpathToggleRootProps,
   ToggleRootState as SubpathToggleRootState,
+  ToggleState as SubpathToggleState,
 } from '@base-ui/lit/toggle';
 import type {
   ToolbarRootState as SubpathToolbarRootState,
@@ -700,9 +717,12 @@ import type {
   ToolbarSeparatorState as SubpathToolbarSeparatorState,
 } from '@base-ui/lit/toolbar';
 import type {
+  ToggleGroupChangeEventDetails as SubpathToggleGroupChangeEventDetails,
+  ToggleGroupProps as SubpathToggleGroupProps,
   ToggleGroupRootChangeEventDetails as SubpathToggleGroupRootChangeEventDetails,
   ToggleGroupRootProps as SubpathToggleGroupRootProps,
   ToggleGroupRootState as SubpathToggleGroupRootState,
+  ToggleGroupState as SubpathToggleGroupState,
 } from '@base-ui/lit/toggle-group';
 import type {
   AutocompleteRootState as SubpathAutocompleteRootState,
@@ -988,7 +1008,9 @@ describe('@base-ui/lit', () => {
   it('re-exports toggle from the package root', async () => {
     const module = await import('@base-ui/lit');
 
+    expect(module.Toggle).toBe(subpathToggle);
     expect(module.ToggleRootElement).toBe(subpathToggleRootElement);
+    expect(rootToggle).toBe(subpathToggle);
     expect(rootToggleRootElement).toBe(subpathToggleRootElement);
   });
 
@@ -1002,7 +1024,9 @@ describe('@base-ui/lit', () => {
   it('re-exports toggle-group from the package root', async () => {
     const module = await import('@base-ui/lit');
 
+    expect(module.ToggleGroup).toBe(subpathToggleGroup);
     expect(module.ToggleGroupRootElement).toBe(subpathToggleGroupRootElement);
+    expect(rootToggleGroup).toBe(subpathToggleGroup);
     expect(rootToggleGroupRootElement).toBe(subpathToggleGroupRootElement);
   });
 
@@ -1237,10 +1261,16 @@ describe('@base-ui/lit', () => {
     expectTypeOf<RootToastCloseState>().toEqualTypeOf<SubpathToastCloseState>();
     expectTypeOf<RootToastActionState>().toEqualTypeOf<SubpathToastActionState>();
     // Toggle (custom element)
+    expectTypeOf<RootToggleProps>().toEqualTypeOf<SubpathToggleProps>();
+    expectTypeOf<RootToggleState>().toEqualTypeOf<SubpathToggleState>();
+    expectTypeOf<RootToggleChangeEventDetails>().toEqualTypeOf<SubpathToggleChangeEventDetails>();
     expectTypeOf<RootToggleRootProps>().toEqualTypeOf<SubpathToggleRootProps>();
     expectTypeOf<RootToggleRootState>().toEqualTypeOf<SubpathToggleRootState>();
     expectTypeOf<RootToggleRootChangeEventDetails>().toEqualTypeOf<SubpathToggleRootChangeEventDetails>();
     // ToggleGroup (custom element)
+    expectTypeOf<RootToggleGroupProps>().toEqualTypeOf<SubpathToggleGroupProps>();
+    expectTypeOf<RootToggleGroupState>().toEqualTypeOf<SubpathToggleGroupState>();
+    expectTypeOf<RootToggleGroupChangeEventDetails>().toEqualTypeOf<SubpathToggleGroupChangeEventDetails>();
     expectTypeOf<RootToggleGroupRootProps>().toEqualTypeOf<SubpathToggleGroupRootProps>();
     expectTypeOf<RootToggleGroupRootState>().toEqualTypeOf<SubpathToggleGroupRootState>();
     expectTypeOf<RootToggleGroupRootChangeEventDetails>().toEqualTypeOf<SubpathToggleGroupRootChangeEventDetails>();

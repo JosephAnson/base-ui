@@ -1,18 +1,21 @@
+import type { Locale } from 'date-fns/locale';
 import { BaseHTMLElement } from '../utils';
+
+const LOCALIZATION_PROVIDER_CHANGE_EVENT = 'base-ui-localization-provider-change';
 
 /**
  * Localization context values.
  */
 export interface LocalizationContext {
   /** A date-fns Locale object (or compatible locale). */
-  temporalLocale?: object | undefined;
+  temporalLocale?: Locale | undefined;
 }
 
 export interface LocalizationProviderProps {
   /**
    * The locale to use in temporal components.
    */
-  temporalLocale?: object | undefined;
+  temporalLocale?: Locale | undefined;
 }
 
 /**
@@ -35,16 +38,34 @@ export function getLocalizationContext(element: Element): LocalizationContext {
  * Documentation: [Base UI LocalizationProvider](https://base-ui.com/react/utils/localization-provider)
  */
 export class LocalizationProviderElement extends BaseHTMLElement {
+  private temporalLocaleValue: Locale | undefined;
+
   /** A date-fns Locale object or compatible locale configuration. */
-  temporalLocale: object | undefined;
+  get temporalLocale(): Locale | undefined {
+    return this.temporalLocaleValue;
+  }
+
+  set temporalLocale(value: Locale | undefined) {
+    if (this.temporalLocaleValue === value) {
+      return;
+    }
+
+    this.temporalLocaleValue = value;
+    this.dispatchEvent(
+      new CustomEvent(LOCALIZATION_PROVIDER_CHANGE_EVENT, {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
 
   /** @deprecated Use `temporalLocale` instead. */
-  get locale(): object | undefined {
+  get locale(): Locale | undefined {
     return this.temporalLocale;
   }
 
   /** @deprecated Use `temporalLocale` instead. */
-  set locale(value: object | undefined) {
+  set locale(value: Locale | undefined) {
     this.temporalLocale = value;
   }
 
@@ -60,6 +81,8 @@ if (!customElements.get('localization-provider')) {
 export namespace LocalizationProvider {
   export type Props = LocalizationProviderProps;
 }
+
+export { LOCALIZATION_PROVIDER_CHANGE_EVENT };
 
 declare global {
   interface HTMLElementTagNameMap {

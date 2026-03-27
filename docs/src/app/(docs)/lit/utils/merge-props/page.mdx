@@ -1,42 +1,98 @@
 # mergeProps
 
-<Subtitle>Helpers for merging event handlers, classes, and styles in Lit props objects.</Subtitle>
+<Subtitle>A utility to merge multiple sets of Lit props.</Subtitle>
 <Meta
   name="description"
-  content="Helpers for merging event handlers, classes, and styles in Lit props objects."
+  content="A utility to merge multiple sets of Lit props, handling event handlers, className, class, and style props intelligently."
 />
 
-## Usage
+`mergeProps` helps you combine multiple prop objects (for example, internal props + user props) into a single set of props you can apply to an element.
+It behaves like `Object.assign` (rightmost wins) with a few special cases, so common Lit patterns work as expected.
 
-`mergeProps` follows the same left-to-right overwrite rules as `Object.assign`, while still composing event handlers and merging `className`, `class`, and `style`.
+## How merging works
 
-```ts title="Merging props"
-import { mergeProps } from '@base-ui/lit/merge-props';
+- For most keys (everything except `className`, `class`, `style`, and event handlers), the value from the rightmost object wins:
+  ```ts title="returns { id: 'b', dir: 'ltr' }"
+  mergeProps({ id: 'a', dir: 'ltr' }, { id: 'b' });
+  ```
+- `ref` is not merged. Only the rightmost ref is kept:
+  ```ts title="only refB is used"
+  mergeProps({ ref: refA }, { ref: refB });
+  ```
+- `className` and `class` values are concatenated right-to-left (rightmost first):
+  ```ts title="className is 'b a'"
+  mergeProps({ className: 'a' }, { className: 'b' });
+  ```
+- `style` objects are merged, with keys from the rightmost style overwriting earlier ones.
+- Event handlers are merged and executed right-to-left (rightmost first):
 
-const props = mergeProps(
+  ```ts title="b runs before a"
+  mergeProps({ onClick: a }, { onClick: b });
+  ```
+
+  - For native `Event` instances and React-style synthetic event wrappers, Base UI adds `event.preventBaseUIHandler()`. Calling it prevents Base UI's internal logic from running.
+    This does not call `preventDefault()` or `stopPropagation()`.
+  - For non-event values (custom events with primitive/object payloads), this mechanism isn't available and all handlers always execute.
+
+### Preventing Base UI's default behavior
+
+import { DemoPreventBaseUIHandler } from './demos/prevent-base-ui-handler';
+
+When using the function form of the `render` prop, props are not merged automatically.
+You can use `mergeProps` to combine Base UI's props with your own, and call `preventBaseUIHandler()` to stop Base UI's internal logic from running:
+
+<DemoPreventBaseUIHandler />
+
+## Passing a function instead of an object
+
+Each argument can be a props object or a function that receives the merged props up to that point (left to right) and returns a props object.
+This is useful when you need to compute the next props from whatever has already been merged.
+
+Note that the function's return value completely replaces the accumulated props up to that point.
+If you want to chain event handlers from the previous props, you must call them manually:
+
+```ts title="Manually chaining handlers in a function"
+const merged = mergeProps(
   {
-    className: 'Button',
-    onclick: () => console.log('internal'),
+    onClick(event) {
+      // Handler from previous props
+    },
   },
-  {
-    className: 'primary',
-    onclick: () => console.log('external'),
-  },
+  (props) => ({
+    onClick(event) {
+      // Manually call the previous handler
+      props.onClick?.(event);
+      // Your logic here
+    },
+  }),
 );
 ```
 
-For more than five prop bags, use `mergePropsN`:
+## API reference
 
-```ts title="Merging many prop objects"
-import { mergePropsN } from '@base-ui/lit/merge-props';
+import { TypesMergeProps, TypesMergePropsN } from './types';
 
-const props = mergePropsN([baseProps, stateProps, userProps]);
-```
+### mergeProps
 
-## Status
+This function accepts up to 5 arguments, each being either a props object or a function that returns a props object.
+If you need to merge more than 5 sets of props, use `mergePropsN` instead.
 
-The Lit docs are being wired up around the current package surface. This page focuses on the current API shape and usage patterns already used by the package.
+<TypesMergeProps hideDescription />
+
+### mergePropsN
+
+This function accepts an array of props objects or functions that return props objects.
+It is slightly less efficient than `mergeProps`, so only use it when you need to merge more than 5 sets of props.
+
+<TypesMergePropsN hideDescription />
 
 export const metadata = {
-  keywords: ['Lit mergeProps', 'mergeProps', 'Base UI Lit', 'Prop merging'],
+  keywords: [
+    'Lit mergeProps',
+    'mergeProps',
+    'Base UI Lit',
+    'Prop merging',
+    'Prevent Base UI Handler',
+    'Render Prop Composition',
+  ],
 };

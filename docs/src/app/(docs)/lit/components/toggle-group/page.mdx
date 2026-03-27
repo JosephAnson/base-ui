@@ -1,20 +1,26 @@
 # Toggle Group
 
-<Subtitle>Provides shared state to a series of toggle buttons.</Subtitle>
+<Subtitle>Provides a shared state to a series of toggle buttons.</Subtitle>
 <Meta
   name="description"
   content="A high-quality, unstyled Lit toggle group component that provides shared state to a series of toggle buttons."
 />
 
+import { DemoToggleGroupHero } from './demos/hero';
+import { DemoToggleGroupMultiple } from './demos/multiple';
+import { TypesToggleGroup } from './types';
+
+<DemoToggleGroupHero />
+
 ## Anatomy
 
-Import the custom element and compose it with `toggle-root` items:
+Import the custom elements and compose them as separate parts:
 
 ```html title="Anatomy"
 <toggle-group-root>
-  <toggle-root value="bold">Bold</toggle-root>
-  <toggle-root value="italic">Italic</toggle-root>
-  <toggle-root value="underline">Underline</toggle-root>
+  <toggle-root value="left">Left</toggle-root>
+  <toggle-root value="center">Center</toggle-root>
+  <toggle-root value="right">Right</toggle-root>
 </toggle-group-root>
 ```
 
@@ -24,34 +30,31 @@ Import the custom element and compose it with `toggle-root` items:
 
 Add the `multiple` attribute to allow pressing more than one toggle at a time.
 
-```html title="Multiple selection"
-<toggle-group-root multiple>
-  <toggle-root value="bold">Bold</toggle-root>
-  <toggle-root value="italic">Italic</toggle-root>
-  <toggle-root value="underline">Underline</toggle-root>
-</toggle-group-root>
-```
+<DemoToggleGroupMultiple />
 
 ## API reference
 
-### ToggleGroupRootElement
+<TypesToggleGroup />
 
-Custom element: `<toggle-group-root>`
+### ToggleGroup Data Attributes
 
-| Attribute     | Type                         | Default        | Description                                               |
-| ------------- | ---------------------------- | -------------- | --------------------------------------------------------- |
-| `disabled`    | `boolean`                    | `false`        | Whether the toggle group should ignore user interaction.  |
-| `multiple`    | `boolean`                    | `false`        | Whether more than one toggle can be pressed at a time.    |
-| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | The orientation used for keyboard navigation.             |
-| `loop-focus`  | `boolean`                    | `true`         | Whether focus wraps from the last item back to the first. |
+| Attribute          | Type                         | Description                                                                                        |
+| :----------------- | :--------------------------- | :------------------------------------------------------------------------------------------------- |
+| `data-orientation` | `'horizontal' \| 'vertical'` | Indicates the orientation of the toggle group.                                                     |
+| `data-disabled`    | -                            | Present when the toggle group is disabled.                                                         |
+| `data-multiple`    | -                            | Present when the toggle group allows multiple buttons to be in the pressed state at the same time. |
 
 export const metadata = {
   keywords: [
     'Lit Toggle Group',
     'Toggle Button Group',
     'Segmented Control',
+    'Button Set',
+    'Radio Group Alternative',
+    'Exclusive Selection Toggle',
     'Multi Select Toggle Buttons',
     'Accessible Toggle Group',
-    'Base UI Lit',
+    'Headless Lit Components',
+    'Base UI',
   ],
 };
