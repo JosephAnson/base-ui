@@ -1,3 +1,4 @@
+'use client';
 import * as React from 'react';
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@base-ui/lit/collapsible';
@@ -16,8 +17,7 @@ export default function ExampleCollapsible() {
     renderTemplate(
       html`<collapsible-root class=${styles.Collapsible}>
         <collapsible-trigger class=${styles.Trigger}>
-          ${chevronIcon(styles.Icon)}
-          Recovery keys
+          ${chevronIcon(styles.Icon)} Recovery keys
         </collapsible-trigger>
         <collapsible-panel class=${styles.Panel}>
           <div class=${styles.Content}>

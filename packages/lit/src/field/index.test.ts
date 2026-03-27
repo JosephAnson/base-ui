@@ -131,6 +131,31 @@ describe('field', () => {
     });
   });
 
+  it('forwards styling and native input attributes from field-control to the generated input', async () => {
+    const view = render(html`
+      <field-root>
+        <field-control
+          class="hero-input"
+          placeholder="Required"
+          required
+          style="color: red;"
+          type="email"
+        ></field-control>
+      </field-root>
+    `);
+    await flushUpdates();
+
+    const input = view.querySelector('input') as HTMLInputElement;
+    const control = view.querySelector('field-control') as HTMLElement;
+    expect(control).not.toHaveAttribute('class');
+    expect(input).toHaveClass('hero-input');
+    expect(input).toHaveAttribute('placeholder', 'Required');
+    expect(input).toHaveAttribute('required');
+    expect(input).toHaveAttribute('type', 'email');
+    expect(input).toHaveStyle({ color: 'rgb(255, 0, 0)' });
+    expect(input).not.toHaveStyle({ display: 'contents' });
+  });
+
   it('field-label focuses the control when clicked', async () => {
     const view = render(html`
       <field-root>
@@ -188,6 +213,76 @@ describe('field', () => {
     expect(error.id).not.toBe('');
     expect(input).toHaveAttribute('aria-describedby', error.id);
     expect(error).toHaveAttribute('data-invalid', '');
+  });
+
+  it('shows authored field-error content when match=true', async () => {
+    const view = render(html`
+      <field-root>
+        <field-control required></field-control>
+        <field-error match>Message</field-error>
+      </field-root>
+    `);
+    await flushUpdates();
+
+    const error = view.querySelector('field-error') as HTMLElement;
+    expect(error).not.toHaveAttribute('hidden');
+    expect(error).toHaveTextContent('Message');
+  });
+
+  it('only renders a matched error for the active validity state', async () => {
+    const view = render(html`
+      <form>
+        <field-root>
+          <field-control required minlength="2"></field-control>
+          <field-error match="valueMissing">Message</field-error>
+        </field-root>
+      </form>
+    `);
+    await flushUpdates();
+
+    const form = view.querySelector('form') as HTMLFormElement;
+    const input = view.querySelector('input') as HTMLInputElement;
+    const error = view.querySelector('field-error') as HTMLElement;
+
+    expect(error).toHaveAttribute('hidden');
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushUpdates();
+    expect(error).not.toHaveAttribute('hidden');
+    expect(error).toHaveTextContent('Message');
+
+    input.value = 'a';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushUpdates();
+    expect(error).toHaveAttribute('hidden');
+
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushUpdates();
+    expect(error).not.toHaveAttribute('hidden');
+    expect(error).toHaveTextContent('Message');
+  });
+
+  it('renders a custom-error match after native validation has passed', async () => {
+    const view = render(html`
+      <form>
+        <field-root .validate=${() => 'error'}>
+          <field-control></field-control>
+          <field-error match="customError">Message</field-error>
+        </field-root>
+      </form>
+    `);
+    await flushUpdates();
+
+    const form = view.querySelector('form') as HTMLFormElement;
+    const error = view.querySelector('field-error') as HTMLElement;
+
+    expect(error).toHaveAttribute('hidden');
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushUpdates();
+    expect(error).not.toHaveAttribute('hidden');
+    expect(error).toHaveTextContent('Message');
   });
 
   it('passes validity updates to the render callback', async () => {
@@ -294,6 +389,113 @@ describe('field', () => {
 
     expect(error).not.toHaveAttribute('hidden');
     expect(error).toHaveTextContent('Required');
+  });
+
+  it('does not run validate by default when the field is outside a form', async () => {
+    const validate = vi.fn(() => 'error');
+    const view = render(html`
+      <field-root .validate=${validate}>
+        <field-control></field-control>
+        <field-error></field-error>
+      </field-root>
+    `);
+    await flushUpdates();
+
+    const input = view.querySelector('input') as HTMLInputElement;
+
+    input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    input.value = 'abc';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    await flushUpdates();
+
+    expect(validate).not.toHaveBeenCalled();
+    expect(view.querySelector('field-error')).toHaveAttribute('hidden');
+  });
+
+  it('runs custom validation after native validation on revalidation', async () => {
+    const view = render(html`
+      <form>
+        <field-root .validate=${(value: unknown) => (value === 'ab' ? 'custom error' : null)}>
+          <field-control required></field-control>
+          <field-error match="valueMissing">value missing</field-error>
+          <field-error match="customError"></field-error>
+        </field-root>
+      </form>
+    `);
+    await flushUpdates();
+
+    const form = view.querySelector('form') as HTMLFormElement;
+    const input = view.querySelector('input') as HTMLInputElement;
+    const errors = Array.from(view.querySelectorAll('field-error'));
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushUpdates();
+
+    expect(errors[0]).not.toHaveAttribute('hidden');
+    expect(errors[0]).toHaveTextContent('value missing');
+    expect(errors[1]).toHaveAttribute('hidden');
+
+    input.value = 'ab';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushUpdates();
+
+    expect(errors[0]).toHaveAttribute('hidden');
+    expect(errors[1]).not.toHaveAttribute('hidden');
+    expect(errors[1]).toHaveTextContent('custom error');
+
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushUpdates();
+
+    expect(errors[0]).not.toHaveAttribute('hidden');
+  });
+
+  it('applies aria-invalid to the generated input once validation finishes', async () => {
+    const view = render(html`
+      <form>
+        <field-root .validate=${() => 'error'}>
+          <field-control></field-control>
+          <field-error></field-error>
+        </field-root>
+      </form>
+    `);
+    await flushUpdates();
+
+    const form = view.querySelector('form') as HTMLFormElement;
+    const input = view.querySelector('input') as HTMLInputElement;
+
+    expect(input).not.toHaveAttribute('aria-invalid');
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushUpdates();
+
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('passes form values to validate as the second argument', async () => {
+    const validate = vi.fn(() => null);
+    const view = render(html`
+      <form>
+        <field-root .name=${'first'}>
+          <field-control .defaultValue=${'one'}></field-control>
+        </field-root>
+        <field-root .name=${'second'} .validate=${validate}>
+          <field-control .defaultValue=${'two'}></field-control>
+        </field-root>
+      </form>
+    `);
+    await flushUpdates();
+
+    const form = view.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushUpdates();
+
+    expect(validate).toHaveBeenCalledTimes(1);
+    expect(validate.mock.calls[0]?.[1]).toEqual({
+      first: 'one',
+      second: 'two',
+    });
   });
 
   it('blocks interaction inside a disabled field-item', async () => {

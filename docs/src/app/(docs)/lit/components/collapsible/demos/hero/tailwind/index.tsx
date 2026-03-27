@@ -1,3 +1,4 @@
+'use client';
 import * as React from 'react';
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@base-ui/lit/collapsible';
@@ -14,11 +15,15 @@ export default function ExampleCollapsible() {
 
     renderTemplate(
       html`<collapsible-root class="flex min-h-36 w-56 flex-col justify-center text-gray-900">
-        <collapsible-trigger class="group flex items-center gap-2 rounded-xs bg-gray-100 px-2 py-1 text-sm font-normal hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-blue-800 active:bg-gray-200">
+        <collapsible-trigger
+          class="group flex items-center gap-2 rounded-xs bg-gray-100 px-2 py-1 text-sm font-normal hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-blue-800 active:bg-gray-200"
+        >
           ${chevronIcon('size-3 transition-all ease-out group-data-[panel-open]:rotate-90')}
           Recovery keys
         </collapsible-trigger>
-        <collapsible-panel class="flex [&[hidden]:not([hidden='until-found'])]:hidden h-[var(--collapsible-panel-height)] flex-col justify-end overflow-hidden text-sm transition-all ease-out data-[ending-style]:h-0 data-[starting-style]:h-0 duration-150">
+        <collapsible-panel
+          class="flex [&[hidden]:not([hidden='until-found'])]:hidden h-[var(--collapsible-panel-height)] flex-col justify-end overflow-hidden text-sm transition-all ease-out data-[ending-style]:h-0 data-[starting-style]:h-0 duration-150"
+        >
           <div class="mt-1 flex cursor-text flex-col gap-2 rounded-xs bg-gray-100 py-2 pl-7">
             <div>alien-bean-pasta</div>
             <div>wild-irish-burrito</div>

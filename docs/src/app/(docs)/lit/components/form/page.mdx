@@ -8,6 +8,7 @@
 />
 
 import { DemoFormHero } from './demos/hero';
+import { TypesForm } from './types';
 
 <DemoFormHero />
 
@@ -29,9 +30,13 @@ Form is composed together with [Field](/lit/components/field). Import the custom
 
 ## Examples
 
+### Submit with a Server Function
+
+This pattern is React-specific and depends on framework-level Server Functions. Use `onSubmit` or `onFormSubmit` with the Lit custom-element API instead.
+
 ### Submit form values as a JavaScript object
 
-Use `.onFormSubmit` instead of the native `submit` event when you want collected form values as a JavaScript object:
+You can use `.onFormSubmit` instead of the native `submit` event to access form values as a JavaScript object. This is useful when you need to transform the values before submission, or integrate with 3rd party APIs.
 
 ```ts title="Submission using onFormSubmit"
 const formRoot = document.querySelector('form-root');
@@ -51,23 +56,30 @@ formRoot.onFormSubmit = async (formValues) => {
 
 When used, `preventDefault()` is called on the native submit event.
 
+### Using with Zod
+
+When parsing the schema using `schema.safeParse()`, `z.flattenError(result.error).fieldErrors` can be mapped to each field's `name`.
+
+```ts title="Using with Zod"
+import { z } from 'zod';
+
+const schema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  age: z.coerce.number('Age must be a number').positive('Age must be a positive number'),
+});
+
+const formRoot = document.querySelector('form-root');
+
+formRoot.onFormSubmit = async (formValues) => {
+  const result = schema.safeParse(formValues);
+
+  formRoot.errors = result.success ? {} : z.flattenError(result.error).fieldErrors;
+};
+```
+
 ## API reference
 
-### FormRootElement
-
-Custom element: `<form-root>`
-
-| Property          | Type                                       | Default      | Description                                                  |
-| ----------------- | ------------------------------------------ | ------------ | ------------------------------------------------------------ |
-| `.validationMode` | `'onSubmit' \| 'onBlur' \| 'onChange'`     | `'onSubmit'` | Determines when nested fields validate.                      |
-| `.errors`         | `Record<string, string \| string[]>`       | —            | External validation errors keyed by field name.              |
-| `.onFormSubmit`   | `(values, details) => void`                | —            | Called with collected form values after validation succeeds. |
-| `.actionsRef`     | `{ current: { validate(name?) } \| null }` | —            | Provides imperative validation actions.                      |
-
-## Notes
-
-- `form-root` enhances a nested native `<form>` and sets `noValidate` automatically.
-- Field-level `validationMode` still takes precedence over the form-level setting.
+<TypesForm />
 
 export const metadata = {
   keywords: ['Lit Form', 'Form validation', 'Form submission', 'Accessible Form', 'Base UI Lit'],

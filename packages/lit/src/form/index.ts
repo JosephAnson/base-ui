@@ -24,6 +24,11 @@ export interface FormActions {
 
 export interface FormProps {
   /**
+   * Whether native HTML validation should be disabled on the nested form.
+   * @default true
+   */
+  noValidate?: boolean | undefined;
+  /**
    * Determines when the form should be validated.
    * @default 'onSubmit'
    */
@@ -82,6 +87,18 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
   /** Validation mode inherited by child fields. */
   validationMode: FormValidationMode | undefined;
 
+  /** Whether native HTML validation should be disabled on the nested form. */
+  private noValidateValue = true;
+  get noValidate(): boolean {
+    return this.noValidateValue;
+  }
+  set noValidate(value: boolean | undefined) {
+    this.noValidateValue = value !== false;
+    if (this.formElement != null) {
+      this.formElement.noValidate = this.noValidateValue;
+    }
+  }
+
   /** Called on valid submit with collected form values. Prevents native submit. */
   onFormSubmit:
     | ((values: Record<string, unknown>, details: FormSubmitEventDetails) => void)
@@ -112,6 +129,11 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
   private pendingFocusInvalid = false;
   private pendingFocusQueued = false;
   private lastPublishedStateKey: string | null = null;
+
+  constructor() {
+    super();
+    this.noValidate = true;
+  }
 
   connectedCallback() {
     this.style.display = 'contents';
@@ -182,7 +204,7 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
 
     this.detachForm();
     this.formElement = form;
-    form.noValidate = true;
+    form.noValidate = this.noValidate;
     setFormRuntime(form, this);
     form.addEventListener('submit', this.handleSubmit);
     this.publishStateChange();

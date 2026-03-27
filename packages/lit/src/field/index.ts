@@ -18,6 +18,25 @@ const FIELD_ROOT_ATTRIBUTE = 'data-base-ui-field-root';
 const FIELD_STATE_CHANGE_EVENT = 'base-ui-field-state-change';
 const FIELD_RUNTIME = Symbol('base-ui-field-runtime');
 const BOOLEAN_CONTROL_ATTRIBUTE = 'data-base-ui-boolean-control';
+const FIELD_CONTROL_FORWARDED_ATTRIBUTES = [
+  'autocomplete',
+  'autofocus',
+  'class',
+  'inputmode',
+  'max',
+  'maxlength',
+  'min',
+  'minlength',
+  'pattern',
+  'placeholder',
+  'readonly',
+  'required',
+  'size',
+  'spellcheck',
+  'step',
+  'style',
+  'type',
+] as const;
 
 const DEFAULT_VALIDITY_STATE: ValidityStateObject = {
   badInput: false,
@@ -141,6 +160,15 @@ export interface FieldLabelProps {}
 export interface FieldDescriptionProps {}
 
 export interface FieldErrorProps {}
+export type FieldErrorMatch = boolean | keyof ValidityStateObject;
+
+export interface FieldErrorProps {
+  /**
+   * Determines whether to show the error message according to the field's validity state.
+   * Specifying `true` always shows the message and allows external code to control visibility.
+   */
+  match?: FieldErrorMatch | undefined;
+}
 
 export type FieldControlChangeEventReason = 'none';
 
@@ -473,7 +501,9 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
     const disabled = this.disabled || this._getFieldsetContext()?.disabled === true;
     const touched = this.touched ?? this._touched;
     const dirty = this.dirty ?? this._dirty;
-    const valid = this.invalid === true ? false : this._validityData.state.valid;
+    const formError = this.getFormError();
+    const hasFormError = Array.isArray(formError) ? formError.length > 0 : Boolean(formError);
+    const valid = this.invalid === true || hasFormError ? false : this._validityData.state.valid;
 
     return {
       disabled,
@@ -857,7 +887,13 @@ export class FieldRootElement extends BaseHTMLElement implements FieldRuntime {
       name: this.name ?? this.getControlTargets().validityTarget?.name ?? undefined,
       getControl: () => this.getControlTargets().focusTarget,
       getValue: () => getElementValue(this.getControlTargets().validityTarget),
-      getValidityData: () => this._validityData,
+      getValidityData: () => ({
+        ...this._validityData,
+        state: {
+          ...this._validityData.state,
+          valid: this.getFieldState().valid,
+        },
+      }),
       validate: (submitAttempted = true) => this._validateCurrentControl(submitAttempted),
     };
 
@@ -1023,9 +1059,15 @@ if (!customElements.get('field-root')) {
  * Documentation: [Base UI Field](https://base-ui.com/react/components/field)
  */
 export class FieldControlElement extends BaseHTMLElement {
+  static get observedAttributes() {
+    return FIELD_CONTROL_FORWARDED_ATTRIBUTES;
+  }
+
   private _root: FieldRootElement | null = null;
   private _input: HTMLInputElement | null = null;
   private _handler = () => this._syncAttributes();
+  private _forwardedClassName = '';
+  private _syncingClassAttribute = false;
 
   /** Callback fired when the `value` changes. Set via `.onValueChange=${fn}`. */
   onValueChange:
@@ -1036,6 +1078,7 @@ export class FieldControlElement extends BaseHTMLElement {
   defaultValue: string | number | readonly string[] | undefined;
 
   connectedCallback() {
+    this._forwardedClassName = this.getAttribute('class') ?? '';
     this.style.display = 'contents';
     this._root = this.closest('field-root') as FieldRootElement | null;
 
@@ -1053,6 +1096,7 @@ export class FieldControlElement extends BaseHTMLElement {
     }
 
     this._input.addEventListener('input', this._handleInput);
+    this._syncForwardedAttributes();
 
     if (this._root) {
       this._root.registerControl(this._input);
@@ -1071,6 +1115,13 @@ export class FieldControlElement extends BaseHTMLElement {
     this._root = null;
   }
 
+  attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null) {
+    if (name === 'class' && !this._syncingClassAttribute) {
+      this._forwardedClassName = newValue ?? '';
+    }
+    this._syncForwardedAttributes();
+  }
+
   private _handleInput = (event: Event) => {
     if (!this._input) {
       return;
@@ -1086,7 +1137,9 @@ export class FieldControlElement extends BaseHTMLElement {
     if (!this._root || !this._input) return;
     const state = this._root.getFieldState();
 
+    this._syncForwardedAttributes();
     this._input.disabled = state.disabled;
+    this._input.name = this._root.name ?? '';
     syncFieldPartStateAttributes(this, state);
     syncFieldPartStateAttributes(this._input, state);
 
@@ -1095,6 +1148,63 @@ export class FieldControlElement extends BaseHTMLElement {
     } else {
       this._input.removeAttribute('aria-invalid');
     }
+  }
+
+  private _syncForwardedAttributes() {
+    if (!this._input) {
+      return;
+    }
+
+    FIELD_CONTROL_FORWARDED_ATTRIBUTES.forEach((attribute) => {
+      if (attribute === 'class') {
+        this._input!.className = this._forwardedClassName;
+        if (this.getAttribute('class') != null) {
+          this._syncingClassAttribute = true;
+          this.removeAttribute('class');
+          this._syncingClassAttribute = false;
+        }
+        return;
+      }
+
+      if (attribute === 'style') {
+        const style = this.getAttribute('style');
+        if (style == null || style === '') {
+          this._input!.removeAttribute('style');
+        } else {
+          const forwardedStyle = this._getForwardedStyleValue();
+          if (forwardedStyle === '') {
+            this._input!.removeAttribute('style');
+          } else {
+            this._input!.setAttribute('style', forwardedStyle);
+          }
+        }
+        return;
+      }
+
+      if (this.hasAttribute(attribute)) {
+        const value = this.getAttribute(attribute);
+        if (value == null || value === '') {
+          this._input!.setAttribute(attribute, '');
+        } else {
+          this._input!.setAttribute(attribute, value);
+        }
+      } else {
+        this._input!.removeAttribute(attribute);
+      }
+    });
+  }
+
+  private _getForwardedStyleValue() {
+    const forwardedStyles = Array.from(this.style)
+      .filter((propertyName) => propertyName !== 'display')
+      .map((propertyName) => {
+        const value = this.style.getPropertyValue(propertyName);
+        const priority = this.style.getPropertyPriority(propertyName);
+        return `${propertyName}: ${value}${priority ? ` !${priority}` : ''};`;
+      })
+      .join(' ');
+
+    return forwardedStyles.trim();
   }
 }
 
@@ -1231,12 +1341,20 @@ if (!customElements.get('field-description')) {
  * Documentation: [Base UI Field](https://base-ui.com/react/components/field)
  */
 export class FieldErrorElement extends BaseHTMLElement {
+  static get observedAttributes() {
+    return ['match'];
+  }
+
+  match: FieldErrorMatch | undefined;
+
   private _root: FieldRootElement | null = null;
   private _handler = () => this._syncVisibility();
   private _syncing = false;
+  private _autoMessage = false;
 
   connectedCallback() {
     this._root = this.closest('field-root') as FieldRootElement | null;
+    this._syncMatchAttribute();
 
     ensureId(this, 'base-ui-field-error');
 
@@ -1256,6 +1374,13 @@ export class FieldErrorElement extends BaseHTMLElement {
     this._root = null;
   }
 
+  attributeChangedCallback(name: string) {
+    if (name === 'match') {
+      this._syncMatchAttribute();
+      this._syncVisibility();
+    }
+  }
+
   private _syncVisibility() {
     if (!this._root || this._syncing) return;
     this._syncing = true;
@@ -1265,31 +1390,20 @@ export class FieldErrorElement extends BaseHTMLElement {
       const formError = this._root.getFormError();
       const fieldState = this._root.getFieldState();
 
-      const shouldShow = formError != null || fieldState.valid === false;
+      let shouldShow = false;
+      if (formError != null || this.match === true) {
+        shouldShow = true;
+      } else if (typeof this.match === 'string') {
+        shouldShow = Boolean(validityData.state[this.match]);
+      } else {
+        shouldShow = fieldState.valid === false;
+      }
 
       if (shouldShow) {
         this.removeAttribute('hidden');
         this.style.display = '';
 
-        // Set content from error messages
-        const content =
-          formError != null
-            ? Array.isArray(formError)
-              ? formError.join(', ')
-              : formError
-            : validityData.errors.length > 0
-              ? validityData.errors.join(', ')
-              : validityData.error;
-
-        if (content && !this.hasChildNodes()) {
-          this.textContent = content;
-        } else if (
-          content &&
-          this.childNodes.length === 1 &&
-          this.firstChild?.nodeType === Node.TEXT_NODE
-        ) {
-          this.textContent = content;
-        }
+        this._syncMessageContent(formError, validityData);
 
         this._root.setErrorRendered(this.id, true);
       } else {
@@ -1302,6 +1416,65 @@ export class FieldErrorElement extends BaseHTMLElement {
     } finally {
       this._syncing = false;
     }
+  }
+
+  private _syncMatchAttribute() {
+    if (!this.hasAttribute('match')) {
+      this.match = undefined;
+      return;
+    }
+
+    const value = this.getAttribute('match');
+    if (value == null || value === '' || value === 'true') {
+      this.match = true;
+      return;
+    }
+
+    this.match = value as keyof ValidityStateObject;
+  }
+
+  private _syncMessageContent(
+    formError: string | string[] | null,
+    validityData: FieldValidityData,
+  ) {
+    const hasAuthorContent = this.hasChildNodes() && !this._autoMessage;
+    if (hasAuthorContent) {
+      return;
+    }
+
+    const messages =
+      formError != null
+        ? Array.isArray(formError)
+          ? formError
+          : [formError]
+        : validityData.errors.length > 0
+          ? validityData.errors
+          : validityData.error
+            ? [validityData.error]
+            : [];
+
+    if (messages.length === 0) {
+      if (this._autoMessage) {
+        this.replaceChildren();
+        this._autoMessage = false;
+      }
+      return;
+    }
+
+    if (messages.length === 1) {
+      this.textContent = messages[0] ?? '';
+      this._autoMessage = true;
+      return;
+    }
+
+    const list = document.createElement('ul');
+    messages.forEach((message) => {
+      const item = document.createElement('li');
+      item.textContent = message;
+      list.append(item);
+    });
+    this.replaceChildren(list);
+    this._autoMessage = true;
   }
 }
 
@@ -1481,6 +1654,7 @@ export namespace FieldDescription {
 }
 
 export namespace FieldError {
+  export type Match = FieldErrorMatch;
   export type Props = FieldErrorProps;
   export type State = FieldErrorState;
 }

@@ -28,7 +28,6 @@
 - Preview Card - ([Outline](#preview-card), [Contents](./preview-card/page.mdx))
 - Progress - ([Outline](#progress), [Contents](./progress/page.mdx))
 - Radio - ([Outline](#radio), [Contents](./radio/page.mdx))
-- Radio Group - ([Outline](#radio-group), [Contents](./radio-group/page.mdx))
 - Scroll Area - ([Outline](#scroll-area), [Contents](./scroll-area/page.mdx))
 - Select - ([Outline](#select), [Contents](./select/page.mdx))
 - Separator - ([Outline](#separator), [Contents](./separator/page.mdx))
@@ -64,13 +63,13 @@ A Lit accordion that composes collapsible panels with heading and trigger parts.
 
 ## Alert Dialog
 
-A modal dialog for important confirmations requiring user acknowledgment.
+A modal confirmation dialog for destructive actions in Lit.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Alert Dialog, Alert Dialog, Base UI Lit, Modal
+- Keywords: Lit Alert Dialog, Alert Dialog, Base UI Lit, Confirmation dialog
 - Sections:
   - Anatomy
   - Status
@@ -81,13 +80,13 @@ A modal dialog for important confirmations requiring user acknowledgment.
 
 ## Autocomplete
 
-A text input with suggestions and filtering.
+An autocomplete input with popup suggestions.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Autocomplete, Autocomplete, Base UI Lit, Typeahead
+- Keywords: Lit Autocomplete, Autocomplete, Base UI Lit
 - Sections:
   - Anatomy
   - Status
@@ -233,13 +232,13 @@ A collapsible panel controlled by a button.
 
 ## Combobox
 
-A filterable select with keyboard navigation.
+A combobox input with filterable popup options.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Combobox, Combobox, Base UI Lit, Filterable select
+- Keywords: Lit Combobox, Combobox, Base UI Lit
 - Sections:
   - Anatomy
   - Status
@@ -250,7 +249,7 @@ A filterable select with keyboard navigation.
 
 ## Context Menu
 
-A right-click context menu.
+A context menu triggered by right-click.
 
 <details>
 
@@ -284,13 +283,13 @@ A modal dialog overlay.
 
 ## Drawer
 
-A slide-in panel anchored to an edge of the viewport.
+A slide-in panel from the edge of the screen.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Drawer, Drawer, Base UI Lit, Side panel
+- Keywords: Lit Drawer, Drawer, Base UI Lit, Slide-in panel, Sheet
 - Sections:
   - Anatomy
   - Status
@@ -301,16 +300,43 @@ A slide-in panel anchored to an edge of the viewport.
 
 ## Field
 
-Field primitives for labeling, descriptions, and validation.
+A component that provides labeling and validation for form controls.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Field, Form field, Base UI Lit, Validation
+- Keywords: Lit Field Component, Form Field Labeling, Form Validation, Accessible Form Field, Base UI Lit
 - Sections:
   - Anatomy
-  - Status
+  - API reference
+    - Root
+    - Label
+    - Control
+    - Description
+    - Item
+    - Error
+    - Validity
+- Exports:
+  - Root
+    - Props: actionsRef, dirty, disabled, invalid, name, touched, validate, validationDebounceTime, validationMode
+    - Data Attributes: data-dirty, data-disabled, data-filled, data-focused, data-invalid, data-touched, data-valid
+  - Item
+    - Props: disabled
+    - Data Attributes: data-dirty, data-disabled, data-filled, data-focused, data-invalid, data-touched, data-valid
+  - Description
+    - Data Attributes: data-dirty, data-disabled, data-filled, data-focused, data-invalid, data-touched, data-valid
+  - Control
+    - Props: defaultValue, onValueChange
+    - Data Attributes: data-dirty, data-disabled, data-filled, data-focused, data-invalid, data-touched, data-valid
+  - Label
+    - Data Attributes: data-dirty, data-disabled, data-filled, data-focused, data-invalid, data-touched, data-valid
+  - Error
+    - Props: match
+    - Data Attributes: data-dirty, data-disabled, data-filled, data-focused, data-invalid, data-touched, data-valid
+  - Validity
+    - Props: renderValidity
+- Types: Control.ChangeEventDetails, Control.ChangeEventReason, Control.DataAttributes, Control.Props, Control.State, ControlApiProps, Description.DataAttributes, Description.Props, Description.State, DescriptionApiProps, Error.DataAttributes, Error.Match, Error.Props, Error.State, ErrorApiProps, Field, Item.DataAttributes, Item.Props, Item.State, ItemApiProps, Label.DataAttributes, Label.Props, Label.State, LabelApiProps, Root.Actions, Root.DataAttributes, Root.Props, Root.State, RootApiProps, ValidationMode, Validity.Props, Validity.State, ValidityApiProps
 
 </details>
 
@@ -318,16 +344,22 @@ Field primitives for labeling, descriptions, and validation.
 
 ## Fieldset
 
-Fieldset primitives for grouped controls in Lit.
+A native fieldset element with an easily stylable legend.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Fieldset, Fieldset, Base UI Lit
+- Keywords: Lit Fieldset, Fieldset, Fieldset Legend, Accessible Fieldset, Base UI Lit
 - Sections:
   - Anatomy
-  - Status
+  - API reference
+    - Root
+    - Legend
+- Exports:
+  - Root
+  - Legend
+- Types: Fieldset, Legend.Props, Legend.State, LegendApiProps, Root.Props, Root.State, RootApiProps
 
 </details>
 
@@ -335,16 +367,24 @@ Fieldset primitives for grouped controls in Lit.
 
 ## Form
 
-A native form element with consolidated error handling in Lit.
+A native form element with consolidated error handling.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Form, Form validation, Form submission, Base UI Lit
+- Keywords: Lit Form, Form validation, Form submission, Accessible Form, Base UI Lit
 - Sections:
   - Anatomy
-  - Status
+  - Examples
+    - Submit with a Server Function
+    - Submit form values as a JavaScript object
+    - Using with Zod
+  - API reference
+- Exports:
+  - Form
+    - Props: actionsRef, errors, noValidate, onFormSubmit, validationMode
+- Types: Form.Actions, Form.Props, Form.State, Form.SubmitEventDetails, Form.SubmitEventReason, Form.ValidationMode, Form.Values, FormApiProps
 
 </details>
 
@@ -375,7 +415,7 @@ A native input element that automatically works with [Field](/lit/components/fie
 
 ## Menu
 
-A list of actions in a dropdown.
+A list of actions in a dropdown, rendered from Lit templates.
 
 <details>
 
@@ -383,6 +423,7 @@ A list of actions in a dropdown.
 
 - Keywords: Lit Menu, Menu, Base UI Lit
 - Sections:
+  - Open On Hover
   - Anatomy
   - Status
 
@@ -392,7 +433,7 @@ A list of actions in a dropdown.
 
 ## Menubar
 
-A horizontal menu bar with multiple dropdown menus.
+A horizontal menu bar for Lit templates.
 
 <details>
 
@@ -440,13 +481,13 @@ A graphical display of a numeric value within a range.
 
 ## Navigation Menu
 
-A site navigation component with submenus.
+A navigation menu with submenus and viewport transitions.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Navigation Menu, Navigation Menu, Base UI Lit, Site navigation
+- Keywords: Lit Navigation Menu, Navigation Menu, Base UI Lit, Nav menu
 - Sections:
   - Anatomy
   - Status
@@ -457,13 +498,13 @@ A site navigation component with submenus.
 
 ## Number Field
 
-A numeric input with increment and decrement controls.
+A numeric input with increment/decrement controls.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Number Field, Number Field, Base UI Lit, Numeric input
+- Keywords: Lit Number Field, Number Field, Base UI Lit, Numeric input, Spinner
 - Sections:
   - Anatomy
   - Status
@@ -474,14 +515,15 @@ A numeric input with increment and decrement controls.
 
 ## Popover
 
-A popup anchored to a trigger element.
+An anchored popup for Lit templates.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Popover, Popover, Base UI Lit, Popup
+- Keywords: Lit Popover, Popover, Base UI Lit
 - Sections:
+  - Open On Hover
   - Anatomy
   - Status
 
@@ -491,16 +533,18 @@ A popup anchored to a trigger element.
 
 ## Preview Card
 
-A card popup that appears on hover with link preview content.
+A popup that appears when a link is hovered or focused, showing a visual preview.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Preview Card, Preview Card, Base UI Lit, Link preview
+- Keywords: Lit Preview Card, Preview Card, Base UI Lit
 - Sections:
+  - Detached Triggers
+  - Multiple Triggers
+  - Controlled
   - Anatomy
-  - Status
 
 </details>
 
@@ -544,41 +588,27 @@ Displays the status of a task that takes a long time.
 
 ## Radio
 
-Radio and radio group primitives for Lit templates.
+An individual radio control used inside a radio group.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Radio, Radio Group, Base UI Lit
+- Keywords: Lit Radio, Radio, Radio Group, Form Controls, Base UI Lit
 - Sections:
   - Anatomy
-  - Status
+  - API reference
+    - RadioRootElement
+    - RadioIndicatorElement
+  - Data attributes
 
 </details>
 
 [Read more](./radio/page.mdx)
 
-## Radio Group
-
-A group of radio buttons for selecting a single option.
-
-<details>
-
-<summary>Outline</summary>
-
-- Keywords: Lit Radio Group, Radio Group, Base UI Lit
-- Sections:
-  - Anatomy
-  - Status
-
-</details>
-
-[Read more](./radio-group/page.mdx)
-
 ## Scroll Area
 
-A scrollable container with custom scrollbars.
+A custom scrollbar overlay for scrollable content.
 
 <details>
 
@@ -595,7 +625,7 @@ A scrollable container with custom scrollbars.
 
 ## Select
 
-A dropdown select for picking a single value.
+A dropdown select menu.
 
 <details>
 
@@ -787,8 +817,10 @@ A popup that appears when an element is hovered or focused.
 
 - Keywords: Lit Tooltip, Tooltip, Base UI Lit
 - Sections:
+  - Detached Triggers
+  - Multiple Triggers
+  - Controlled
   - Anatomy
-  - Status
 
 </details>
 

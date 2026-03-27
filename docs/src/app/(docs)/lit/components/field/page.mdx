@@ -8,6 +8,7 @@
 />
 
 import { DemoFieldHero } from './demos/hero';
+import { TypesField } from './types';
 
 <DemoFieldHero />
 
@@ -28,78 +29,33 @@ Import the custom elements and assemble the parts:
 
 ## API reference
 
-### FieldRootElement
+### Root
 
-Custom element: `<field-root>`
+<TypesField.Root />
 
-| Property                  | Type                                                                | Default      | Description                                              |
-| ------------------------- | ------------------------------------------------------------------- | ------------ | -------------------------------------------------------- |
-| `disabled`                | `boolean`                                                           | `false`      | Whether the field should ignore user interaction.        |
-| `.name`                   | `string \| undefined`                                               | —            | Identifies the field when a parent form collects values. |
-| `.validate`               | `(value, formValues) => string \| string[] \| null \| Promise<...>` | —            | Custom validation callback.                              |
-| `.validationMode`         | `'onSubmit' \| 'onBlur' \| 'onChange'`                              | `'onSubmit'` | Determines when validation runs.                         |
-| `.validationDebounceTime` | `number`                                                            | `0`          | Debounces validation in `onChange` mode.                 |
-| `.invalid`                | `boolean \| undefined`                                              | —            | Forces the field into an invalid visual state.           |
-| `.dirty`                  | `boolean \| undefined`                                              | —            | Controls the dirty state.                                |
-| `.touched`                | `boolean \| undefined`                                              | —            | Controls the touched state.                              |
-| `.actionsRef`             | `{ current: { validate() } \| null }`                               | —            | Exposes imperative field actions.                        |
+### Label
 
-### FieldLabelElement
+<TypesField.Label />
 
-Custom element: `<field-label>`
+### Control
 
-Associated label content for the field control. Clicking the label focuses the generated control.
+<TypesField.Control />
 
-### FieldControlElement
+### Description
 
-Custom element: `<field-control>`
+<TypesField.Description />
 
-Renders a native `<input>` inside the custom element and mirrors the field state with data attributes.
+### Item
 
-| Property         | Type                                                 | Default | Description                                    |
-| ---------------- | ---------------------------------------------------- | ------- | ---------------------------------------------- |
-| `.defaultValue`  | `string \| number \| readonly string[] \| undefined` | —       | Initial value for the generated input.         |
-| `.onValueChange` | `(value, details) => void`                           | —       | Called when the generated input value changes. |
+<TypesField.Item />
 
-### FieldDescriptionElement
+### Error
 
-Custom element: `<field-description>`
+<TypesField.Error />
 
-Registers descriptive content and wires it to the control through `aria-describedby`.
+### Validity
 
-### FieldItemElement
-
-Custom element: `<field-item>`
-
-| Attribute / Property | Type      | Default | Description                                             |
-| -------------------- | --------- | ------- | ------------------------------------------------------- |
-| `disabled`           | `boolean` | `false` | Blocks interaction for wrapped checkbox or radio items. |
-
-### FieldErrorElement
-
-Custom element: `<field-error>`
-
-Displays the current validation or form error and participates in `aria-describedby` when rendered.
-
-### FieldValidityElement
-
-Custom element: `<field-validity>`
-
-| Property          | Type                 | Default | Description                                       |
-| ----------------- | -------------------- | ------- | ------------------------------------------------- |
-| `.renderValidity` | `(state) => unknown` | —       | Called whenever the field validity state changes. |
-
-## Data attributes
-
-`field-root`, `field-control`, `field-label`, `field-description`, `field-error`, and `field-item` can receive:
-
-- `data-disabled`
-- `data-touched`
-- `data-dirty`
-- `data-focused`
-- `data-filled`
-- `data-valid`
-- `data-invalid`
+<TypesField.Validity />
 
 export const metadata = {
   keywords: [

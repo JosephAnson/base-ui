@@ -8,12 +8,13 @@
 />
 
 import { DemoFieldsetHero } from './demos/hero';
+import { TypesFieldset } from './types';
 
 <DemoFieldsetHero />
 
 ## Anatomy
 
-Import the custom elements and assemble the parts:
+Import the custom elements and assemble their parts:
 
 ```html title="Anatomy"
 <fieldset-root>
@@ -21,32 +22,15 @@ Import the custom elements and assemble the parts:
 </fieldset-root>
 ```
 
-## Usage guidelines
-
-- Use `fieldset-root` to group related controls under a shared label.
-- Use `fieldset-legend` as the accessible label for the group instead of separate heading-only text.
-
 ## API reference
 
-### FieldsetRootElement
+### Root
 
-Custom element: `<fieldset-root>`
+<TypesFieldset.Root />
 
-| Attribute  | Type      | Default | Description                                           |
-| ---------- | --------- | ------- | ----------------------------------------------------- |
-| `disabled` | `boolean` | `false` | Whether the component should ignore user interaction. |
+### Legend
 
-### FieldsetLegendElement
-
-Custom element: `<fieldset-legend>`
-
-Accessible legend associated with the nearest `fieldset-root`.
-
-### Data attributes
-
-`<fieldset-root>` and `<fieldset-legend>` receive:
-
-- `data-disabled`
+<TypesFieldset.Legend />
 
 export const metadata = {
   keywords: ['Lit Fieldset', 'Fieldset', 'Fieldset Legend', 'Accessible Fieldset', 'Base UI Lit'],
