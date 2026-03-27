@@ -136,7 +136,7 @@ describe('meter', () => {
     await waitForUpdate();
 
     const value = view.querySelector('[data-testid="value"]') as HTMLElement;
-    expect(value.textContent).toBe((0.3).toLocaleString(undefined, { style: 'percent' }));
+    expect(value.textContent).toBe(new Intl.NumberFormat().format(30));
     expect(value).toHaveAttribute('aria-hidden', 'true');
   });
 

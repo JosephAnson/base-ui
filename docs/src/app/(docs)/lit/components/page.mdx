@@ -203,16 +203,29 @@ A shared-state checkbox group for Lit templates.
 
 ## Collapsible
 
-An animated collapsible section.
+A collapsible panel controlled by a button.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Collapsible, Collapsible, Base UI Lit, Expandable
+- Keywords: Lit Collapsible, Collapsible, Disclosure, Expandable Panel, Base UI Lit
 - Sections:
   - Anatomy
-  - Status
+  - API reference
+    - Root
+    - Trigger
+    - Panel
+- Exports:
+  - Root
+    - Props: defaultOpen, disabled, onOpenChange, open
+  - Trigger
+    - Data Attributes: data-panel-open
+  - Panel
+    - Props: hiddenUntilFound, keepMounted
+    - Data Attributes: data-closed, data-ending-style, data-open, data-starting-style
+    - CSS Variables: --collapsible-panel-height, --collapsible-panel-width
+- Types: Collapsible, Panel.CssVars, Panel.DataAttributes, Panel.Props, Panel.State, PanelApiProps, Root.ChangeEventDetails, Root.ChangeEventReason, Root.Props, Root.State, RootApiProps, TransitionStatus, Trigger.DataAttributes, Trigger.Props, Trigger.State, TriggerApiProps
 
 </details>
 
@@ -396,16 +409,30 @@ A horizontal menu bar with multiple dropdown menus.
 
 ## Meter
 
-A semantic meter for bounded values.
+A graphical display of a numeric value within a range.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Meter, Meter, Base UI Lit, Range indicator
+- Keywords: Lit Meter, Meter Component, Gauge, Level Indicator, Accessible Meter, Base UI Lit
 - Sections:
   - Anatomy
-  - Status
+  - API reference
+    - Root
+    - Track
+    - Indicator
+    - Value
+    - Label
+- Exports:
+  - Root
+    - Props: aria-valuetext, format, getAriaValueText, locale, max, min, value
+  - Value
+    - Props: renderValue
+  - Indicator
+  - Track
+  - Label
+- Types: Indicator.Props, Indicator.State, IndicatorApiProps, Label.Props, Label.State, LabelApiProps, Meter, Root.Props, Root.State, RootApiProps, Track.Props, Track.State, TrackApiProps, Value.Props, Value.State, ValueApiProps
 
 </details>
 
@@ -481,16 +508,35 @@ A card popup that appears on hover with link preview content.
 
 ## Progress
 
-A progress indicator for determinate loading states.
+Displays the status of a task that takes a long time.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Progress, Progress, Base UI Lit, Loading state
+- Keywords: Lit Progress, Progress Bar, Progress Indicator, Indeterminate Progress, Accessible Progress, Base UI Lit
 - Sections:
   - Anatomy
-  - Status
+  - API reference
+    - Root
+    - Track
+    - Indicator
+    - Value
+    - Label
+- Exports:
+  - Root
+    - Props: aria-valuetext, format, getAriaValueText, locale, max, min, value
+    - Data Attributes: data-complete, data-indeterminate, data-progressing
+  - Value
+    - Props: renderValue
+    - Data Attributes: data-complete, data-indeterminate, data-progressing
+  - Indicator
+    - Data Attributes: data-complete, data-indeterminate, data-progressing
+  - Track
+    - Data Attributes: data-complete, data-indeterminate, data-progressing
+  - Label
+    - Data Attributes: data-complete, data-indeterminate, data-progressing
+- Types: Indicator.DataAttributes, Indicator.Props, Indicator.State, IndicatorApiProps, Label.DataAttributes, Label.Props, Label.State, LabelApiProps, Progress, ProgressStatus, Root.DataAttributes, Root.Props, Root.State, RootApiProps, Track.DataAttributes, Track.Props, Track.State, TrackApiProps, Value.DataAttributes, Value.Props, Value.State, ValueApiProps
 
 </details>
 
@@ -604,16 +650,31 @@ A range slider for selecting numeric values.
 
 ## Switch
 
-A two-state switch for Lit templates.
+A control that indicates whether a setting is on or off.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Switch, Switch, Base UI Lit, Toggle switch
+- Keywords: Lit Switch, Toggle Switch Component, Toggle Switch, Toggle Button, On/Off Control, On Off Switch, Binary Switch, Checkbox Alternative, Form Toggle Control, Accessible Switch, Headless Lit Components, Base UI
 - Sections:
+  - Usage guidelines
   - Anatomy
-  - Status
+  - Examples
+    - Labeling a switch
+    - Rendering as a native button
+    - Form integration
+  - API reference
+    - Root
+    - Thumb
+- Exports:
+  - Root
+    - Props: checked, defaultChecked, disabled, form, id, inputRef, name, nativeButton, onCheckedChange, readOnly, render, required, uncheckedValue, value
+    - Data Attributes: data-checked, data-dirty, data-disabled, data-filled, data-focused, data-invalid, data-readonly, data-required, data-touched, data-unchecked, data-valid
+  - Thumb
+    - Props: render
+    - Data Attributes: data-checked, data-dirty, data-disabled, data-filled, data-focused, data-invalid, data-readonly, data-required, data-touched, data-unchecked, data-valid
+- Types: Root.ChangeEventDetails, Root.ChangeEventReason, Root.DataAttributes, Root.Props, Root.State, RootApiProps, Switch, Thumb.DataAttributes, Thumb.Props, Thumb.State, ThumbApiProps
 
 </details>
 

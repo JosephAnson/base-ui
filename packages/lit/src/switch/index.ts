@@ -1,9 +1,13 @@
 import { ReactiveElement } from 'lit';
+import { useRender } from '../use-render';
+import { applyButtonBehavior } from '../use-button';
 import { BaseHTMLElement, ensureId } from '../utils';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
 const STATE_CHANGE_EVENT = 'base-ui-switch-state-change';
+const FIELD_STATE_CHANGE_EVENT = 'base-ui-field-state-change';
+const BOOLEAN_CONTROL_ATTRIBUTE = 'data-base-ui-boolean-control';
 const CONTEXT_ERROR =
   'Base UI: SwitchRootContext is missing. Switch parts must be placed within <switch-root>.';
 const VISUALLY_HIDDEN_INPUT_STYLE =
@@ -14,6 +18,26 @@ const VISUALLY_HIDDEN_STYLE =
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
 export interface SwitchRootState {
+  /**
+   * Whether the field has been touched.
+   */
+  touched: boolean;
+  /**
+   * Whether the value differs from the initial value.
+   */
+  dirty: boolean;
+  /**
+   * Whether the control is currently focused.
+   */
+  focused: boolean;
+  /**
+   * Whether the field currently has a value.
+   */
+  filled: boolean;
+  /**
+   * The field validity state.
+   */
+  valid: boolean | null;
   /**
    * Whether the switch is currently active.
    */
@@ -61,6 +85,10 @@ export interface SwitchRootProps {
    */
   disabled?: boolean | undefined;
   /**
+   * A ref to access the hidden `<input>` element.
+   */
+  inputRef?: Ref<HTMLInputElement> | undefined;
+  /**
    * Identifies the field when a form is submitted.
    */
   name?: string | undefined;
@@ -98,6 +126,45 @@ export interface SwitchRootProps {
 }
 
 export interface SwitchThumbProps {}
+
+type RefObject<T> = {
+  current: T | null;
+};
+
+type RefCallback<T> = (instance: T | null) => void;
+
+type Ref<T> = RefCallback<T> | RefObject<T> | null | undefined;
+
+type FieldState = {
+  disabled: boolean;
+  touched: boolean;
+  dirty: boolean;
+  focused: boolean;
+  filled: boolean;
+  valid: boolean | null;
+};
+
+type FieldRuntimeLike = {
+  name?: string | undefined;
+  getFieldState(): FieldState;
+  registerControl(element: HTMLElement | null): void;
+  unregisterControl(element: HTMLElement | null): void;
+  handleControlFocus(): void;
+  handleControlBlur(element: HTMLInputElement): void;
+  handleControlInput(element: HTMLInputElement, currentValue: unknown, nativeEvent: Event): void;
+};
+
+interface SwitchHelperRootProps
+  extends SwitchRootProps, useRender.ComponentProps<'span', SwitchRootState> {
+  /**
+   * Whether the rendered element should be treated as a native `<button>`.
+   * Set to `true` when replacing the default element with a native button via `render`.
+   * @default false
+   */
+  nativeButton?: boolean | undefined;
+}
+
+interface SwitchHelperThumbProps extends useRender.ComponentProps<'span', SwitchThumbState> {}
 
 export type SwitchRootChangeEventReason = SwitchRootChangeEventDetails['reason'];
 
@@ -213,6 +280,11 @@ export class SwitchRootElement extends ReactiveElement {
 
   getState(): SwitchRootState {
     return {
+      touched: false,
+      dirty: false,
+      focused: false,
+      filled: this.getChecked(),
+      valid: null,
       checked: this.getChecked(),
       disabled: this.disabled,
       readOnly: this.readOnly,
@@ -226,6 +298,7 @@ export class SwitchRootElement extends ReactiveElement {
       this.inputElement.type = 'checkbox';
       this.inputElement.tabIndex = -1;
       this.inputElement.setAttribute('aria-hidden', 'true');
+      this.inputElement.setAttribute(BOOLEAN_CONTROL_ATTRIBUTE, '');
       this.inputElement.addEventListener('change', this.handleInputChange);
       this.inputElement.addEventListener('focus', () => this.focus());
       this.inputElement.addEventListener('click', (event) => {
@@ -571,9 +644,99 @@ if (!customElements.get('switch-thumb')) {
   customElements.define('switch-thumb', SwitchThumbElement);
 }
 
+/**
+ * Represents the switch itself.
+ * Renders a `<span>` element by default and manages a hidden checkbox input.
+ *
+ * Documentation: [Base UI Switch](https://base-ui.com/react/components/switch)
+ */
+function SwitchRootHelper(props: SwitchHelperRootProps) {
+  const {
+    'aria-labelledby': ariaLabelledBy,
+    checked,
+    defaultChecked = false,
+    disabled = false,
+    form,
+    id,
+    inputRef,
+    name,
+    nativeButton = false,
+    onCheckedChange,
+    readOnly = false,
+    render,
+    role,
+    required = false,
+    uncheckedValue,
+    value,
+    ...elementProps
+  } = props;
+
+  const state: SwitchRootState = {
+    touched: false,
+    dirty: false,
+    focused: false,
+    filled: checked ?? defaultChecked,
+    valid: null,
+    checked: checked ?? defaultChecked,
+    disabled,
+    readOnly,
+    required,
+  };
+
+  return useRender({
+    defaultTagName: nativeButton ? 'button' : 'span',
+    render,
+    state,
+    ref: createSwitchBehaviorRef({
+      ariaLabelledBy,
+      checked,
+      defaultChecked,
+      disabled,
+      form,
+      id,
+      inputRef,
+      name,
+      nativeButton,
+      onCheckedChange,
+      role,
+      readOnly,
+      required,
+      uncheckedValue,
+      value,
+    }),
+    props: {
+      'data-base-ui-switch-root': '',
+      ...elementProps,
+    },
+  });
+}
+
+/**
+ * The movable part of the switch that indicates whether the switch is on or off.
+ * Renders a `<span>` by default.
+ */
+function SwitchThumbHelper(props: SwitchHelperThumbProps) {
+  const { render, ...elementProps } = props;
+
+  return useRender({
+    defaultTagName: 'span',
+    render,
+    state: {
+      checked: false,
+      disabled: false,
+      readOnly: false,
+      required: false,
+    } satisfies SwitchThumbState,
+    props: {
+      'data-base-ui-switch-thumb': '',
+      ...elementProps,
+    },
+  });
+}
+
 export const Switch = {
-  Root: SwitchRootElement,
-  Thumb: SwitchThumbElement,
+  Root: SwitchRootHelper,
+  Thumb: SwitchThumbHelper,
 } as const;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -597,6 +760,514 @@ function createChangeEventDetails(event: Event): SwitchRootChangeEventDetails {
       return isPropagationAllowed;
     },
     reason: 'none',
+  };
+}
+
+function createSwitchBehaviorRef(options: {
+  ariaLabelledBy: string | undefined;
+  checked: boolean | undefined;
+  defaultChecked: boolean;
+  disabled: boolean;
+  form: string | undefined;
+  id: string | undefined;
+  inputRef: Ref<HTMLInputElement> | undefined;
+  name: string | undefined;
+  nativeButton: boolean;
+  onCheckedChange:
+    | ((checked: boolean, eventDetails: SwitchRootChangeEventDetails) => void)
+    | undefined;
+  role: string | undefined;
+  readOnly: boolean;
+  required: boolean;
+  uncheckedValue: string | undefined;
+  value: string | undefined;
+}) {
+  let cleanupButtonBehavior: (() => void) | null = null;
+  let element: HTMLElement | null = null;
+  let hiddenInput: HTMLInputElement | null = null;
+  let uncheckedInput: HTMLInputElement | null = null;
+  let internalChecked = options.defaultChecked;
+  let explicitLabels = new Set<HTMLElement>();
+  let fieldRoot: FieldRuntimeLike | null = null;
+  let fieldRootElement: HTMLElement | null = null;
+  let lastFieldValue: boolean | null = null;
+  let ignoreNextHiddenInputChange = false;
+
+  const defaultFieldState: FieldState = {
+    disabled: false,
+    touched: false,
+    dirty: false,
+    focused: false,
+    filled: false,
+    valid: null,
+  };
+
+  function assignRef<T>(ref: Ref<T>, instance: T | null) {
+    if (ref == null) {
+      return;
+    }
+
+    if (typeof ref === 'function') {
+      ref(instance);
+      return;
+    }
+
+    ref.current = instance;
+  }
+
+  function getChecked() {
+    return options.checked ?? internalChecked;
+  }
+
+  function getFieldState() {
+    return fieldRoot?.getFieldState() ?? defaultFieldState;
+  }
+
+  function getDisabled() {
+    return options.disabled || getFieldState().disabled;
+  }
+
+  function getName() {
+    return options.name ?? fieldRoot?.name;
+  }
+
+  function getState(): SwitchRootState {
+    const fieldState = getFieldState();
+    return {
+      ...fieldState,
+      checked: getChecked(),
+      disabled: getDisabled(),
+      readOnly: options.readOnly,
+      required: options.required,
+    };
+  }
+
+  function handleExplicitLabelClick(event: MouseEvent) {
+    if (event.defaultPrevented || getDisabled() || options.readOnly) {
+      return;
+    }
+
+    if (event.target === hiddenInput) {
+      return;
+    }
+
+    event.preventDefault();
+    element?.click();
+  }
+
+  function handleHiddenInputChange(event: Event) {
+    if (event.defaultPrevented) {
+      return;
+    }
+
+    const input = event.currentTarget as HTMLInputElement;
+
+    if (ignoreNextHiddenInputChange) {
+      ignoreNextHiddenInputChange = false;
+      input.checked = getChecked();
+      return;
+    }
+
+    if (getDisabled() || options.readOnly) {
+      input.checked = getChecked();
+      return;
+    }
+
+    const nextChecked = input.checked;
+    const eventDetails = createChangeEventDetails(event);
+    options.onCheckedChange?.(nextChecked, eventDetails);
+
+    if (eventDetails.isCanceled) {
+      input.checked = getChecked();
+      return;
+    }
+
+    if (options.checked === undefined) {
+      internalChecked = nextChecked;
+    }
+
+    sync();
+    syncFieldValue(event);
+  }
+
+  function handleFieldStateChange() {
+    sync();
+  }
+
+  function handleFocus() {
+    fieldRoot?.handleControlFocus();
+  }
+
+  function handleBlur() {
+    if (hiddenInput != null) {
+      fieldRoot?.handleControlBlur(hiddenInput);
+    }
+  }
+
+  const cleanupExplicitLabels = () => {
+    explicitLabels.forEach((label) => {
+      label.removeEventListener('click', handleExplicitLabelClick);
+    });
+    explicitLabels.clear();
+  };
+
+  const removeManagedInputs = () => {
+    if (fieldRoot != null && hiddenInput != null) {
+      fieldRoot.unregisterControl(hiddenInput);
+    }
+
+    assignRef(options.inputRef, null);
+    hiddenInput?.remove();
+    hiddenInput = null;
+    uncheckedInput?.remove();
+    uncheckedInput = null;
+    lastFieldValue = null;
+  };
+
+  function getLabelTargetId() {
+    if (options.id == null || options.id === '') {
+      return undefined;
+    }
+
+    return options.nativeButton ? element?.id : hiddenInput?.id;
+  }
+
+  function syncThumbState() {
+    if (element == null) {
+      return;
+    }
+
+    const state = getState();
+    const thumbs = element.querySelectorAll<HTMLElement>('[data-base-ui-switch-thumb]');
+
+    thumbs.forEach((thumb) => {
+      thumb.toggleAttribute('data-checked', state.checked);
+      thumb.toggleAttribute('data-unchecked', !state.checked);
+      thumb.toggleAttribute('data-disabled', state.disabled);
+      thumb.toggleAttribute('data-readonly', state.readOnly);
+      thumb.toggleAttribute('data-required', state.required);
+    });
+  }
+
+  function syncAriaLabelledBy() {
+    if (element == null) {
+      return;
+    }
+
+    const labels = new Set<HTMLElement>();
+    const wrappingLabel = element.closest('label');
+
+    if (wrappingLabel instanceof HTMLLabelElement) {
+      labels.add(wrappingLabel);
+    }
+
+    if (hiddenInput?.labels != null) {
+      Array.from(hiddenInput.labels).forEach((label) => labels.add(label));
+    }
+
+    fieldRootElement
+      ?.querySelectorAll<HTMLElement>('field-label[id]')
+      .forEach((label) => labels.add(label));
+
+    const labelTargetId = getLabelTargetId();
+    if (labelTargetId) {
+      const escapedId = globalThis.CSS?.escape?.(labelTargetId) ?? labelTargetId;
+      document
+        .querySelectorAll<HTMLElement>(`[for="${escapedId}"]`)
+        .forEach((label) => labels.add(label));
+    }
+
+    labels.forEach((label) => {
+      explicitLabels.add(label);
+    });
+
+    const labelIds = Array.from(labels)
+      .map((label) => ensureId(label, 'base-ui-switch-label'))
+      .filter(Boolean);
+    const explicitIds =
+      options.ariaLabelledBy
+        ?.split(/\s+/)
+        .map((value) => value.trim())
+        .filter(Boolean) ?? [];
+    const mergedIds = [...new Set([...explicitIds, ...labelIds])];
+
+    if (mergedIds.length > 0) {
+      element.setAttribute('aria-labelledby', mergedIds.join(' '));
+    } else {
+      element.removeAttribute('aria-labelledby');
+    }
+  }
+
+  function syncExplicitLabels() {
+    if (element == null) {
+      cleanupExplicitLabels();
+      return;
+    }
+
+    const nextLabels = new Set<HTMLElement>();
+    const targetId = getLabelTargetId();
+
+    if (targetId) {
+      const escapedId = globalThis.CSS?.escape?.(targetId) ?? targetId;
+      document
+        .querySelectorAll<HTMLElement>(`[for="${escapedId}"]`)
+        .forEach((label) => nextLabels.add(label));
+    }
+
+    explicitLabels.forEach((label) => {
+      if (label instanceof HTMLLabelElement && !nextLabels.has(label)) {
+        label.removeEventListener('click', handleExplicitLabelClick);
+      }
+    });
+
+    nextLabels.forEach((label) => {
+      if (label instanceof HTMLLabelElement && !explicitLabels.has(label)) {
+        label.addEventListener('click', handleExplicitLabelClick);
+      }
+    });
+
+    explicitLabels = nextLabels;
+  }
+
+  function syncHiddenInput() {
+    if (element == null || element.parentNode == null) {
+      removeManagedInputs();
+      return;
+    }
+
+    if (hiddenInput == null) {
+      hiddenInput = document.createElement('input');
+      hiddenInput.type = 'checkbox';
+      hiddenInput.tabIndex = -1;
+      hiddenInput.setAttribute('aria-hidden', 'true');
+      hiddenInput.setAttribute(BOOLEAN_CONTROL_ATTRIBUTE, '');
+      hiddenInput.addEventListener('change', handleHiddenInputChange);
+      hiddenInput.addEventListener('focus', () => element?.focus());
+      hiddenInput.addEventListener('click', (event) => {
+        if (getDisabled() || options.readOnly) {
+          event.preventDefault();
+        }
+      });
+    }
+
+    if (hiddenInput.parentNode !== element.parentNode) {
+      element.parentNode.insertBefore(hiddenInput, element.nextSibling);
+    } else if (hiddenInput.previousSibling !== element) {
+      element.parentNode.insertBefore(hiddenInput, element.nextSibling);
+    }
+
+    hiddenInput.checked = getChecked();
+    hiddenInput.disabled = getDisabled();
+    hiddenInput.required = options.required;
+    hiddenInput.style.cssText = getName() ? VISUALLY_HIDDEN_INPUT_STYLE : VISUALLY_HIDDEN_STYLE;
+
+    if (getName()) {
+      hiddenInput.name = getName() as string;
+    } else {
+      hiddenInput.removeAttribute('name');
+    }
+
+    if (options.form) {
+      hiddenInput.setAttribute('form', options.form);
+    } else {
+      hiddenInput.removeAttribute('form');
+    }
+
+    if (options.value !== undefined) {
+      hiddenInput.value = options.value;
+    } else {
+      hiddenInput.removeAttribute('value');
+    }
+
+    if (!options.nativeButton && options.id) {
+      hiddenInput.id = options.id;
+    } else {
+      hiddenInput.removeAttribute('id');
+    }
+
+    assignRef(options.inputRef, hiddenInput);
+
+    if (!getChecked() && getName() && options.uncheckedValue !== undefined) {
+      if (uncheckedInput == null) {
+        uncheckedInput = document.createElement('input');
+        uncheckedInput.type = 'hidden';
+      }
+
+      if (uncheckedInput.parentNode !== element.parentNode) {
+        element.parentNode.insertBefore(uncheckedInput, hiddenInput.nextSibling);
+      } else if (uncheckedInput.previousSibling !== hiddenInput) {
+        element.parentNode.insertBefore(uncheckedInput, hiddenInput.nextSibling);
+      }
+
+      uncheckedInput.name = getName() as string;
+      uncheckedInput.value = options.uncheckedValue;
+
+      if (options.form) {
+        uncheckedInput.setAttribute('form', options.form);
+      } else {
+        uncheckedInput.removeAttribute('form');
+      }
+    } else {
+      uncheckedInput?.remove();
+      uncheckedInput = null;
+    }
+  }
+
+  function syncFieldRoot() {
+    const nextFieldRootElement = element?.closest('field-root') as HTMLElement | null;
+    const nextFieldRoot = nextFieldRootElement as FieldRuntimeLike | null;
+
+    if (fieldRootElement === nextFieldRootElement && fieldRoot === nextFieldRoot) {
+      if (fieldRoot != null && hiddenInput != null) {
+        fieldRoot.registerControl(hiddenInput);
+      }
+      return;
+    }
+
+    if (fieldRoot != null && hiddenInput != null) {
+      fieldRoot.unregisterControl(hiddenInput);
+    }
+
+    fieldRootElement?.removeEventListener(FIELD_STATE_CHANGE_EVENT, handleFieldStateChange);
+    fieldRootElement = nextFieldRootElement;
+    fieldRoot = nextFieldRoot;
+    fieldRootElement?.addEventListener(FIELD_STATE_CHANGE_EVENT, handleFieldStateChange);
+
+    if (fieldRoot != null && hiddenInput != null) {
+      fieldRoot.registerControl(hiddenInput);
+    }
+  }
+
+  function syncFieldValue(event: Event) {
+    if (hiddenInput == null || fieldRoot == null) {
+      return;
+    }
+
+    const nextValue = getChecked();
+    if (lastFieldValue === nextValue) {
+      return;
+    }
+
+    lastFieldValue = nextValue;
+    fieldRoot.handleControlInput(hiddenInput, nextValue, event);
+  }
+
+  function sync() {
+    if (element == null) {
+      return;
+    }
+
+    syncFieldRoot();
+    cleanupButtonBehavior?.();
+    cleanupButtonBehavior = applyButtonBehavior(element, {
+      disabled: getDisabled(),
+      native: options.nativeButton,
+      onAction(event) {
+        if (options.readOnly) {
+          return;
+        }
+
+        const nextChecked = !getChecked();
+        const eventDetails = createChangeEventDetails(event);
+        options.onCheckedChange?.(nextChecked, eventDetails);
+
+        if (eventDetails.isCanceled) {
+          return;
+        }
+
+        if (options.checked === undefined) {
+          internalChecked = nextChecked;
+        }
+
+        ignoreNextHiddenInputChange = true;
+        queueMicrotask(() => {
+          ignoreNextHiddenInputChange = false;
+        });
+        sync();
+        syncFieldValue(event);
+      },
+    });
+
+    if (options.nativeButton && options.id) {
+      element.id = options.id;
+    } else if (options.id && element.id === options.id) {
+      element.removeAttribute('id');
+    }
+
+    const fieldState = getFieldState();
+    element.setAttribute('role', options.role ?? 'switch');
+    element.setAttribute('aria-checked', getChecked() ? 'true' : 'false');
+    element.toggleAttribute('data-checked', getChecked());
+    element.toggleAttribute('data-unchecked', !getChecked());
+    element.toggleAttribute('data-disabled', getDisabled());
+    element.toggleAttribute('data-readonly', options.readOnly);
+    element.toggleAttribute('data-required', options.required);
+    element.toggleAttribute('data-touched', fieldState.touched);
+    element.toggleAttribute('data-dirty', fieldState.dirty);
+    element.toggleAttribute('data-focused', fieldState.focused);
+    element.toggleAttribute('data-filled', fieldState.filled);
+
+    if (fieldState.valid === true) {
+      element.setAttribute('data-valid', '');
+      element.removeAttribute('data-invalid');
+      element.removeAttribute('aria-invalid');
+    } else if (fieldState.valid === false) {
+      element.removeAttribute('data-valid');
+      element.setAttribute('data-invalid', '');
+      element.setAttribute('aria-invalid', 'true');
+    } else {
+      element.removeAttribute('data-valid');
+      element.removeAttribute('data-invalid');
+      element.removeAttribute('aria-invalid');
+    }
+
+    if (options.readOnly) {
+      element.setAttribute('aria-readonly', 'true');
+    } else {
+      element.removeAttribute('aria-readonly');
+    }
+
+    if (options.required) {
+      element.setAttribute('aria-required', 'true');
+    } else {
+      element.removeAttribute('aria-required');
+    }
+
+    syncHiddenInput();
+    syncFieldRoot();
+    syncExplicitLabels();
+    syncAriaLabelledBy();
+    syncThumbState();
+
+    queueMicrotask(() => {
+      if (element == null) {
+        return;
+      }
+
+      syncExplicitLabels();
+      syncAriaLabelledBy();
+    });
+  }
+
+  return (instance: HTMLElement | null) => {
+    cleanupButtonBehavior?.();
+    cleanupButtonBehavior = null;
+    element?.removeEventListener('focus', handleFocus);
+    element?.removeEventListener('blur', handleBlur);
+    cleanupExplicitLabels();
+    fieldRootElement?.removeEventListener(FIELD_STATE_CHANGE_EVENT, handleFieldStateChange);
+    fieldRootElement = null;
+    fieldRoot = null;
+    removeManagedInputs();
+    element = instance;
+
+    if (element == null) {
+      return;
+    }
+
+    element.addEventListener('focus', handleFocus);
+    element.addEventListener('blur', handleBlur);
+    sync();
   };
 }
 

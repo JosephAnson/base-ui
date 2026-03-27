@@ -7,12 +7,13 @@
 />
 
 import { DemoProgressHero } from './demos/hero';
+import { TypesProgress } from './types';
 
 <DemoProgressHero />
 
 ## Anatomy
 
-Import the custom elements and assemble the parts:
+Import the custom elements and assemble their parts:
 
 ```html title="Anatomy"
 <progress-root value="60">
@@ -24,58 +25,27 @@ Import the custom elements and assemble the parts:
 </progress-root>
 ```
 
-## Usage guidelines
-
-- Use `<progress-label>` or an explicit `aria-labelledby` reference so screen readers announce the task clearly.
-- Pass `null` as the value for indeterminate progress when the total work is unknown.
-
 ## API reference
 
-### ProgressRootElement
+### Root
 
-Custom element: `<progress-root>`
+<TypesProgress.Root />
 
-| Attribute / Property | Type                                | Default  | Description                                                                |
-| -------------------- | ----------------------------------- | -------- | -------------------------------------------------------------------------- |
-| `value`              | `number \| null`                    | `null`   | The current value. The component is indeterminate when `null`.             |
-| `min`                | `number`                            | `0`      | The minimum value.                                                         |
-| `max`                | `number`                            | `100`    | The maximum value.                                                         |
-| `.format`            | `Intl.NumberFormatOptions`          | —        | Options used to format the displayed value.                                |
-| `.locale`            | `Intl.LocalesArgument`              | —        | Locale used when formatting the value.                                     |
-| `.getAriaValueText`  | `(formattedValue, value) => string` | —        | Returns a human-readable value for `aria-valuetext`.                       |
-| `aria-valuetext`     | `string`                            | computed | Explicit accessible value text. Overrides the computed text when provided. |
+### Track
 
-### ProgressTrackElement
+<TypesProgress.Track />
 
-Custom element: `<progress-track>`
+### Indicator
 
-Container for the visual indicator.
+<TypesProgress.Indicator />
 
-### ProgressIndicatorElement
+### Value
 
-Custom element: `<progress-indicator>`
+<TypesProgress.Value />
 
-Visualizes the completion percentage. In determinate mode it receives an inline width based on the current value.
+### Label
 
-### ProgressLabelElement
-
-Custom element: `<progress-label>`
-
-Accessible label for the progress bar.
-
-### ProgressValueElement
-
-Custom element: `<progress-value>`
-
-Displays the formatted value. You can customize the output with `.renderValue`.
-
-### Data attributes
-
-`<progress-root>`, `<progress-track>`, `<progress-indicator>`, `<progress-label>`, and `<progress-value>` receive one of:
-
-- `data-indeterminate`
-- `data-progressing`
-- `data-complete`
+<TypesProgress.Label />
 
 export const metadata = {
   keywords: [

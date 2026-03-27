@@ -1,6 +1,8 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import '../field';
+import '../form';
 import './index';
 import {
   Switch,
@@ -49,14 +51,269 @@ describe('switch', () => {
     return view.querySelector('input[type="checkbox"]') as HTMLInputElement;
   }
 
+  function getHelperSwitch(view: HTMLElement) {
+    return view.querySelector('[data-base-ui-switch-root]') as HTMLElement;
+  }
+
+  function getHelperThumb(view: HTMLElement) {
+    return view.querySelector('[data-base-ui-switch-thumb]') as HTMLElement;
+  }
+
   it('exposes namespace aliases for runtime parts and props/state aliases', () => {
-    expect(Switch.Root).toBe(SwitchRootElement);
+    expect(typeof Switch.Root).toBe('function');
+    expect(typeof Switch.Thumb).toBe('function');
     expectTypeOf<SwitchRootProps>().toEqualTypeOf<SwitchRoot.Props>();
     expectTypeOf<SwitchRootState>().toEqualTypeOf<SwitchRoot.State>();
     expectTypeOf<SwitchRootChangeEventReason>().toEqualTypeOf<SwitchRoot.ChangeEventReason>();
     expectTypeOf<SwitchRootChangeEventDetails>().toEqualTypeOf<SwitchRoot.ChangeEventDetails>();
     expectTypeOf<SwitchThumbProps>().toEqualTypeOf<SwitchThumb.Props>();
     expectTypeOf<SwitchThumbState>().toEqualTypeOf<SwitchThumb.State>();
+  });
+
+  it('renders the helper API with a hidden input and mirrored thumb state', async () => {
+    const view = render(
+      html`${Switch.Root({
+        defaultChecked: true,
+        name: 'notifications',
+        children: Switch.Thumb({}),
+      })}`,
+    );
+    await waitForUpdate();
+
+    const root = getHelperSwitch(view);
+    const thumb = getHelperThumb(view);
+    const input = getCheckbox(view);
+
+    expect(root.tagName).toBe('SPAN');
+    expect(root).toHaveAttribute('role', 'switch');
+    expect(root).toHaveAttribute('aria-checked', 'true');
+    expect(root).toHaveAttribute('data-checked');
+    expect(thumb).toHaveAttribute('data-checked');
+    expect(input).toHaveAttribute('name', 'notifications');
+    expect(input.checked).toBe(true);
+  });
+
+  it('renders the helper API as a native button when requested', async () => {
+    const view = render(
+      html`${Switch.Root({
+        defaultChecked: true,
+        nativeButton: true,
+        render: html`<button></button>`,
+        children: Switch.Thumb({}),
+      })}`,
+    );
+    await waitForUpdate();
+
+    const root = getHelperSwitch(view);
+    const thumb = getHelperThumb(view);
+
+    expect(root.tagName).toBe('BUTTON');
+    expect(root).toHaveAttribute('role', 'switch');
+    expect(root).toHaveAttribute('aria-checked', 'true');
+    expect(root).toHaveAttribute('type', 'button');
+    expect(thumb).toHaveAttribute('data-checked');
+  });
+
+  it('associates a sibling label with the helper native button pattern', async () => {
+    const view = render(html`
+      <label for="notifications-switch">Notifications</label>
+      ${Switch.Root({
+        defaultChecked: true,
+        id: 'notifications-switch',
+        nativeButton: true,
+        render: html`<button></button>`,
+      })}
+    `);
+    await waitForUpdate();
+
+    const label = view.querySelector('label') as HTMLLabelElement;
+    const root = getHelperSwitch(view);
+
+    expect(root).toHaveAttribute('id', 'notifications-switch');
+    expect(root).toHaveAttribute('aria-labelledby', label.id);
+
+    label.click();
+    await waitForUpdate();
+    expect(root).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('lets extra props override the helper role attribute', async () => {
+    const view = render(html`${Switch.Root({ role: 'checkbox', 'data-testid': 'switch' })}`);
+    await waitForUpdate();
+
+    expect(getHelperSwitch(view)).toHaveAttribute('role', 'checkbox');
+  });
+
+  it('exposes the managed hidden input through inputRef', async () => {
+    const inputRef: { current: HTMLInputElement | null } = { current: null };
+    const view = render(html`${Switch.Root({ inputRef })}`);
+    await waitForUpdate();
+
+    expect(inputRef.current).toBe(getCheckbox(view));
+  });
+
+  it('toggles the helper switch when wrapped in a native label', async () => {
+    const view = render(html` <label data-testid="label"> ${Switch.Root({})} Toggle </label> `);
+    await waitForUpdate();
+
+    const root = getHelperSwitch(view);
+    const label = view.querySelector('[data-testid="label"]') as HTMLElement;
+
+    expect(root).toHaveAttribute('aria-checked', 'false');
+
+    label.click();
+    await waitForUpdate();
+
+    expect(root).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('does not double-toggle when the helper switch itself is clicked inside a wrapping label', async () => {
+    const view = render(html`
+      <label>
+        ${Switch.Root({
+          defaultChecked: true,
+        })}
+        Notifications
+      </label>
+    `);
+    await waitForUpdate();
+
+    const root = getHelperSwitch(view);
+
+    root.click();
+    await waitForUpdate();
+    await waitForUpdate();
+
+    expect(root).toHaveAttribute('aria-checked', 'false');
+  });
+
+  describe('Field', () => {
+    it('inherits disabled and name from field-root', async () => {
+      const view = render(html`
+        <field-root disabled .name=${'field-switch'}> ${Switch.Root({})} </field-root>
+      `);
+      await waitForUpdate();
+      await waitForUpdate();
+      await waitForUpdate();
+
+      const root = getHelperSwitch(view);
+      const input = getCheckbox(view);
+
+      expect(root).toHaveAttribute('data-disabled');
+      expect(root).toHaveAttribute('aria-disabled', 'true');
+      expect(input).toHaveAttribute('name', 'field-switch');
+    });
+
+    it('applies touched, dirty, filled, and focused state hooks from field-root', async () => {
+      const view = render(html`
+        <field-root> ${Switch.Root({ 'data-testid': 'switch' })} </field-root>
+      `);
+      await waitForUpdate();
+      await waitForUpdate();
+
+      const root = getHelperSwitch(view);
+
+      root.focus();
+      await waitForUpdate();
+      expect(root).toHaveAttribute('data-focused');
+
+      root.blur();
+      await waitForUpdate();
+      expect(root).toHaveAttribute('data-touched');
+      expect(root).not.toHaveAttribute('data-focused');
+
+      root.click();
+      await waitForUpdate();
+      expect(root).toHaveAttribute('data-dirty');
+      expect(root).toHaveAttribute('data-filled');
+
+      root.click();
+      await waitForUpdate();
+      expect(root).not.toHaveAttribute('data-filled');
+    });
+
+    it('validates on submit and clears the error on change', async () => {
+      const view = render(html`
+        <form-root>
+          <form>
+            <field-root name="test">
+              ${Switch.Root({ required: true })}
+              <field-error data-testid="error"></field-error>
+            </field-root>
+            <button type="submit">Submit</button>
+          </form>
+        </form-root>
+      `);
+      await waitForUpdate();
+      await waitForUpdate();
+
+      const root = getHelperSwitch(view);
+      const submit = view.querySelector('button') as HTMLButtonElement;
+
+      expect(view.querySelector('[data-testid="error"]')).toHaveAttribute('hidden');
+
+      submit.click();
+      await waitForUpdate();
+      await waitForUpdate();
+      await waitForUpdate();
+      expect(root).toHaveAttribute('aria-invalid', 'true');
+      expect(view.querySelector('[data-testid="error"]')).not.toHaveAttribute('hidden');
+
+      root.click();
+      await waitForUpdate();
+      await waitForUpdate();
+      await waitForUpdate();
+      expect(root).not.toHaveAttribute('aria-invalid');
+      expect(view.querySelector('[data-testid="error"]')).toHaveAttribute('hidden');
+    });
+
+    it('validates on change with boolean values', async () => {
+      const validate = vi.fn((value: unknown) => ((value as boolean) ? 'error' : null));
+      const view = render(html`
+        <field-root .validationMode=${'onChange'} .validate=${validate}>
+          ${Switch.Root({})}
+        </field-root>
+      `);
+      await waitForUpdate();
+      await waitForUpdate();
+      await waitForUpdate();
+
+      const root = getHelperSwitch(view);
+      root.click();
+      await waitForUpdate();
+      await waitForUpdate();
+
+      expect(validate).toHaveBeenCalled();
+      expect(validate.mock.lastCall?.[0]).toBe(true);
+      expect(root).toHaveAttribute('aria-invalid', 'true');
+    });
+
+    it('associates field-label and field-description with the helper switch', async () => {
+      const view = render(html`
+        <field-root>
+          <field-label data-testid="label">Notifications</field-label>
+          ${Switch.Root({})}
+          <field-description data-testid="description">Visible in your profile</field-description>
+        </field-root>
+      `);
+      await waitForUpdate();
+      await waitForUpdate();
+
+      const root = getHelperSwitch(view);
+      const input = getCheckbox(view);
+      const label = view.querySelector('[data-testid="label"]') as HTMLElement;
+      const description = view.querySelector('[data-testid="description"]') as HTMLElement;
+
+      expect(label.getAttribute('for')).toBe(input.id);
+      expect(root).toHaveAttribute('aria-labelledby', label.id);
+      expect(input).toHaveAttribute('aria-describedby', description.id);
+
+      label.click();
+      await waitForUpdate();
+      await waitForUpdate();
+      await waitForUpdate();
+      expect(root).toHaveAttribute('aria-checked', 'true');
+    });
   });
 
   it('renders switch-root as a custom element with role=switch', async () => {

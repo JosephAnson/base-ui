@@ -1,5 +1,5 @@
 import { ReactiveElement } from 'lit';
-import { BaseHTMLElement, ensureId, formatNumberValue, valueToPercent } from '../utils';
+import { BaseHTMLElement, ensureId, formatNumber, valueToPercent } from '../utils';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -137,7 +137,7 @@ export class MeterRootElement extends ReactiveElement {
   }
 
   getFormattedValue(): string {
-    return formatNumberValue(this.value, this.locale, this.format);
+    return formatNumber(this.value, this.locale, this.format);
   }
 
   getMeterContext() {

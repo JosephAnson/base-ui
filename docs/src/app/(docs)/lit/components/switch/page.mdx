@@ -7,21 +7,25 @@
 />
 
 import { DemoSwitchHero } from './demos/hero';
+import { DemoSwitchNativeButton } from './demos/native-button';
+import { TypesSwitch } from './types';
 
 <DemoSwitchHero />
 
 ## Usage guidelines
 
-- **Form controls must have an accessible name**: Use a wrapping `<label>` or an explicit `for`/`id` pair so the switch is announced correctly.
+- **Form controls must have an accessible name**: It can be created using a `<label>` element or the `Field` component. See [Labeling a switch](#labeling-a-switch) and the [forms guide](/react/handbook/forms).
 
 ## Anatomy
 
-Import the custom elements:
+Import the custom elements and assemble their parts:
 
-```html title="Anatomy"
-<switch-root>
+```ts title="Anatomy"
+import '@base-ui/lit/switch';
+
+html`<switch-root>
   <switch-thumb></switch-thumb>
-</switch-root>
+</switch-root>`;
 ```
 
 ## Examples
@@ -30,85 +34,79 @@ Import the custom elements:
 
 An enclosing `<label>` is the simplest labeling pattern:
 
-```html title="Wrapping a label around a switch"
-<label>
+```ts title="Wrapping a label around a switch"
+html`<label>
   <switch-root>
     <switch-thumb></switch-thumb>
   </switch-root>
   Notifications
-</label>
+</label>`;
 ```
 
-You can also use an explicit `for`/`id` association:
+### Rendering as a native button
 
-```html title="Sibling label pattern"
-<label for="notifications-switch">Notifications</label>
-<switch-root id="notifications-switch">
-  <switch-thumb></switch-thumb>
-</switch-root>
+Custom elements are the primary Lit API. If you need React-style polymorphism or native-button rendering, the optional helper API also supports a native-button path:
+
+<DemoSwitchNativeButton compact />
+
+```ts title="Sibling label pattern with a native button"
+import { Switch } from '@base-ui/lit/switch';
+
+html`
+  <label for="notifications-switch">Notifications</label>
+  ${Switch.Root({
+    id: 'notifications-switch',
+    nativeButton: true,
+    render: html`<button></button>`,
+    children: Switch.Thumb({}),
+  })}
+`;
 ```
 
 ### Form integration
 
-Use `name`, `value`, `unchecked-value`, and `form` to match native checkbox submission behavior:
+Use [Field](/lit/components/field) to handle label associations and form integration:
 
-```html title="Switch in a form"
-<form id="preferences-form">
-  <button type="submit">Save</button>
-</form>
-
-<switch-root
-  id="notifications-switch"
-  form="preferences-form"
-  name="notifications"
-  unchecked-value="off"
->
-  <switch-thumb></switch-thumb>
-</switch-root>
+```ts title="Using Switch in a form"
+html`
+  <form-root>
+    <form>
+      <field-root name="notifications">
+        <field-label>
+          <switch-root>
+            <switch-thumb></switch-thumb>
+          </switch-root>
+          Notifications
+        </field-label>
+      </field-root>
+    </form>
+  </form-root>
+`;
 ```
 
 ## API reference
 
-### SwitchRootElement
+### Root
 
-Custom element: `<switch-root>`
+<TypesSwitch.Root />
 
-| Attribute          | Type                       | Default | Description                                                     |
-| ------------------ | -------------------------- | ------- | --------------------------------------------------------------- |
-| `default-checked`  | `boolean`                  | `false` | Whether the switch is initially active.                         |
-| `disabled`         | `boolean`                  | `false` | Whether the component should ignore user interaction.           |
-| `read-only`        | `boolean`                  | `false` | Whether the user should be unable to activate or deactivate it. |
-| `required`         | `boolean`                  | `false` | Whether the switch must be active before submitting a form.     |
-| `name`             | `string`                   | —       | Identifies the field when a form is submitted.                  |
-| `form`             | `string`                   | —       | Identifies the form that owns the hidden input.                 |
-| `value`            | `string`                   | `"on"`  | The value submitted when the switch is on.                      |
-| `unchecked-value`  | `string`                   | —       | The value submitted when the switch is off.                     |
-| `.checked`         | `boolean \| undefined`     | —       | The controlled checked state.                                   |
-| `.onCheckedChange` | `(checked, details)=>void` | —       | Callback fired when the checked state changes.                  |
+### Thumb
 
-### SwitchThumbElement
-
-Custom element: `<switch-thumb>`
-
-The thumb mirrors the root state with data attributes for styling.
-
-### Data attributes
-
-Both `<switch-root>` and `<switch-thumb>` receive:
-
-- `data-checked`
-- `data-unchecked`
-- `data-disabled`
-- `data-readonly`
-- `data-required`
+<TypesSwitch.Thumb />
 
 export const metadata = {
   keywords: [
     'Lit Switch',
     'Toggle Switch Component',
+    'Toggle Switch',
+    'Toggle Button',
+    'On/Off Control',
     'On Off Switch',
-    'Accessible Switch',
+    'Binary Switch',
+    'Checkbox Alternative',
     'Form Toggle Control',
-    'Base UI Lit',
+    'Accessible Switch',
+    'Headless Lit Components',
+    'Base UI',
   ],
 };

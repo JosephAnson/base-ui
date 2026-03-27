@@ -17,6 +17,7 @@ import {
 const FIELD_ROOT_ATTRIBUTE = 'data-base-ui-field-root';
 const FIELD_STATE_CHANGE_EVENT = 'base-ui-field-state-change';
 const FIELD_RUNTIME = Symbol('base-ui-field-runtime');
+const BOOLEAN_CONTROL_ATTRIBUTE = 'data-base-ui-boolean-control';
 
 const DEFAULT_VALIDITY_STATE: ValidityStateObject = {
   badInput: false,
@@ -229,6 +230,9 @@ function getElementValue(element: InputLikeElement | null): unknown {
   }
   if (element instanceof HTMLInputElement) {
     if (element.type === 'checkbox' || element.type === 'radio') {
+      if (element.hasAttribute(BOOLEAN_CONTROL_ATTRIBUTE)) {
+        return element.checked;
+      }
       return element.checked ? element.value || 'on' : '';
     }
   }
@@ -1138,11 +1142,32 @@ export class FieldLabelElement extends BaseHTMLElement {
   private _handleClick = () => {
     if (!this._root) return;
     const { focusTarget } = this._root.getControlTargets();
+    if (focusTarget instanceof HTMLInputElement) {
+      if (focusTarget.type === 'checkbox') {
+        focusTarget.checked = !focusTarget.checked;
+        focusTarget.dispatchEvent(new Event('change', { bubbles: true }));
+        focusTarget.focus();
+        return;
+      }
+      if (focusTarget.type === 'radio') {
+        focusTarget.checked = true;
+        focusTarget.dispatchEvent(new Event('change', { bubbles: true }));
+        focusTarget.focus();
+        return;
+      }
+    }
     focusTarget?.focus();
   };
 
   private _syncAttributes() {
     if (!this._root) return;
+    const { focusTarget } = this._root.getControlTargets();
+    if (focusTarget != null) {
+      ensureId(focusTarget, 'base-ui-field-control');
+      this.setAttribute('for', focusTarget.id);
+    } else {
+      this.removeAttribute('for');
+    }
     syncFieldPartStateAttributes(this, this._root.getFieldState());
   }
 }

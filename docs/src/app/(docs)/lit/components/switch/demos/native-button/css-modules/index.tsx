@@ -1,10 +1,10 @@
 'use client';
 import * as React from 'react';
 import { html, nothing, render as renderTemplate } from 'lit';
-import '@base-ui/lit/meter';
+import { Switch } from '@base-ui/lit/switch';
 import styles from './index.module.css';
 
-export default function ExampleMeter() {
+export default function ExampleSwitchNativeButton() {
   const hostRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -15,13 +15,18 @@ export default function ExampleMeter() {
     }
 
     renderTemplate(
-      html`<meter-root class=${styles.Meter} .value=${24}>
-        <meter-label class=${styles.Label}>Storage Used</meter-label>
-        <meter-value class=${styles.Value}></meter-value>
-        <meter-track class=${styles.Track}>
-          <meter-indicator class=${styles.Indicator}></meter-indicator>
-        </meter-track>
-      </meter-root>`,
+      html`<div class=${styles.Root}>
+        <label class=${styles.Label} for="notifications-switch">Notifications</label>
+        ${Switch.Root({
+          id: 'notifications-switch',
+          nativeButton: true,
+          render: html`<button></button>`,
+          className: styles.Switch,
+          children: Switch.Thumb({
+            className: styles.Thumb,
+          }),
+        })}
+      </div>`,
       host,
     );
 
