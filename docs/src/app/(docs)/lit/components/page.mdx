@@ -115,18 +115,26 @@ An avatar primitive for Lit templates.
 
 ## Button
 
-A Lit button primitive with Base UI interaction behavior.
+A button component that can be rendered as another tag or focusable when disabled.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Button, Button, Base UI Lit, Accessible button
+- Keywords: Lit Button, Button Component, Focusable Disabled Button, Accessible Button, Loading State Button, Base UI Lit
 - Sections:
+  - Usage guidelines
   - Anatomy
   - Examples
+    - Rendering as another tag
+    - Rendering links as buttons
     - Loading states
-  - Status
+  - API reference
+    - Button Data Attributes
+- Exports:
+  - Button
+    - Props: focusableWhenDisabled, nativeButton, render
+- Types: ButtonApiProps, ButtonState
 
 </details>
 
@@ -542,16 +550,20 @@ A dropdown select for picking a single value.
 
 ## Separator
 
-A visual or semantic separator primitive.
+A separator element accessible to screen readers.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Separator, Separator, Base UI Lit
+- Keywords: Separator, Divider Component, Divider, Horizontal Rule, Horizontal Divider, Vertical Divider, Accessible Separator, Screen Reader Separator, Base UI
 - Sections:
   - Anatomy
-  - Status
+  - API reference
+- Exports:
+  - Separator
+    - Props: orientation
+- Types: SeparatorProps
 
 </details>
 

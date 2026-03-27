@@ -7,9 +7,9 @@ import {
 } from 'lit';
 // eslint-disable-next-line import/extensions
 import { AsyncDirective, directive } from 'lit/async-directive.js';
-import type { HTMLProps, ComponentRenderFn } from '../types/index.ts';
+import type { HTMLProps, ComponentRenderFn } from '../types';
 
-export type { HTMLProps, ComponentRenderFn } from '../types/index.ts';
+export type { HTMLProps, ComponentRenderFn } from '../types';
 
 type RefObject<T> = {
   current: T | null;
@@ -691,8 +691,9 @@ function applyProps(
     }
 
     if (shouldSetProperty(element, name, value)) {
-      setElementProperty(element, name, value);
-      return;
+      if (setElementProperty(element, name, value)) {
+        return;
+      }
     }
 
     element.setAttribute(attributeName, String(value));
@@ -792,7 +793,36 @@ function shouldSetProperty(element: Element, name: string, value: unknown) {
 
 function setElementProperty(element: Element, name: string, value: unknown) {
   const propertyName = name === 'class' ? 'className' : name;
-  (element as unknown as Record<string, unknown>)[propertyName] = value;
+  try {
+    (element as unknown as Record<string, unknown>)[propertyName] = value;
+    return true;
+  } catch (error) {
+    if (isReadonlyProperty(element, propertyName)) {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+function isReadonlyProperty(element: Element, propertyName: string) {
+  let current: object | null = element;
+
+  while (current != null) {
+    const descriptor = Object.getOwnPropertyDescriptor(current, propertyName);
+
+    if (descriptor != null) {
+      if (typeof descriptor.set === 'function') {
+        return false;
+      }
+
+      return descriptor.writable !== true;
+    }
+
+    current = Object.getPrototypeOf(current);
+  }
+
+  return false;
 }
 
 function resetElementProperty(element: Element, name: string) {

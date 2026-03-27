@@ -16,6 +16,7 @@
     "generate-llms": "node --experimental-strip-types ./scripts/generateLlmTxt/index.mjs"
   },
   "dependencies": {
+    "@base-ui/lit": "workspace:*",
     "@base-ui/react": "workspace:*",
     "@base-ui/utils": "workspace:*",
     "@date-fns/tz": "^1.4.1",

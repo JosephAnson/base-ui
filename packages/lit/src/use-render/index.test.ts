@@ -413,6 +413,23 @@ describe('useRender', () => {
       expect((container.firstElementChild as HTMLInputElement).value).toBe('template value');
     });
 
+    it('falls back to attributes when a DOM property setter throws', () => {
+      const container = render(
+        useRender({
+          render: html`<button></button>`,
+          props: {
+            type: 'submit',
+            form: 'external-form',
+          },
+        }),
+      );
+
+      const button = container.firstElementChild;
+
+      expect(button).toHaveAttribute('type', 'submit');
+      expect(button).toHaveAttribute('form', 'external-form');
+    });
+
     it('replaces static-template children when props.children is provided', () => {
       const container = render(
         useRender({

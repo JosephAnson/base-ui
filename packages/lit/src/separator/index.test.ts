@@ -1,13 +1,7 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
-import './index';
-import type {
-  SeparatorRoot,
-  SeparatorRootElement,
-  SeparatorRootProps,
-  SeparatorRootState,
-} from './index';
+import * as separatorModule from './index';
 
 describe('separator-root', () => {
   const containers = new Set<HTMLDivElement>();
@@ -35,70 +29,75 @@ describe('separator-root', () => {
   }
 
   it('exposes namespace aliases for props and state', () => {
-    expectTypeOf<SeparatorRootProps>().toEqualTypeOf<SeparatorRoot.Props>();
-    expectTypeOf<SeparatorRootState>().toEqualTypeOf<SeparatorRoot.State>();
+    expect(customElements.get('separator-root')).toBe(separatorModule.SeparatorRootElement);
+    expectTypeOf<
+      import('./index').SeparatorRootProps
+    >().toEqualTypeOf<separatorModule.SeparatorRoot.Props>();
+    expectTypeOf<
+      import('./index').SeparatorRootState
+    >().toEqualTypeOf<separatorModule.SeparatorRoot.State>();
   });
 
   it('renders as a custom element in the DOM', () => {
     const view = render(html`<separator-root></separator-root>`);
-    const separator = view.querySelector('separator-root');
-    expect(separator).toBeInTheDocument();
-    expect(separator?.tagName.toLowerCase()).toBe('separator-root');
+    const element = view.querySelector('separator-root');
+    expect(element).toBeInTheDocument();
+    expect(element?.tagName.toLowerCase()).toBe('separator-root');
   });
 
   it('accepts class attribute for styling', () => {
     const view = render(html`<separator-root class="my-sep"></separator-root>`);
-    const separator = view.querySelector('separator-root');
-    expect(separator).toHaveClass('my-sep');
+    const element = view.querySelector('separator-root');
+    expect(element).toHaveClass('my-sep');
   });
 
   it('sets data-orientation attribute for CSS targeting', async () => {
     const view = render(html`<separator-root></separator-root>`);
-    const separator = view.querySelector('separator-root')!;
+    const element = view.querySelector('separator-root')!;
     await waitForUpdate();
-    expect(separator.dataset.orientation).toBe('horizontal');
+    expect(element.dataset.orientation).toBe('horizontal');
   });
 
   it('has role="separator"', async () => {
     const view = render(html`<separator-root></separator-root>`);
-    const separator = view.querySelector('separator-root')!;
+    const element = view.querySelector('separator-root')!;
     await waitForUpdate();
-    expect(separator).toHaveAttribute('role', 'separator');
+    expect(element).toHaveAttribute('role', 'separator');
   });
 
   it('has aria-orientation="horizontal" by default', async () => {
     const view = render(html`<separator-root></separator-root>`);
-    const separator = view.querySelector('separator-root')!;
+    const element = view.querySelector('separator-root')!;
     await waitForUpdate();
-    expect(separator).toHaveAttribute('aria-orientation', 'horizontal');
+    expect(element).toHaveAttribute('aria-orientation', 'horizontal');
   });
 
   it('applies vertical orientation', async () => {
     const view = render(html`<separator-root orientation="vertical"></separator-root>`);
-    const separator = view.querySelector('separator-root')!;
+    const element = view.querySelector('separator-root')!;
     await waitForUpdate();
-    expect(separator).toHaveAttribute('aria-orientation', 'vertical');
-    expect(separator.dataset.orientation).toBe('vertical');
+    expect(element).toHaveAttribute('aria-orientation', 'vertical');
+    expect(element.dataset.orientation).toBe('vertical');
   });
 
   it('updates when orientation property changes', async () => {
     const view = render(html`<separator-root></separator-root>`);
-    const separator = view.querySelector('separator-root')! as SeparatorRootElement;
+    const element = view.querySelector('separator-root')! as separatorModule.SeparatorRootElement;
     await waitForUpdate();
 
-    expect(separator).toHaveAttribute('aria-orientation', 'horizontal');
+    expect(element).toHaveAttribute('aria-orientation', 'horizontal');
 
-    separator.orientation = 'vertical';
+    element.orientation = 'vertical';
     await waitForUpdate();
 
-    expect(separator).toHaveAttribute('aria-orientation', 'vertical');
-    expect(separator.dataset.orientation).toBe('vertical');
+    expect(element).toHaveAttribute('aria-orientation', 'vertical');
+    expect(element.dataset.orientation).toBe('vertical');
   });
 
   it('forwards standard HTML attributes', () => {
     const view = render(html`<separator-root id="sep-1" data-testid="my-sep"></separator-root>`);
-    const separator = view.querySelector('separator-root')!;
-    expect(separator).toHaveAttribute('id', 'sep-1');
-    expect(separator).toHaveAttribute('data-testid', 'my-sep');
+    const element = view.querySelector('separator-root')!;
+    expect(element).toHaveAttribute('id', 'sep-1');
+    expect(element).toHaveAttribute('data-testid', 'my-sep');
   });
 });

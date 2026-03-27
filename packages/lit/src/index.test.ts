@@ -7,6 +7,7 @@ import {
   type AutocompleteFilterMode as RootAutocompleteFilterMode,
   type AutocompleteChangeEventReason as RootAutocompleteChangeEventReason,
   type AutocompleteChangeEventDetails as RootAutocompleteChangeEventDetails,
+  Button as rootButton,
   ButtonRootElement as rootButtonRootElement,
   CalendarRootElement as rootCalendarRootElement,
   type CalendarRootState as RootCalendarRootState,
@@ -108,8 +109,10 @@ import {
   type BaseUIChangeEventDetails as RootBaseUIChangeEventDetails,
   type BaseUIEvent as RootBaseUIEvent,
   type BaseUIGenericEventDetails as RootBaseUIGenericEventDetails,
+  type ButtonProps as RootButtonProps,
   type ButtonRootProps as RootButtonRootProps,
   type ButtonRootState as RootButtonRootState,
+  type ButtonState as RootButtonState,
   type ComponentRenderFn as RootComponentRenderFn,
   Field as rootField,
   Fieldset as rootFieldset,
@@ -318,7 +321,10 @@ import {
 } from '@base-ui/lit';
 import { AlertDialog as subpathAlertDialog } from '@base-ui/lit/alert-dialog';
 import { AutocompleteRootElement as subpathAutocompleteRootElement } from '@base-ui/lit/autocomplete';
-import { ButtonRootElement as subpathButtonRootElement } from '@base-ui/lit/button';
+import {
+  Button as subpathButton,
+  ButtonRootElement as subpathButtonRootElement,
+} from '@base-ui/lit/button';
 import { CalendarRootElement as subpathCalendarRootElement } from '@base-ui/lit/calendar';
 import { Checkbox as subpathCheckbox } from '@base-ui/lit/checkbox';
 import { CheckboxGroup as subpathCheckboxGroup } from '@base-ui/lit/checkbox-group';
@@ -433,8 +439,10 @@ import type {
   AlertDialogViewportState as SubpathAlertDialogViewportState,
 } from '@base-ui/lit/alert-dialog';
 import type {
+  ButtonProps as SubpathButtonProps,
   ButtonRootProps as SubpathButtonRootProps,
   ButtonRootState as SubpathButtonRootState,
+  ButtonState as SubpathButtonState,
 } from '@base-ui/lit/button';
 import type {
   CalendarRootState as SubpathCalendarRootState,
@@ -738,7 +746,9 @@ describe('@base-ui/lit', () => {
   it('re-exports button from the package root', async () => {
     const module = await import('@base-ui/lit');
 
+    expect(module.Button).toBe(subpathButton);
     expect(module.ButtonRootElement).toBe(subpathButtonRootElement);
+    expect(rootButton).toBe(subpathButton);
     expect(rootButtonRootElement).toBe(subpathButtonRootElement);
   });
 
@@ -1051,9 +1061,11 @@ describe('@base-ui/lit', () => {
     expectTypeOf<RootAutocompleteFilterMode>().toEqualTypeOf<SubpathAutocompleteFilterMode>();
     expectTypeOf<RootAutocompleteChangeEventReason>().toEqualTypeOf<SubpathAutocompleteChangeEventReason>();
     expectTypeOf<RootAutocompleteChangeEventDetails>().toEqualTypeOf<SubpathAutocompleteChangeEventDetails>();
-    // Button (custom element)
+    // Button
+    expectTypeOf<RootButtonProps>().toEqualTypeOf<SubpathButtonProps>();
     expectTypeOf<RootButtonRootProps>().toEqualTypeOf<SubpathButtonRootProps>();
     expectTypeOf<RootButtonRootState>().toEqualTypeOf<SubpathButtonRootState>();
+    expectTypeOf<RootButtonState>().toEqualTypeOf<SubpathButtonState>();
     // Calendar (custom element)
     expectTypeOf<RootCalendarRootState>().toEqualTypeOf<SubpathCalendarRootState>();
     expectTypeOf<RootCalendarDayGridState>().toEqualTypeOf<SubpathCalendarDayGridState>();

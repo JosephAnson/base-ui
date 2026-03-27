@@ -64,9 +64,6 @@ export namespace SeparatorRoot {
   export type State = SeparatorRootState;
 }
 
-// Backwards-compat alias — menu/index.ts re-exports `Separator` until it's rewritten
-export { SeparatorRootElement as Separator };
-
 declare global {
   interface HTMLElementTagNameMap {
     'separator-root': SeparatorRootElement;

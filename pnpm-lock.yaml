@@ -154,6 +154,9 @@ importers:
 
   docs:
     dependencies:
+      '@base-ui/lit':
+        specifier: workspace:*
+        version: link:../packages/lit
       '@base-ui/react':
         specifier: workspace:*
         version: link:../packages/react/build

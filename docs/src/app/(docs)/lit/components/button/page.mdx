@@ -1,11 +1,11 @@
 # Button
 
 <Subtitle>
-  A button primitive with Base UI interaction behavior and focusable disabled support.
+  A button component that can be rendered as another tag or focusable when disabled.
 </Subtitle>
 <Meta
   name="description"
-  content="A high-quality, unstyled Lit button primitive with keyboard interaction and focusable disabled support."
+  content="A high-quality, unstyled Lit button component that can be rendered as another tag or focusable when disabled."
 />
 
 import { DemoButtonHero } from './demos/hero';
@@ -15,33 +15,62 @@ import { DemoButtonLoading } from './demos/loading';
 
 ## Usage guidelines
 
-- `button-root` always enforces button semantics. It should not be used for links.
-- Use `focusable-when-disabled` for loading buttons so focus stays on the control when it becomes disabled.
+- **Submit buttons**: Unlike the native button element, `type: 'submit'` must be specified on `Button` for it to act as a submit button.
+- **Links**: The Button helper enforces button semantics (`role="button"`, keyboard interaction, disabled state). It should not be used for links. See [Rendering links as buttons](#rendering-links-as-buttons) below.
 
 ## Anatomy
 
-Import the custom element:
+Import the helper:
 
-```html title="Anatomy"
-<button-root>Save changes</button-root>
+```ts title="Anatomy"
+import { Button } from '@base-ui/lit/button';
+import { html } from 'lit';
+
+html`${Button({ children: 'Save changes' })}`;
 ```
+
+For direct custom-element usage, import `@base-ui/lit/button` for side effects and render `<button-root>`.
 
 ## Examples
 
+### Rendering as another tag
+
+The button can remain keyboard accessible while being rendered as another tag, such as a `<div>`, by specifying `nativeButton: false`.
+
+```ts title="Custom tag button" "nativeButton"
+import { Button } from '@base-ui/lit/button';
+import { html } from 'lit';
+
+html`${Button({
+  render: html`<div></div>`,
+  nativeButton: false,
+  children: 'Button that can contain complex children',
+})}`;
+```
+
+### Rendering links as buttons
+
+The Button helper enforces button semantics. `nativeButton: false` signals that the rendered tag is not a `<button>`, but it must still be a tag that can receive button semantics (`role="button"`, keyboard interaction handlers). Links (`<a>`) have their own semantics and should not be rendered as buttons through the helper.
+
+If a link needs to look like a button visually, style the `<a>` directly with CSS rather than using the Button helper.
+
 ### Loading states
+
+For buttons that enter a loading state after being clicked, specify the `focusableWhenDisabled` prop to ensure focus remains on the button when it becomes disabled. This prevents focus from being lost and maintains the tab order.
 
 <DemoButtonLoading compact />
 
 ## API reference
 
-### ButtonRootElement
+import { TypesButton } from './types';
 
-Custom element: `<button-root>`
+<TypesButton />
 
-| Attribute                 | Type      | Default | Description                                          |
-| ------------------------- | --------- | ------- | ---------------------------------------------------- |
-| `disabled`                | `boolean` | `false` | Whether the button should ignore user interaction.   |
-| `focusable-when-disabled` | `boolean` | `false` | Whether the button remains focusable while disabled. |
+### Button Data Attributes
+
+| Attribute       | Description                          |
+| --------------- | ------------------------------------ |
+| `data-disabled` | Present when the button is disabled. |
 
 export const metadata = {
   keywords: [

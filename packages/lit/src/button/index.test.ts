@@ -1,8 +1,7 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import './index';
-import type { ButtonRoot, ButtonRootElement, ButtonRootProps, ButtonRootState } from './index';
+import * as buttonModule from './index';
 
 describe('button-root', () => {
   const containers = new Set<HTMLDivElement>();
@@ -30,8 +29,24 @@ describe('button-root', () => {
   }
 
   it('exposes namespace aliases for props and state', () => {
-    expectTypeOf<ButtonRootProps>().toEqualTypeOf<ButtonRoot.Props>();
-    expectTypeOf<ButtonRootState>().toEqualTypeOf<ButtonRoot.State>();
+    expect(customElements.get('button-root')).toBe(buttonModule.ButtonRootElement);
+    expectTypeOf<
+      import('./index').ButtonRootProps
+    >().toEqualTypeOf<buttonModule.ButtonRoot.Props>();
+    expectTypeOf<
+      import('./index').ButtonRootState
+    >().toEqualTypeOf<buttonModule.ButtonRoot.State>();
+    expectTypeOf<import('./index').ButtonProps>().toEqualTypeOf<buttonModule.Button.Props>();
+    expectTypeOf<import('./index').ButtonState>().toEqualTypeOf<buttonModule.Button.State>();
+  });
+
+  it('button helper renders a native button by default', () => {
+    const view = render(buttonModule.Button({}));
+    const element = view.querySelector('button');
+
+    expect(element).toBeInTheDocument();
+    expect(element).toHaveAttribute('type', 'button');
+    expect(element).not.toHaveAttribute('aria-disabled');
   });
 
   it('renders as a custom element in the DOM', () => {
@@ -50,7 +65,7 @@ describe('button-root', () => {
 
   it('is focusable via tabindex', async () => {
     const view = render(html`<button-root></button-root>`);
-    const button = view.querySelector('button-root')! as ButtonRootElement;
+    const button = view.querySelector('button-root')! as buttonModule.ButtonRootElement;
     await waitForUpdate();
     expect(button.tabIndex).toBe(0);
   });
@@ -64,7 +79,7 @@ describe('button-root', () => {
 
   it('sets aria-disabled and removes from tab order when disabled', async () => {
     const view = render(html`<button-root disabled></button-root>`);
-    const button = view.querySelector('button-root')! as ButtonRootElement;
+    const button = view.querySelector('button-root')! as buttonModule.ButtonRootElement;
     await waitForUpdate();
     expect(button).toHaveAttribute('aria-disabled', 'true');
     expect(button.tabIndex).toBe(-1);
@@ -73,7 +88,7 @@ describe('button-root', () => {
   it('blocks click events when disabled', async () => {
     const handleClick = vi.fn();
     const view = render(html`<button-root disabled></button-root>`);
-    const button = view.querySelector('button-root')! as ButtonRootElement;
+    const button = view.querySelector('button-root')! as buttonModule.ButtonRootElement;
     await waitForUpdate();
 
     button.addEventListener('click', handleClick);
@@ -85,7 +100,7 @@ describe('button-root', () => {
   it('handles Enter key to activate', async () => {
     const handleClick = vi.fn();
     const view = render(html`<button-root></button-root>`);
-    const button = view.querySelector('button-root')! as ButtonRootElement;
+    const button = view.querySelector('button-root')! as buttonModule.ButtonRootElement;
     await waitForUpdate();
 
     button.addEventListener('click', handleClick);
@@ -99,7 +114,7 @@ describe('button-root', () => {
   it('handles Space key to activate', async () => {
     const handleClick = vi.fn();
     const view = render(html`<button-root></button-root>`);
-    const button = view.querySelector('button-root')! as ButtonRootElement;
+    const button = view.querySelector('button-root')! as buttonModule.ButtonRootElement;
     await waitForUpdate();
 
     button.addEventListener('click', handleClick);
@@ -113,7 +128,7 @@ describe('button-root', () => {
 
   it('remains focusable when disabled with focusableWhenDisabled', async () => {
     const view = render(html`<button-root disabled focusable-when-disabled></button-root>`);
-    const button = view.querySelector('button-root')! as ButtonRootElement;
+    const button = view.querySelector('button-root')! as buttonModule.ButtonRootElement;
     await waitForUpdate();
 
     expect(button).toHaveAttribute('aria-disabled', 'true');
@@ -124,7 +139,7 @@ describe('button-root', () => {
   it('prevents non-tab key interactions when focusableWhenDisabled', async () => {
     const handleKeyDown = vi.fn();
     const view = render(html`<button-root disabled focusable-when-disabled></button-root>`);
-    const button = view.querySelector('button-root')! as ButtonRootElement;
+    const button = view.querySelector('button-root')! as buttonModule.ButtonRootElement;
     await waitForUpdate();
 
     button.addEventListener('keydown', handleKeyDown);
@@ -142,7 +157,7 @@ describe('button-root', () => {
     const handleMouseDown = vi.fn();
     const handlePointerDown = vi.fn();
     const view = render(html`<button-root disabled></button-root>`);
-    const button = view.querySelector('button-root')! as ButtonRootElement;
+    const button = view.querySelector('button-root')! as buttonModule.ButtonRootElement;
     await waitForUpdate();
 
     button.addEventListener('mousedown', handleMouseDown);
@@ -156,7 +171,7 @@ describe('button-root', () => {
 
   it('updates when disabled property changes', async () => {
     const view = render(html`<button-root></button-root>`);
-    const button = view.querySelector('button-root')! as ButtonRootElement;
+    const button = view.querySelector('button-root')! as buttonModule.ButtonRootElement;
     await waitForUpdate();
 
     expect(button).not.toHaveAttribute('data-disabled');
@@ -166,5 +181,183 @@ describe('button-root', () => {
 
     expect(button).toHaveAttribute('data-disabled');
     expect(button).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('button helper mirrors submit-related attributes on native buttons', async () => {
+    const view = render(buttonModule.Button({ type: 'submit', form: 'save-form', name: 'action' }));
+    const element = view.querySelector('button');
+    await waitForUpdate();
+
+    expect(element).toHaveAttribute('type', 'submit');
+    expect(element).toHaveAttribute('form', 'save-form');
+    expect(element).toHaveAttribute('name', 'action');
+  });
+
+  it('button helper: disabled native button uses disabled and blocks interaction', async () => {
+    const handleClick = vi.fn();
+    const handleMouseDown = vi.fn();
+    const handlePointerDown = vi.fn();
+    const handleKeyDown = vi.fn();
+
+    const view = render(
+      buttonModule.Button({
+        disabled: true,
+        onClick: handleClick,
+        onMouseDown: handleMouseDown,
+        onPointerDown: handlePointerDown,
+        onKeyDown: handleKeyDown,
+      }),
+    );
+    const element = view.querySelector('button') as HTMLButtonElement;
+    await waitForUpdate();
+
+    expect(element).toHaveAttribute('disabled');
+    expect(element).toHaveAttribute('data-disabled');
+    expect(element).not.toHaveAttribute('aria-disabled');
+
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: ' ' }),
+    );
+    element.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }),
+    );
+
+    expect(handleClick).not.toHaveBeenCalled();
+    expect(handleMouseDown).not.toHaveBeenCalled();
+    expect(handlePointerDown).not.toHaveBeenCalled();
+    expect(handleKeyDown).not.toHaveBeenCalled();
+  });
+
+  it('button helper: disabled custom render uses aria-disabled and blocks interaction', async () => {
+    const handleClick = vi.fn();
+    const handleMouseDown = vi.fn();
+    const handlePointerDown = vi.fn();
+    const handleKeyDown = vi.fn();
+
+    const view = render(
+      buttonModule.Button({
+        disabled: true,
+        nativeButton: false,
+        render: html`<span></span>`,
+        onClick: handleClick,
+        onMouseDown: handleMouseDown,
+        onPointerDown: handlePointerDown,
+        onKeyDown: handleKeyDown,
+      }),
+    );
+    const element = view.querySelector('span') as HTMLSpanElement;
+    await waitForUpdate();
+
+    expect(element).not.toHaveAttribute('disabled');
+    expect(element).toHaveAttribute('role', 'button');
+    expect(element).toHaveAttribute('data-disabled');
+    expect(element).toHaveAttribute('aria-disabled', 'true');
+    expect(element).toHaveAttribute('tabindex', '-1');
+
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: ' ' }),
+    );
+    element.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }),
+    );
+
+    expect(handleClick).not.toHaveBeenCalled();
+    expect(handleMouseDown).not.toHaveBeenCalled();
+    expect(handlePointerDown).not.toHaveBeenCalled();
+    expect(handleKeyDown).not.toHaveBeenCalled();
+  });
+
+  it('button helper: focusableWhenDisabled keeps native button focusable and inert', async () => {
+    const handleClick = vi.fn();
+    const handleMouseDown = vi.fn();
+    const handlePointerDown = vi.fn();
+    const handleKeyDown = vi.fn();
+
+    const view = render(
+      buttonModule.Button({
+        disabled: true,
+        focusableWhenDisabled: true,
+        onClick: handleClick,
+        onMouseDown: handleMouseDown,
+        onPointerDown: handlePointerDown,
+        onKeyDown: handleKeyDown,
+      }),
+    );
+    const element = view.querySelector('button') as HTMLButtonElement;
+    await waitForUpdate();
+
+    expect(element).not.toHaveAttribute('disabled');
+    expect(element).toHaveAttribute('data-disabled');
+    expect(element).toHaveAttribute('aria-disabled', 'true');
+    expect(element).toHaveAttribute('tabindex', '0');
+
+    element.focus();
+    expect(element).toHaveFocus();
+
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: ' ' }),
+    );
+    element.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }),
+    );
+
+    expect(handleClick).not.toHaveBeenCalled();
+    expect(handleMouseDown).not.toHaveBeenCalled();
+    expect(handlePointerDown).not.toHaveBeenCalled();
+    expect(handleKeyDown).not.toHaveBeenCalled();
+  });
+
+  it('button helper: focusableWhenDisabled keeps custom render focusable and inert', async () => {
+    const handleClick = vi.fn();
+    const handleMouseDown = vi.fn();
+    const handlePointerDown = vi.fn();
+    const handleKeyDown = vi.fn();
+
+    const view = render(
+      buttonModule.Button({
+        disabled: true,
+        focusableWhenDisabled: true,
+        nativeButton: false,
+        render: html`<span></span>`,
+        onClick: handleClick,
+        onMouseDown: handleMouseDown,
+        onPointerDown: handlePointerDown,
+        onKeyDown: handleKeyDown,
+      }),
+    );
+    const element = view.querySelector('span') as HTMLSpanElement;
+    await waitForUpdate();
+
+    expect(element).not.toHaveAttribute('disabled');
+    expect(element).toHaveAttribute('data-disabled');
+    expect(element).toHaveAttribute('aria-disabled', 'true');
+    expect(element).toHaveAttribute('tabindex', '0');
+
+    element.focus();
+    expect(element).toHaveFocus();
+
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: ' ' }),
+    );
+    element.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }),
+    );
+
+    expect(handleClick).not.toHaveBeenCalled();
+    expect(handleMouseDown).not.toHaveBeenCalled();
+    expect(handlePointerDown).not.toHaveBeenCalled();
+    expect(handleKeyDown).not.toHaveBeenCalled();
   });
 });
