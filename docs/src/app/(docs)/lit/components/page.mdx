@@ -778,15 +778,16 @@ A component for toggling between related panels on the same page.
     - Panel
 - Exports:
   - Root
-    - Props: defaultValue, onValueChange, orientation, value
+    - Props: defaultValue, onValueChange, orientation, render, value
     - Data Attributes: data-activation-direction, data-orientation
   - List
-    - Props: activateOnFocus, loopFocus
+    - Props: activateOnFocus, loopFocus, render
     - Data Attributes: data-activation-direction, data-orientation
   - Panel
-    - Props: keepMounted, value
+    - Props: keepMounted, render, value
     - Data Attributes: data-hidden, data-orientation
   - Indicator
+    - Props: render
     - Data Attributes: data-activation-direction, data-orientation
   - Tab
     - Props: disabled, render, value

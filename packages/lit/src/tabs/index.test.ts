@@ -1,7 +1,7 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import './index.ts';
+import './index';
 
 describe('Tabs', () => {
   const containers = new Set<HTMLDivElement>();
@@ -46,6 +46,25 @@ describe('Tabs', () => {
   // ── TabsRoot ──────────────────────────────────────────────────────────
 
   describe('TabsRoot', () => {
+    it('supports rendering the root via a TemplateResult render prop', async () => {
+      render(html`
+        <tabs-root
+          .defaultValue=${'overview'}
+          .render=${html`<div class="root-shell"></div>`}
+        >
+          <tabs-list>
+            <tabs-tab value="overview">Overview</tabs-tab>
+          </tabs-list>
+          <tabs-panel value="overview">Overview content</tabs-panel>
+        </tabs-root>
+      `);
+      await flush();
+
+      const shell = document.querySelector('tabs-root > .root-shell') as HTMLElement;
+      expect(shell).toHaveAttribute('data-orientation', 'horizontal');
+      expect(shell.querySelector('tabs-list')).not.toBeNull();
+    });
+
     describe('prop: children', () => {
       it('puts the selected child in tab order', async () => {
         render(html`
@@ -959,6 +978,27 @@ describe('Tabs', () => {
         'string label',
       );
     });
+
+    it('supports rendering the list via a render function', async () => {
+      render(html`
+        <tabs-root .defaultValue=${'overview'}>
+          <tabs-list
+            .render=${(
+              _props: unknown,
+              _state: unknown,
+            ) => html`<div class="list-shell"></div>`}
+          >
+            <tabs-tab value="overview">Overview</tabs-tab>
+          </tabs-list>
+        </tabs-root>
+      `);
+      await flush();
+
+      const shell = document.querySelector('tabs-list > .list-shell') as HTMLElement;
+      expect(shell).toHaveAttribute('role', 'tablist');
+      expect(shell).toHaveAttribute('data-orientation', 'horizontal');
+      expect(shell.querySelector('tabs-tab')).not.toBeNull();
+    });
   });
 
   // ── TabsTab ───────────────────────────────────────────────────────────
@@ -1177,6 +1217,31 @@ describe('Tabs', () => {
       expect(panels[1]).toHaveAttribute('hidden');
       expect((document.querySelector('tabs-panel') as any).keepMounted).toBe(false);
     });
+
+    it('supports rendering the panel via a TemplateResult render prop', async () => {
+      render(html`
+        <tabs-root .defaultValue=${'overview'}>
+          <tabs-list>
+            <tabs-tab value="overview">Overview</tabs-tab>
+            <tabs-tab value="projects">Projects</tabs-tab>
+          </tabs-list>
+          <tabs-panel
+            value="overview"
+            .keepMounted=${true}
+            .render=${html`<section class="panel-shell"></section>`}
+          >
+            Overview content
+          </tabs-panel>
+          <tabs-panel value="projects" .keepMounted=${true}>Projects content</tabs-panel>
+        </tabs-root>
+      `);
+      await flush();
+
+      const shell = document.querySelector('tabs-panel > .panel-shell') as HTMLElement;
+      expect(shell).toHaveAttribute('role', 'tabpanel');
+      expect(shell).toHaveAttribute('aria-labelledby');
+      expect(shell).toHaveTextContent('Overview content');
+    });
   });
 
   // ── TabsIndicator ─────────────────────────────────────────────────────
@@ -1211,6 +1276,29 @@ describe('Tabs', () => {
 
       const indicator = document.querySelector('tabs-indicator')!;
       expect(indicator).toHaveAttribute('data-orientation', 'vertical');
+    });
+
+    it('supports rendering the indicator via a render function', async () => {
+      render(html`
+        <tabs-root .defaultValue=${'overview'}>
+          <tabs-list>
+            <tabs-tab value="overview">Overview</tabs-tab>
+            <tabs-tab value="projects">Projects</tabs-tab>
+            <tabs-indicator
+              .render=${(
+                _props: unknown,
+                _state: unknown,
+              ) => html`<span class="indicator-shell"></span>`}
+            ></tabs-indicator>
+          </tabs-list>
+        </tabs-root>
+      `);
+      await flush();
+
+      const shell = document.querySelector('tabs-indicator > .indicator-shell') as HTMLElement;
+      expect(shell).toHaveAttribute('role', 'presentation');
+      expect(shell).toHaveAttribute('aria-hidden', 'true');
+      expect(shell).toHaveAttribute('data-orientation', 'horizontal');
     });
   });
 

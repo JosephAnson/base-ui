@@ -51,11 +51,19 @@ export interface TabsRootChangeEventDetails {
   /**
    * Cancels Base UI from handling the event.
    */
-  cancel(): void;
+  cancel: () => void;
+  /**
+   * Allows the native event to propagate when Base UI would otherwise stop it.
+   */
+  allowPropagation: () => void;
   /**
    * Indicates whether the event has been canceled.
    */
   isCanceled: boolean;
+  /**
+   * Indicates whether event propagation is allowed.
+   */
+  isPropagationAllowed: boolean;
   /**
    * The reason for the event.
    */
@@ -64,6 +72,10 @@ export interface TabsRootChangeEventDetails {
    * The direction used for the newly activated tab.
    */
   activationDirection: TabsTabActivationDirection;
+  /**
+   * The element that triggered the event, if available.
+   */
+  trigger: Element | undefined;
 }
 
 export interface RootApiProps {
@@ -89,6 +101,14 @@ export interface RootApiProps {
    * @default 'horizontal'
    */
   orientation?: TabsRootOrientation | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?:
+    | TemplateResult
+    | ((props: Record<string, unknown>, state: TabsRootState) => TemplateResult)
+    | undefined;
 }
 
 export interface ListApiProps {
@@ -103,6 +123,14 @@ export interface ListApiProps {
    * @default true
    */
   loopFocus?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?:
+    | TemplateResult
+    | ((props: Record<string, unknown>, state: TabsListState) => TemplateResult)
+    | undefined;
 }
 
 export interface TabApiProps {
@@ -136,9 +164,26 @@ export interface PanelApiProps {
    * @default false
    */
   keepMounted?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?:
+    | TemplateResult
+    | ((props: Record<string, unknown>, state: TabsPanelState) => TemplateResult)
+    | undefined;
 }
 
-export interface IndicatorApiProps {}
+export interface IndicatorApiProps {
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?:
+    | TemplateResult
+    | ((props: Record<string, unknown>, state: TabsIndicatorState) => TemplateResult)
+    | undefined;
+}
 
 export enum RootDataAttributes {
   /** Indicates the orientation of the tabs. */

@@ -11,12 +11,13 @@ Renders a `<div>` element.
 
 **Root Props:**
 
-| Prop          | Type                                                                        | Default        | Description                                                                                                                         |
-| :------------ | :-------------------------------------------------------------------------- | :------------- | :---------------------------------------------------------------------------------------------------------------------------------- |
-| defaultValue  | `TabsTabValue`                                                              | `0`            | The default value. Use when the component is not controlled.&#xA;When the value is `null`, no Tab will be active.                   |
-| value         | `TabsTabValue`                                                              | -              | The value of the currently active `Tab`. Use when the component is controlled.&#xA;When the value is `null`, no Tab will be active. |
-| onValueChange | `((value: TabsTabValue, eventDetails: TabsRootChangeEventDetails) => void)` | -              | Callback invoked when new value is being set.                                                                                       |
-| orientation   | `TabsRootOrientation`                                                       | `'horizontal'` | The component orientation (layout flow direction).                                                                                  |
+| Prop          | Type                                                                                           | Default        | Description                                                                                                                                                  |
+| :------------ | :--------------------------------------------------------------------------------------------- | :------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| defaultValue  | `TabsTabValue`                                                                                 | `0`            | The default value. Use when the component is not controlled.&#xA;When the value is `null`, no Tab will be active.                                            |
+| value         | `TabsTabValue`                                                                                 | -              | The value of the currently active `Tab`. Use when the component is controlled.&#xA;When the value is `null`, no Tab will be active.                          |
+| onValueChange | `((value: TabsTabValue, eventDetails: TabsRootChangeEventDetails) => void)`                    | -              | Callback invoked when new value is being set.                                                                                                                |
+| orientation   | `TabsRootOrientation`                                                                          | `'horizontal'` | The component orientation (layout flow direction).                                                                                                           |
+| render        | `((props: Record<string, unknown>, state: TabsRootState) => TemplateResult) \| TemplateResult` | -              | Allows you to replace the component's HTML element with a custom template.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
 
 **Root Data Attributes:**
 
@@ -47,13 +48,19 @@ type RootChangeEventDetails = {
   /** The native event associated with the custom event. */
   event: Event;
   /** Cancels Base UI from handling the event. */
-  cancel: cancel;
+  cancel: () => void;
+  /** Allows the native event to propagate when Base UI would otherwise stop it. */
+  allowPropagation: () => void;
   /** Indicates whether the event has been canceled. */
   isCanceled: boolean;
+  /** Indicates whether event propagation is allowed. */
+  isPropagationAllowed: boolean;
   /** The reason for the event. */
   reason: 'none';
   /** The direction used for the newly activated tab. */
   activationDirection: TabsTabActivationDirection;
+  /** The element that triggered the event, if available. */
+  trigger: Element | undefined;
 };
 ```
 
@@ -74,10 +81,11 @@ Renders a `<div>` element.
 
 **List Props:**
 
-| Prop            | Type      | Default | Description                                                                                                                              |
-| :-------------- | :-------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------- |
-| activateOnFocus | `boolean` | `false` | Whether to automatically change the active tab on arrow key focus.&#xA;Otherwise, tabs will be activated using Enter or Space key press. |
-| loopFocus       | `boolean` | `true`  | Whether to loop keyboard focus back to the first item when the end of the list is reached.                                               |
+| Prop            | Type                                                                                           | Default | Description                                                                                                                                                  |
+| :-------------- | :--------------------------------------------------------------------------------------------- | :------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| activateOnFocus | `boolean`                                                                                      | `false` | Whether to automatically change the active tab on arrow key focus.&#xA;Otherwise, tabs will be activated using Enter or Space key press.                     |
+| loopFocus       | `boolean`                                                                                      | `true`  | Whether to loop keyboard focus back to the first item when the end of the list is reached.                                                                   |
+| render          | `((props: Record<string, unknown>, state: TabsListState) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element with a custom template.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
 
 **List Data Attributes:**
 
@@ -112,10 +120,11 @@ Renders a `<div>` element.
 
 **Panel Props:**
 
-| Prop        | Type           | Default | Description                                                                                      |
-| :---------- | :------------- | :------ | :----------------------------------------------------------------------------------------------- |
-| value\*     | `TabsTabValue` | -       | The value of the TabPanel. It will be shown when the Tab with the corresponding value is active. |
-| keepMounted | `boolean`      | `false` | Whether to keep the HTML element in the DOM while the panel is hidden.                           |
+| Prop        | Type                                                                                            | Default | Description                                                                                                                                                  |
+| :---------- | :---------------------------------------------------------------------------------------------- | :------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| value\*     | `TabsTabValue`                                                                                  | -       | The value of the TabPanel. It will be shown when the Tab with the corresponding value is active.                                                             |
+| keepMounted | `boolean`                                                                                       | `false` | Whether to keep the HTML element in the DOM while the panel is hidden.                                                                                       |
+| render      | `((props: Record<string, unknown>, state: TabsPanelState) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element with a custom template.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
 
 **Panel Data Attributes:**
 
@@ -150,6 +159,12 @@ Re-export of [Panel](#panel) data-attributes.
 A visual indicator that can be styled to match the position of the currently active tab.
 Renders a `<span>` element.
 
+**Indicator Props:**
+
+| Prop   | Type                                                                                                | Default | Description                                                                                                                                                  |
+| :----- | :-------------------------------------------------------------------------------------------------- | :------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| render | `((props: Record<string, unknown>, state: TabsIndicatorState) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element with a custom template.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
+
 **Indicator Data Attributes:**
 
 | Attribute                 | Type | Description                                                                 |
@@ -159,9 +174,7 @@ Renders a `<span>` element.
 
 ### Indicator.Props
 
-```typescript
-type IndicatorProps = {};
-```
+Re-export of [Indicator](#indicator) props.
 
 ### Indicator.State
 
@@ -249,7 +262,15 @@ type TabActivationDirection = 'left' | 'right' | 'up' | 'down' | 'none';
 ### IndicatorApiProps
 
 ```typescript
-type IndicatorApiProps = {};
+type IndicatorApiProps = {
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?:
+    | ((props: Record<string, unknown>, state: TabsIndicatorState) => TemplateResult)
+    | TemplateResult;
+};
 ```
 
 ### ListApiProps
@@ -267,6 +288,13 @@ type ListApiProps = {
    * @default true
    */
   loopFocus?: boolean;
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?:
+    | ((props: Record<string, unknown>, state: TabsListState) => TemplateResult)
+    | TemplateResult;
 };
 ```
 
@@ -281,6 +309,13 @@ type PanelApiProps = {
    * @default false
    */
   keepMounted?: boolean;
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?:
+    | ((props: Record<string, unknown>, state: TabsPanelState) => TemplateResult)
+    | TemplateResult;
 };
 ```
 
@@ -306,6 +341,13 @@ type RootApiProps = {
    * @default 'horizontal'
    */
   orientation?: TabsRootOrientation;
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?:
+    | ((props: Record<string, unknown>, state: TabsRootState) => TemplateResult)
+    | TemplateResult;
 };
 ```
 
@@ -385,13 +427,19 @@ type TabsRootChangeEventDetails = {
   /** The native event associated with the custom event. */
   event: Event;
   /** Cancels Base UI from handling the event. */
-  cancel: cancel;
+  cancel: () => void;
+  /** Allows the native event to propagate when Base UI would otherwise stop it. */
+  allowPropagation: () => void;
   /** Indicates whether the event has been canceled. */
   isCanceled: boolean;
+  /** Indicates whether event propagation is allowed. */
+  isPropagationAllowed: boolean;
   /** The reason for the event. */
   reason: 'none';
   /** The direction used for the newly activated tab. */
   activationDirection: TabsTabActivationDirection;
+  /** The element that triggered the event, if available. */
+  trigger: Element | undefined;
 };
 ```
 
@@ -435,14 +483,6 @@ type TabsTabState = {
 
 ```typescript
 type TabsTabValue = string | number;
-```
-
-## External Types
-
-### cancel
-
-```typescript
-type cancel = () => void;
 ```
 
 ## Canonical Types

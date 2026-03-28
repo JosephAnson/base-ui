@@ -1,6 +1,7 @@
+/* eslint-disable no-underscore-dangle */
 import { ReactiveElement, nothing, render as renderTemplate, type TemplateResult } from 'lit';
-import { BaseHTMLElement, ensureId } from '../utils/index.ts';
-import { getDirection } from '../direction-provider/index.ts';
+import { BaseHTMLElement, ensureId } from '../utils';
+import { getDirection } from '../direction-provider';
 import type { ComponentRenderFn, HTMLProps } from '../types';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
@@ -25,8 +26,11 @@ export interface TabsRootChangeEventDetails {
   event: Event;
   cancel(): void;
   readonly isCanceled: boolean;
+  allowPropagation(): void;
+  readonly isPropagationAllowed: boolean;
   reason: TabsRootChangeEventReason;
   activationDirection: TabActivationDirection;
+  trigger: Element | undefined;
 }
 
 export interface TabsListState extends TabsRootState {}
@@ -50,6 +54,7 @@ export interface TabsRootProps {
   value?: TabValue | undefined;
   defaultValue?: TabValue | undefined;
   orientation?: TabsOrientation | undefined;
+  render?: TabsRootRenderProp | undefined;
   onValueChange?:
     | ((value: TabValue, eventDetails: TabsRootChangeEventDetails) => void)
     | undefined;
@@ -58,6 +63,7 @@ export interface TabsRootProps {
 export interface TabsListProps {
   activateOnFocus?: boolean | undefined;
   loopFocus?: boolean | undefined;
+  render?: TabsListRenderProp | undefined;
 }
 
 export interface TabsTabProps {
@@ -69,14 +75,33 @@ export interface TabsTabProps {
 export interface TabsPanelProps {
   value?: TabValue | undefined;
   keepMounted?: boolean | undefined;
+  render?: TabsPanelRenderProp | undefined;
 }
 
-export interface TabsIndicatorProps {}
+export interface TabsIndicatorProps {
+  render?: TabsIndicatorRenderProp | undefined;
+}
 
+type TabsRootRenderProps = HTMLProps<HTMLElement>;
+type TabsRootRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<TabsRootRenderProps, TabsRootState>;
+type TabsListRenderProps = HTMLProps<HTMLElement>;
+type TabsListRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<TabsListRenderProps, TabsListState>;
 type TabsTabRenderProps = HTMLProps<HTMLElement>;
 type TabsTabRenderProp =
   | TemplateResult
   | ComponentRenderFn<TabsTabRenderProps, TabsTabState>;
+type TabsPanelRenderProps = HTMLProps<HTMLElement>;
+type TabsPanelRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<TabsPanelRenderProps, TabsPanelState>;
+type TabsIndicatorRenderProps = HTMLProps<HTMLElement>;
+type TabsIndicatorRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<TabsIndicatorRenderProps, TabsIndicatorState>;
 
 // ─── TabsRootElement ────────────────────────────────────────────────────────────
 
@@ -110,11 +135,13 @@ export class TabsRootElement extends ReactiveElement {
   onValueChange:
     | ((value: TabValue, eventDetails: TabsRootChangeEventDetails) => void)
     | undefined;
+  render: TabsRootRenderProp | undefined;
 
   private _internalValue: TabValue | undefined;
   private _initialized = false;
   private _hasExplicitDefaultValue = false;
   private _tabActivationDirection: TabActivationDirection = 'none';
+  private _renderedElement: HTMLElement | null = null;
 
   constructor() {
     super();
@@ -135,14 +162,18 @@ export class TabsRootElement extends ReactiveElement {
       this._internalValue = this.value ?? this.defaultValue ?? null;
     }
 
-    this.style.display = 'contents';
     this.setAttribute(TABS_ROOT_ATTRIBUTE, '');
-    this._syncAttributes();
+    this._syncAttributes(this._ensureRenderedElement());
     queueMicrotask(() => this.refreshSelectionState());
   }
 
   protected override updated() {
-    this._syncAttributes();
+    this._syncAttributes(this._ensureRenderedElement());
+  }
+
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this._resetRenderedElement();
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -202,6 +233,13 @@ export class TabsRootElement extends ReactiveElement {
     return this._tabActivationDirection;
   }
 
+  getState(): TabsRootState {
+    return {
+      orientation: this.orientation,
+      tabActivationDirection: this._tabActivationDirection,
+    };
+  }
+
   refreshSelectionState() {
     this._syncSelectionState();
   }
@@ -224,9 +262,14 @@ export class TabsRootElement extends ReactiveElement {
 
   // ── Private ─────────────────────────────────────────────────────────────
 
-  private _syncAttributes() {
-    this.setAttribute('data-orientation', this.orientation);
-    this.setAttribute('data-activation-direction', this._tabActivationDirection);
+  private _syncAttributes(target: HTMLElement = this) {
+    if (target !== this) {
+      this.removeAttribute('data-orientation');
+      this.removeAttribute('data-activation-direction');
+    }
+
+    target.setAttribute('data-orientation', this.orientation);
+    target.setAttribute('data-activation-direction', this._tabActivationDirection);
   }
 
   private _publishStateChange() {
@@ -327,6 +370,55 @@ export class TabsRootElement extends ReactiveElement {
     }
     return newRect.top > oldRect.top ? 'down' : 'up';
   }
+
+  private _ensureRenderedElement(): HTMLElement {
+    if (this.render == null) {
+      this._resetRenderedElement();
+      this.style.display = 'block';
+      this._renderedElement = this;
+      return this;
+    }
+
+    if (
+      this._renderedElement &&
+      this._renderedElement !== this &&
+      this.contains(this._renderedElement)
+    ) {
+      return this._renderedElement;
+    }
+
+    const contentNodes =
+      this._renderedElement && this._renderedElement !== this
+        ? Array.from(this._renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this._renderedElement);
+    const renderProps: TabsRootRenderProps = {};
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, this.getState()) : this.render;
+    const nextRoot = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+
+    if (nextRoot !== this) {
+      this.replaceChildren(nextRoot);
+      nextRoot.append(...contentNodes);
+    } else {
+      this._resetRenderedElement();
+    }
+
+    this._renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private _resetRenderedElement() {
+    if (this._renderedElement == null || this._renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this._renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this._renderedElement = null;
+    this.style.display = 'block';
+  }
 }
 
 if (!customElements.get('tabs-root')) {
@@ -345,14 +437,16 @@ export class TabsListElement extends BaseHTMLElement {
 
   /** Whether arrow key navigation loops. */
   loopFocus = true;
+  render: TabsListRenderProp | undefined;
 
   private _root: TabsRootElement | null = null;
   private _handler = () => this._syncAttributes();
+  private _renderedElement: HTMLElement | null = null;
 
   connectedCallback() {
     this._root = this.closest('tabs-root') as TabsRootElement | null;
 
-    this.setAttribute('role', 'tablist');
+    this._ensureRenderedElement();
     this.addEventListener('keydown', this._handleKeyDown);
 
     if (this._root) {
@@ -369,18 +463,29 @@ export class TabsListElement extends BaseHTMLElement {
   disconnectedCallback() {
     this.removeEventListener('keydown', this._handleKeyDown);
     this._root?.removeEventListener(TABS_STATE_CHANGE_EVENT, this._handler);
+    this._resetRenderedElement();
     this._root = null;
   }
 
   private _syncAttributes() {
     const orientation = this._root?.getOrientation() ?? 'horizontal';
-    this.setAttribute('data-orientation', orientation);
-    if (orientation === 'vertical') {
-      this.setAttribute('aria-orientation', 'vertical');
-    } else {
+    const target = this._ensureRenderedElement();
+
+    if (target !== this) {
+      this.removeAttribute('role');
+      this.removeAttribute('data-orientation');
       this.removeAttribute('aria-orientation');
+      this.removeAttribute('data-activation-direction');
     }
-    this.setAttribute(
+
+    target.setAttribute('role', 'tablist');
+    target.setAttribute('data-orientation', orientation);
+    if (orientation === 'vertical') {
+      target.setAttribute('aria-orientation', 'vertical');
+    } else {
+      target.removeAttribute('aria-orientation');
+    }
+    target.setAttribute(
       'data-activation-direction',
       this._root?.getTabActivationDirection() ?? 'none',
     );
@@ -506,6 +611,61 @@ export class TabsListElement extends BaseHTMLElement {
   private _parseValue(str: string): TabValue {
     const num = Number(str);
     return Number.isNaN(num) ? str : num;
+  }
+
+  private _ensureRenderedElement(): HTMLElement {
+    if (this.render == null) {
+      this._resetRenderedElement();
+      this.style.removeProperty('display');
+      this._renderedElement = this;
+      return this;
+    }
+
+    if (
+      this._renderedElement &&
+      this._renderedElement !== this &&
+      this.contains(this._renderedElement)
+    ) {
+      return this._renderedElement;
+    }
+
+    const contentNodes =
+      this._renderedElement && this._renderedElement !== this
+        ? Array.from(this._renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this._renderedElement);
+    const state: TabsListState = {
+      orientation: this._root?.getOrientation() ?? 'horizontal',
+      tabActivationDirection: this._root?.getTabActivationDirection() ?? 'none',
+    };
+    const renderProps: TabsListRenderProps = {
+      'aria-orientation': state.orientation === 'vertical' ? 'vertical' : undefined,
+      role: 'tablist',
+    };
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, state) : this.render;
+    const nextRoot = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+
+    if (nextRoot !== this) {
+      this.replaceChildren(nextRoot);
+      nextRoot.append(...contentNodes);
+    } else {
+      this._resetRenderedElement();
+    }
+
+    this._renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private _resetRenderedElement() {
+    if (this._renderedElement == null || this._renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this._renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this._renderedElement = null;
   }
 }
 
@@ -649,11 +809,16 @@ export class TabsTabElement extends BaseHTMLElement {
   private _findPanelId(): string | null {
     if (this.value === undefined || !this._root) {return null;}
     const panels = Array.from(
-      this._root.querySelectorAll<TabsPanelElement>(`[role="tabpanel"][data-value="${this.value}"]`),
+      this._root.querySelectorAll<HTMLElement>(
+        `tabs-panel[data-value="${this.value}"], [role="tabpanel"][data-value="${this.value}"]`,
+      ),
     );
     const panel =
       panels.find(
-        (candidate) => candidate.keepMounted || Object.is(this._root?.getValue(), this.value),
+        (candidate) =>
+          (!candidate.matches('tabs-panel') ||
+            (candidate as TabsPanelElement).keepMounted) ||
+          Object.is(this._root?.getValue(), this.value),
       ) ?? null;
     return panel?.id ?? null;
   }
@@ -778,9 +943,11 @@ export class TabsPanelElement extends BaseHTMLElement {
 
   /** Keep the panel in the DOM when hidden. */
   keepMounted = false;
+  render: TabsPanelRenderProp | undefined;
 
   private _root: TabsRootElement | null = null;
   private _handler = () => this._syncAttributes();
+  private _renderedElement: HTMLElement | null = null;
 
   attributeChangedCallback(name: string, _old: string | null, val: string | null) {
     if (name === 'keep-mounted') {
@@ -824,6 +991,7 @@ export class TabsPanelElement extends BaseHTMLElement {
 
   disconnectedCallback() {
     this._root?.removeEventListener(TABS_STATE_CHANGE_EVENT, this._handler);
+    this._resetRenderedElement();
     this._root = null;
   }
 
@@ -834,22 +1002,35 @@ export class TabsPanelElement extends BaseHTMLElement {
   private _syncAttributes() {
     const open = this._isOpen();
     const orientation = this._root?.getOrientation() ?? 'horizontal';
+    const target = this._ensureRenderedElement(open, orientation);
 
-    this.toggleAttribute('hidden', !open);
-    this.toggleAttribute('data-hidden', !open);
-    this.setAttribute('data-orientation', orientation);
-    this.tabIndex = open ? 0 : -1;
+    if (target !== this) {
+      this.removeAttribute('role');
+      this.removeAttribute('aria-labelledby');
+      this.removeAttribute('hidden');
+      this.removeAttribute('data-hidden');
+      this.removeAttribute('data-orientation');
+    }
+
+    target.setAttribute('role', 'tabpanel');
+    target.toggleAttribute('hidden', !open);
+    target.toggleAttribute('data-hidden', !open);
+    target.setAttribute('data-orientation', orientation);
+    target.tabIndex = open ? 0 : -1;
 
     if (this.value !== undefined) {
-      this.setAttribute('data-value', String(this.value));
+      target.setAttribute('data-value', String(this.value));
+      if (target !== this) {
+        this.setAttribute('data-value', String(this.value));
+      }
     }
 
     // Associate with tab
     const tabId = this._findTabId();
     if (tabId) {
-      this.setAttribute('aria-labelledby', tabId);
+      target.setAttribute('aria-labelledby', tabId);
     } else {
-      this.removeAttribute('aria-labelledby');
+      target.removeAttribute('aria-labelledby');
     }
   }
 
@@ -859,6 +1040,63 @@ export class TabsPanelElement extends BaseHTMLElement {
       `[role="tab"][data-value="${this.value}"]`,
     ) as HTMLElement | null;
     return tab?.id ?? null;
+  }
+
+  private _ensureRenderedElement(open: boolean, orientation: TabsOrientation): HTMLElement {
+    if (this.render == null) {
+      this._resetRenderedElement();
+      this.style.removeProperty('display');
+      this._renderedElement = this;
+      return this;
+    }
+
+    if (
+      this._renderedElement &&
+      this._renderedElement !== this &&
+      this.contains(this._renderedElement)
+    ) {
+      return this._renderedElement;
+    }
+
+    const contentNodes =
+      this._renderedElement && this._renderedElement !== this
+        ? Array.from(this._renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this._renderedElement);
+    const state: TabsPanelState = {
+      hidden: !open,
+      orientation,
+    };
+    const renderProps: TabsPanelRenderProps = {
+      'aria-labelledby': this._findTabId() ?? undefined,
+      role: 'tabpanel',
+      tabIndex: open ? 0 : -1,
+    };
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, state) : this.render;
+    const nextRoot = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+
+    if (nextRoot !== this) {
+      this.replaceChildren(nextRoot);
+      nextRoot.append(...contentNodes);
+    } else {
+      this._resetRenderedElement();
+    }
+
+    ensureId(nextRoot, this.id || 'base-ui-tabpanel');
+    this._renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private _resetRenderedElement() {
+    if (this._renderedElement == null || this._renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this._renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this._renderedElement = null;
   }
 }
 
@@ -878,6 +1116,8 @@ export class TabsIndicatorElement extends BaseHTMLElement {
   private _root: TabsRootElement | null = null;
   private _list: TabsListElement | null = null;
   private _handler = () => this._syncPosition();
+  render: TabsIndicatorRenderProp | undefined;
+  private _renderedElement: HTMLElement | null = null;
 
   connectedCallback() {
     this._root = this.closest('tabs-root') as TabsRootElement | null;
@@ -895,21 +1135,33 @@ export class TabsIndicatorElement extends BaseHTMLElement {
 
   disconnectedCallback() {
     this._root?.removeEventListener(TABS_STATE_CHANGE_EVENT, this._handler);
+    this._resetRenderedElement();
     this._root = null;
     this._list = null;
   }
 
   private _syncPosition() {
     const orientation = this._root?.getOrientation() ?? 'horizontal';
-    this.setAttribute('data-orientation', orientation);
-    this.setAttribute(
+    const target = this._ensureRenderedElement(orientation);
+
+    if (target !== this) {
+      this.removeAttribute('role');
+      this.removeAttribute('aria-hidden');
+      this.removeAttribute('data-orientation');
+      this.removeAttribute('data-activation-direction');
+    }
+
+    target.setAttribute('role', 'presentation');
+    target.setAttribute('aria-hidden', 'true');
+    target.setAttribute('data-orientation', orientation);
+    target.setAttribute(
       'data-activation-direction',
       this._root?.getTabActivationDirection() ?? 'none',
     );
 
     const selectedValue = this._root?.getValue();
     if (selectedValue == null) {
-      this.style.display = 'none';
+      target.style.display = 'none';
       return;
     }
 
@@ -918,7 +1170,7 @@ export class TabsIndicatorElement extends BaseHTMLElement {
     ) as HTMLElement | null;
 
     if (!activeTab || !this._list) {
-      this.style.display = 'none';
+      target.style.display = 'none';
       return;
     }
 
@@ -928,19 +1180,57 @@ export class TabsIndicatorElement extends BaseHTMLElement {
     const left = tabRect.left - listRect.left + this._list.scrollLeft;
     const top = tabRect.top - listRect.top + this._list.scrollTop;
 
-    this.style.setProperty('--active-tab-left', `${left}px`);
-    this.style.setProperty('--active-tab-top', `${top}px`);
-    this.style.setProperty('--active-tab-width', `${tabRect.width}px`);
-    this.style.setProperty('--active-tab-height', `${tabRect.height}px`);
-    this.style.setProperty(
+    target.style.setProperty('--active-tab-left', `${left}px`);
+    target.style.setProperty('--active-tab-top', `${top}px`);
+    target.style.setProperty('--active-tab-width', `${tabRect.width}px`);
+    target.style.setProperty('--active-tab-height', `${tabRect.height}px`);
+    target.style.setProperty(
       '--active-tab-right',
       `${this._list.scrollWidth - left - tabRect.width}px`,
     );
-    this.style.setProperty(
+    target.style.setProperty(
       '--active-tab-bottom',
       `${this._list.scrollHeight - top - tabRect.height}px`,
     );
-    this.style.display = '';
+    target.style.display = '';
+  }
+
+  private _ensureRenderedElement(orientation: TabsOrientation): HTMLElement {
+    if (this.render == null) {
+      this._resetRenderedElement();
+      this.style.removeProperty('display');
+      this._renderedElement = this;
+      return this;
+    }
+
+    const state: TabsIndicatorState = {
+      orientation,
+    };
+    const renderProps: TabsIndicatorRenderProps = {
+      'aria-hidden': 'true',
+      role: 'presentation',
+    };
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, state) : this.render;
+
+    this.style.display = 'contents';
+    renderTemplate(template, this);
+
+    const nextRoot = Array.from(this.children).find(
+      (child): child is HTMLElement => child instanceof HTMLElement,
+    ) ?? this;
+    this._renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private _resetRenderedElement() {
+    if (this._renderedElement == null || this._renderedElement === this) {
+      return;
+    }
+
+    renderTemplate(nothing, this);
+    this.style.removeProperty('display');
+    this._renderedElement = null;
   }
 }
 
@@ -993,18 +1283,53 @@ function createTabsChangeEventDetails(
   activationDirection: TabActivationDirection,
 ): TabsRootChangeEventDetails {
   let canceled = false;
+  let propagationAllowed = false;
 
   return {
     activationDirection,
+    allowPropagation() {
+      propagationAllowed = true;
+    },
     cancel() {
       canceled = true;
     },
     get isCanceled() {
       return canceled;
     },
+    get isPropagationAllowed() {
+      return propagationAllowed;
+    },
     event,
     reason: 'none',
+    trigger: event.target instanceof Element ? event.target : undefined,
   };
+}
+
+function materializeTemplateRoot(template: TemplateResult): HTMLElement {
+  const container = document.createElement('div');
+  renderTemplate(template, container);
+
+  const meaningfulChildren = Array.from(container.childNodes).filter((node) => {
+    if (node.nodeType === Node.COMMENT_NODE) {
+      return false;
+    }
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      return node.textContent?.trim().length;
+    }
+
+    return true;
+  });
+
+  if (meaningfulChildren.length !== 1 || !(meaningfulChildren[0] instanceof HTMLElement)) {
+    throw new Error(
+      'Base UI: `<tabs-*>` render templates must resolve to exactly one HTML element ' +
+        'so attributes, ids, and children can be applied correctly. ' +
+        'Update the `render` template to return a single root element.',
+    );
+  }
+
+  return meaningfulChildren[0];
 }
 
 declare global {

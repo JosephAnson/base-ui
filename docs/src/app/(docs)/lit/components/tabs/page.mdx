@@ -40,6 +40,7 @@ html`
 ### Links
 
 Render a custom anchor element through the `render` prop when a tab should navigate.
+Unlike React, the Lit custom element does not need a separate `nativeButton` prop here; it renders the provided element directly.
 
 ```ts title="Tabs as links" {6-8}
 import '@base-ui/lit/tabs';
