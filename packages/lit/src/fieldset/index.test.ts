@@ -75,6 +75,19 @@ describe('fieldset', () => {
     expect(root).toHaveAttribute('data-base-ui-fieldset-context');
   });
 
+  it('supports a static render template on the root', async () => {
+    const view = render(html`
+      <fieldset-root .render=${html`<fieldset data-testid="root"></fieldset>`}>
+        <fieldset-legend>Legend</fieldset-legend>
+      </fieldset-root>
+    `);
+    await waitForUpdate();
+
+    const root = view.querySelector('[data-testid="root"]') as HTMLElement;
+    expect(root).toHaveAttribute('aria-labelledby');
+    expect(root.querySelector('fieldset-legend')).not.toBeNull();
+  });
+
   it('sets aria-labelledby on the root automatically from legend', async () => {
     const view = render(html`
       <fieldset-root>
@@ -133,6 +146,28 @@ describe('fieldset', () => {
     expect(legend).toHaveAttribute('data-disabled');
   });
 
+  it('supports a render function on the legend', async () => {
+    let receivedState: Record<string, unknown> | null = null;
+
+    const view = render(html`
+      <fieldset-root .disabled=${true}>
+        <fieldset-legend
+          .render=${(_: Record<string, unknown>, state: Record<string, unknown>) => {
+            receivedState = state;
+            return html`<div data-testid="legend"></div>`;
+          }}
+        >
+          Legend
+        </fieldset-legend>
+      </fieldset-root>
+    `);
+    await waitForUpdate();
+
+    expect(receivedState).toEqual(expect.objectContaining({ disabled: true }));
+    expect(view.querySelector('[data-testid="legend"]')).toHaveAttribute('data-disabled');
+    expect(view.querySelector('[data-testid="legend"]')?.textContent?.trim()).toBe('Legend');
+  });
+
   it('does not set data-disabled when disabled is false', async () => {
     const view = render(html`
       <fieldset-root>
@@ -148,10 +183,11 @@ describe('fieldset', () => {
     expect(legend).not.toHaveAttribute('data-disabled');
   });
 
-  it('logs error when legend is used outside fieldset-root', () => {
+  it('logs error when legend is used outside fieldset-root', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(html`<fieldset-legend>Orphan</fieldset-legend>`);
+    await waitForUpdate();
 
     expect(errorSpy).toHaveBeenCalledTimes(1);
     expect(errorSpy).toHaveBeenCalledWith(

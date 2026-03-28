@@ -1,5 +1,7 @@
 /* eslint-disable react/function-component-definition */
 import * as React from 'react';
+import type { TemplateResult } from 'lit';
+import type { ComponentRenderFn, HTMLProps } from '@base-ui/lit/types';
 
 export interface FormState {}
 
@@ -54,6 +56,12 @@ export interface FormApiProps {
    * @default true
    */
   noValidate?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: TemplateResult | ComponentRenderFn<HTMLProps, FormState> | undefined;
 }
 
 /**

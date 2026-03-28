@@ -1,4 +1,5 @@
 import { ReactiveElement } from 'lit';
+import { useRender } from '../use-render';
 import { BaseHTMLElement, ensureId } from '../utils';
 import {
   RADIO_GROUP_ATTRIBUTE,
@@ -38,7 +39,14 @@ export interface RadioRootState {
   required: boolean;
 }
 
-export interface RadioIndicatorState extends RadioRootState {}
+export type RadioTransitionStatus = 'starting' | 'ending' | undefined;
+
+export interface RadioIndicatorState extends RadioRootState {
+  /**
+   * The transition status of the indicator.
+   */
+  transitionStatus: RadioTransitionStatus;
+}
 
 export interface RadioRootChangeEventDetails {
   event: Event;
@@ -50,11 +58,11 @@ export interface RadioRootChangeEventDetails {
   trigger: Element | undefined;
 }
 
-export interface RadioRootProps {
+export interface RadioRootProps<Value = unknown> {
   /**
    * The value that identifies this radio within a group.
    */
-  value?: unknown | undefined;
+  value?: Value | undefined;
   /**
    * Whether the component should ignore user interaction.
    * @default false
@@ -80,6 +88,31 @@ export interface RadioIndicatorProps {
   keepMounted?: boolean | undefined;
 }
 
+type RefObject<T> = {
+  current: T | null;
+};
+
+type RefCallback<T> = (instance: T | null) => void;
+
+type Ref<T> = RefCallback<T> | RefObject<T> | null | undefined;
+
+export interface RadioProps<Value = unknown>
+  extends Omit<useRender.ComponentProps<'span', RadioRootState>, 'value'>, RadioRootProps<Value> {
+  /**
+   * A ref to access the hidden input element.
+   */
+  inputRef?: Ref<HTMLInputElement> | undefined;
+  /**
+   * Whether the rendered element should be treated as a native `<button>`.
+   * Set to `true` when replacing the default element with a native button via `render`.
+   * @default false
+   */
+  nativeButton?: boolean | undefined;
+}
+
+export interface RadioIndicatorHelperProps
+  extends RadioIndicatorProps, useRender.ComponentProps<'span', RadioIndicatorState> {}
+
 export type RadioRootChangeEventReason = RadioRootChangeEventDetails['reason'];
 
 // ─── RadioRootElement ───────────────────────────────────────────────────────────
@@ -101,18 +134,18 @@ export class RadioRootElement extends ReactiveElement {
     required: { type: Boolean },
   };
 
-  private _value: unknown;
+  private radioValue: unknown;
 
   /** The value that identifies this radio within a group. */
   get value(): unknown {
-    return this._value;
+    return this.radioValue;
   }
 
   set value(val: unknown) {
-    const old = this._value;
-    this._value = val;
+    const old = this.radioValue;
+    this.radioValue = val;
     if (!Object.is(old, val)) {
-      this._syncGroupRegistration();
+      this.syncGroupRegistration();
       this.requestUpdate();
     }
   }
@@ -121,8 +154,8 @@ export class RadioRootElement extends ReactiveElement {
   declare readOnly: boolean;
   declare required: boolean;
 
-  private _input: HTMLInputElement | null = null;
-  private _groupRoot: Element | null = null;
+  private hiddenInput: HTMLInputElement | null = null;
+  private groupRoot: Element | null = null;
 
   constructor() {
     super();
@@ -138,27 +171,27 @@ export class RadioRootElement extends ReactiveElement {
   override connectedCallback() {
     super.connectedCallback();
 
-    this._ensureHiddenInput();
-    this._syncGroupRoot(this.closest(`[${RADIO_GROUP_ATTRIBUTE}]`));
-    this._syncGroupRegistration();
+    this.ensureHiddenInput();
+    this.syncGroupRoot(this.closest(`[${RADIO_GROUP_ATTRIBUTE}]`));
+    this.syncGroupRegistration();
 
-    this.addEventListener('click', this._handleClick);
-    this.addEventListener('keydown', this._handleKeyDown);
-    this.addEventListener('keyup', this._handleKeyUp);
+    this.addEventListener('click', this.handleClick);
+    this.addEventListener('keydown', this.handleKeyDown);
+    this.addEventListener('keyup', this.handleKeyUp);
     this.syncAttributes();
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    this.removeEventListener('click', this._handleClick);
-    this.removeEventListener('keydown', this._handleKeyDown);
-    this.removeEventListener('keyup', this._handleKeyUp);
+    this.removeEventListener('click', this.handleClick);
+    this.removeEventListener('keydown', this.handleKeyDown);
+    this.removeEventListener('keyup', this.handleKeyUp);
 
-    this._cleanupGroupRegistration();
-    this._syncGroupRoot(null);
+    this.cleanupGroupRegistration();
+    this.syncGroupRoot(null);
 
-    this._input?.remove();
-    this._input = null;
+    this.hiddenInput?.remove();
+    this.hiddenInput = null;
   }
 
   override attributeChangedCallback(
@@ -170,27 +203,27 @@ export class RadioRootElement extends ReactiveElement {
 
     if (name === 'id' && oldValue !== newValue) {
       queueMicrotask(() => {
-        this._syncAriaLabelledBy();
+        this.syncAriaLabelledBy();
       });
     }
   }
 
   protected override updated() {
-    this._syncGroupRegistration();
+    this.syncGroupRegistration();
     this.syncAttributes();
   }
 
   getChecked(): boolean {
-    const group = this._getGroupState();
+    const group = this.getGroupState();
     if (group) {
-      return Object.is(group.checkedValue, this._value);
+      return Object.is(group.checkedValue, this.radioValue);
     }
     // Standalone radio: checked when value is empty string (matches React behavior)
-    return this._value === '';
+    return this.radioValue === '';
   }
 
   getState(): RadioRootState {
-    const group = this._getGroupState();
+    const group = this.getGroupState();
     return {
       checked: this.getChecked(),
       disabled: Boolean(group?.disabled) || this.disabled,
@@ -199,50 +232,52 @@ export class RadioRootElement extends ReactiveElement {
     };
   }
 
-  private _ensureHiddenInput() {
-    if (!this._input) {
-      this._input = document.createElement('input');
-      this._input.type = 'radio';
-      this._input.tabIndex = -1;
-      this._input.setAttribute('aria-hidden', 'true');
-      this._input.addEventListener('change', this._handleInputChange);
-      this._input.addEventListener('focus', () => this.focus());
-      this.appendChild(this._input);
+  private ensureHiddenInput() {
+    if (!this.hiddenInput) {
+      this.hiddenInput = document.createElement('input');
+      this.hiddenInput.type = 'radio';
+      this.hiddenInput.tabIndex = -1;
+      this.hiddenInput.setAttribute('aria-hidden', 'true');
+      this.hiddenInput.addEventListener('change', this.handleInputChange);
+      this.hiddenInput.addEventListener('focus', () => this.focus());
+      this.appendChild(this.hiddenInput);
     }
   }
 
-  private _syncHiddenInput() {
-    if (!this._input) return;
+  private syncHiddenInput() {
+    if (!this.hiddenInput) {
+      return;
+    }
 
-    const group = this._getGroupState();
+    const group = this.getGroupState();
     const state = this.getState();
     const isChecked = state.checked;
 
-    this._input.checked = isChecked;
-    this._input.disabled = state.disabled;
-    this._input.required = state.required;
+    this.hiddenInput.checked = isChecked;
+    this.hiddenInput.disabled = state.disabled;
+    this.hiddenInput.required = state.required;
 
     if (group?.name) {
-      this._input.name = group.name;
-      this._input.style.cssText = VISUALLY_HIDDEN_INPUT_STYLE;
+      this.hiddenInput.name = group.name;
+      this.hiddenInput.style.cssText = VISUALLY_HIDDEN_INPUT_STYLE;
     } else {
-      this._input.removeAttribute('name');
-      this._input.style.cssText = VISUALLY_HIDDEN_STYLE;
+      this.hiddenInput.removeAttribute('name');
+      this.hiddenInput.style.cssText = VISUALLY_HIDDEN_STYLE;
     }
 
-    if (this._value !== undefined) {
-      this._input.value = serializeValue(this._value);
+    if (this.radioValue !== undefined) {
+      this.hiddenInput.value = serializeValue(this.radioValue);
     }
   }
 
-  private _syncAriaLabelledBy() {
-    const control = this._input;
+  private syncAriaLabelledBy() {
+    const control = this.hiddenInput;
     if (!control || !('labels' in control)) {
       this.removeAttribute('aria-labelledby');
       return;
     }
 
-    const labels = [...Array.from(control.labels ?? []), ...this._getExplicitLabels()];
+    const labels = [...Array.from(control.labels ?? []), ...this.getExplicitLabels()];
     if (labels.length === 0) {
       this.removeAttribute('aria-labelledby');
       return;
@@ -257,7 +292,7 @@ export class RadioRootElement extends ReactiveElement {
     }
   }
 
-  private _getExplicitLabels() {
+  private getExplicitLabels() {
     if (!this.id) {
       return [];
     }
@@ -271,7 +306,7 @@ export class RadioRootElement extends ReactiveElement {
 
   private syncAttributes() {
     const state = this.getState();
-    const group = this._getGroupState();
+    const group = this.getGroupState();
 
     // ARIA
     this.setAttribute('role', 'radio');
@@ -284,7 +319,7 @@ export class RadioRootElement extends ReactiveElement {
       this.removeAttribute('aria-disabled');
       // Use group's tabIndex management if available (roving tabindex)
       if (group) {
-        this.tabIndex = group.getTabIndex(this._value, state.disabled);
+        this.tabIndex = group.getTabIndex(this.radioValue, state.disabled);
       } else {
         this.tabIndex = 0;
       }
@@ -309,52 +344,62 @@ export class RadioRootElement extends ReactiveElement {
     this.toggleAttribute('data-readonly', state.readOnly);
     this.toggleAttribute('data-required', state.required);
 
-    this._syncHiddenInput();
+    this.syncHiddenInput();
 
     queueMicrotask(() => {
-      this._syncAriaLabelledBy();
+      this.syncAriaLabelledBy();
       this.dispatchEvent(new CustomEvent(STATE_CHANGE_EVENT, { bubbles: false }));
     });
   }
 
-  private _select(event: Event) {
+  private selectRadio(event: Event) {
     const state = this.getState();
-    if (state.disabled || state.readOnly) return;
-    if (this.getChecked()) return; // Already checked, radio can't be unchecked
+    if (state.disabled || state.readOnly) {
+      return;
+    }
+    if (this.getChecked()) {
+      return;
+    } // Already checked, radio can't be unchecked
 
-    const group = this._getGroupState();
+    const group = this.getGroupState();
     if (group) {
       const eventDetails = createChangeEventDetails(event);
-      group.setCheckedValue(this._value, eventDetails);
+      group.setCheckedValue(this.radioValue, eventDetails);
       this.requestUpdate();
       return;
     }
   }
 
-  private _handleClick = (event: MouseEvent) => {
-    if (event.target === this._input) return;
+  private handleClick = (event: MouseEvent) => {
+    if (event.target === this.hiddenInput) {
+      return;
+    }
     const state = this.getState();
     if (state.disabled || state.readOnly) {
       event.preventDefault();
       return;
     }
     event.preventDefault();
-    this._select(event);
+    this.selectRadio(event);
   };
 
-  private _handleKeyDown = (event: KeyboardEvent) => {
+  private handleKeyDown = (event: KeyboardEvent) => {
     const state = this.getState();
-    if (state.disabled) return;
-    if (event.target !== this) return;
+    if (state.disabled) {
+      return;
+    }
+    if (event.target !== this) {
+      return;
+    }
 
     // Arrow key navigation handled by group
-    const group = this._getGroupState();
+    const group = this.getGroupState();
     if (group) {
       const moveResult = group.moveFocus(this, event.key, event);
       if (moveResult.handled) {
         event.preventDefault();
         if (!moveResult.selectionCommitted) {
-          this._forceGroupSync();
+          this.forceGroupSync();
         }
         return;
       }
@@ -365,22 +410,28 @@ export class RadioRootElement extends ReactiveElement {
     }
 
     if (event.key === 'Enter') {
-      this._select(event);
+      this.selectRadio(event);
     }
   };
 
-  private _handleKeyUp = (event: KeyboardEvent) => {
+  private handleKeyUp = (event: KeyboardEvent) => {
     const state = this.getState();
-    if (state.disabled || state.readOnly) return;
-    if (event.target !== this) return;
+    if (state.disabled || state.readOnly) {
+      return;
+    }
+    if (event.target !== this) {
+      return;
+    }
 
     if (event.key === ' ') {
-      this._select(event);
+      this.selectRadio(event);
     }
   };
 
-  private _handleInputChange = (event: Event) => {
-    if (event.defaultPrevented) return;
+  private handleInputChange = (event: Event) => {
+    if (event.defaultPrevented) {
+      return;
+    }
 
     const input = event.currentTarget as HTMLInputElement;
     const state = this.getState();
@@ -390,13 +441,13 @@ export class RadioRootElement extends ReactiveElement {
       return;
     }
 
-    const group = this._getGroupState();
+    const group = this.getGroupState();
     if (group) {
       const eventDetails = createChangeEventDetails(event);
-      const committed = group.setCheckedValue(this._value, eventDetails);
+      const committed = group.setCheckedValue(this.radioValue, eventDetails);
       if (!committed) {
         input.checked = this.getChecked();
-        this._forceGroupSync();
+        this.forceGroupSync();
       }
       this.requestUpdate();
       return;
@@ -406,50 +457,56 @@ export class RadioRootElement extends ReactiveElement {
     input.checked = this.getChecked();
   };
 
-  private _getGroupState(): RadioGroupRuntimeState | null {
-    return getRadioGroupRuntimeState(this._groupRoot);
+  private getGroupState(): RadioGroupRuntimeState | null {
+    return getRadioGroupRuntimeState(this.groupRoot);
   }
 
-  private _syncGroupRoot(root: Element | null) {
-    if (this._groupRoot === root) return;
+  private syncGroupRoot(root: Element | null) {
+    if (this.groupRoot === root) {
+      return;
+    }
 
-    this._groupRoot?.removeEventListener(
+    this.groupRoot?.removeEventListener(
       RADIO_GROUP_STATE_CHANGE_EVENT,
-      this._handleGroupStateChange,
+      this.handleGroupStateChange,
     );
-    this._groupRoot = root;
-    this._groupRoot?.addEventListener(RADIO_GROUP_STATE_CHANGE_EVENT, this._handleGroupStateChange);
+    this.groupRoot = root;
+    this.groupRoot?.addEventListener(RADIO_GROUP_STATE_CHANGE_EVENT, this.handleGroupStateChange);
   }
 
-  private _syncGroupRegistration() {
-    const group = this._getGroupState();
-    if (!group) return;
+  private syncGroupRegistration() {
+    const group = this.getGroupState();
+    if (!group) {
+      return;
+    }
 
     const disabled = Boolean(group.disabled) || this.disabled;
 
-    group.registerControl(this, this._value, disabled);
+    group.registerControl(this, this.radioValue, disabled);
 
-    if (this._input) {
-      group.registerInput(this._input, this._value, disabled);
+    if (this.hiddenInput) {
+      group.registerInput(this.hiddenInput, this.radioValue, disabled);
     }
   }
 
-  private _cleanupGroupRegistration() {
-    const group = this._getGroupState();
-    if (!group) return;
+  private cleanupGroupRegistration() {
+    const group = this.getGroupState();
+    if (!group) {
+      return;
+    }
 
     group.unregisterControl(this);
-    if (this._input) {
-      group.unregisterInput(this._input);
+    if (this.hiddenInput) {
+      group.unregisterInput(this.hiddenInput);
     }
   }
 
-  private _handleGroupStateChange = () => {
+  private handleGroupStateChange = () => {
     this.syncAttributes();
   };
 
-  private _forceGroupSync() {
-    this._groupRoot?.dispatchEvent(new CustomEvent(RADIO_GROUP_STATE_CHANGE_EVENT));
+  private forceGroupSync() {
+    this.groupRoot?.dispatchEvent(new CustomEvent(RADIO_GROUP_STATE_CHANGE_EVENT));
   }
 }
 
@@ -468,27 +525,27 @@ export class RadioIndicatorElement extends BaseHTMLElement {
     return ['keep-mounted'];
   }
 
-  private _root: RadioRootElement | null = null;
-  private _handler = () => this._syncVisibility();
+  private rootElement: RadioRootElement | null = null;
+  private stateChangeHandler = () => this.syncVisibility();
 
   connectedCallback() {
-    this._root = this.closest('radio-root') as RadioRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('radio-root') as RadioRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
-    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
-    queueMicrotask(() => this._syncVisibility());
+    this.rootElement.addEventListener(STATE_CHANGE_EVENT, this.stateChangeHandler);
+    queueMicrotask(() => this.syncVisibility());
   }
 
   disconnectedCallback() {
-    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
-    this._root = null;
+    this.rootElement?.removeEventListener(STATE_CHANGE_EVENT, this.stateChangeHandler);
+    this.rootElement = null;
   }
 
   attributeChangedCallback() {
-    this._syncVisibility();
+    this.syncVisibility();
   }
 
   get keepMounted(): boolean {
@@ -499,9 +556,11 @@ export class RadioIndicatorElement extends BaseHTMLElement {
     this.toggleAttribute('keep-mounted', val);
   }
 
-  private _syncVisibility() {
-    if (!this._root) return;
-    const state = this._root.getState();
+  private syncVisibility() {
+    if (!this.rootElement) {
+      return;
+    }
+    const state = this.rootElement.getState();
     const shouldShow = state.checked;
 
     if (shouldShow) {
@@ -512,12 +571,14 @@ export class RadioIndicatorElement extends BaseHTMLElement {
       this.style.display = 'none';
     }
 
-    this._syncDataAttributes();
+    this.syncDataAttributes();
   }
 
-  private _syncDataAttributes() {
-    if (!this._root) return;
-    const state = this._root.getState();
+  private syncDataAttributes() {
+    if (!this.rootElement) {
+      return;
+    }
+    const state = this.rootElement.getState();
 
     this.toggleAttribute('data-checked', state.checked);
     this.toggleAttribute('data-unchecked', !state.checked);
@@ -531,11 +592,86 @@ if (!customElements.get('radio-indicator')) {
   customElements.define('radio-indicator', RadioIndicatorElement);
 }
 
+/**
+ * Represents the radio button itself.
+ * Renders a `<span>` element and a hidden `<input>` beside by default.
+ *
+ * Documentation: [Base UI Radio](https://base-ui.com/react/components/radio)
+ */
+function RadioRootHelper<Value = unknown>(props: RadioProps<Value>) {
+  const {
+    disabled = false,
+    inputRef,
+    nativeButton = false,
+    readOnly = false,
+    render,
+    required = false,
+    value,
+    ...elementProps
+  } = props;
+
+  const state: RadioRootState = {
+    checked: false,
+    disabled,
+    readOnly,
+    required,
+  };
+
+  return useRender({
+    defaultTagName: nativeButton ? 'button' : 'span',
+    render,
+    state,
+    ref: createRadioBehaviorRef({
+      disabled,
+      id: typeof elementProps.id === 'string' ? elementProps.id : undefined,
+      inputRef,
+      nativeButton,
+      readOnly,
+      required,
+      value,
+    }),
+    props: {
+      'data-base-ui-radio-control': '',
+      role: 'radio',
+      ...elementProps,
+    },
+  });
+}
+
+/**
+ * Indicates whether the radio button is selected.
+ * Renders a `<span>` element by default.
+ */
+function RadioIndicatorHelper(props: RadioIndicatorHelperProps) {
+  const { keepMounted = false, render, ...elementProps } = props;
+
+  return useRender({
+    defaultTagName: 'span',
+    render,
+    state: {
+      checked: false,
+      disabled: false,
+      readOnly: false,
+      required: false,
+      transitionStatus: undefined,
+    } satisfies RadioIndicatorState,
+    props: {
+      'data-base-ui-radio-indicator': '',
+      'data-keep-mounted': keepMounted ? '' : undefined,
+      ...elementProps,
+    },
+  });
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
 function serializeValue(value: unknown): string {
-  if (value == null) return '';
-  if (typeof value === 'string') return value;
+  if (value == null) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
   try {
     return JSON.stringify(value);
   } catch {
@@ -566,22 +702,422 @@ function createChangeEventDetails(event: Event): RadioRootChangeEventDetails {
   };
 }
 
+function createRadioBehaviorRef<Value>(options: {
+  disabled: boolean;
+  id: string | undefined;
+  inputRef: Ref<HTMLInputElement> | undefined;
+  nativeButton: boolean;
+  readOnly: boolean;
+  required: boolean;
+  value: Value | undefined;
+}) {
+  let element: HTMLElement | null = null;
+  let hiddenInput: HTMLInputElement | null = null;
+  let groupRoot: Element | null = null;
+  let explicitLabels = new Set<HTMLLabelElement>();
+
+  const assignRef = <T>(ref: Ref<T>, instance: T | null) => {
+    if (ref == null) {
+      return;
+    }
+
+    if (typeof ref === 'function') {
+      ref(instance);
+      return;
+    }
+
+    ref.current = instance;
+  };
+
+  const getGroupState = () =>
+    getRadioGroupRuntimeState(groupRoot) as RadioGroupRuntimeState<Value> | null;
+
+  const getState = (): RadioRootState => {
+    const group = getGroupState();
+
+    return {
+      checked: group ? Object.is(group.checkedValue, options.value) : options.value === '',
+      disabled: Boolean(group?.disabled) || options.disabled,
+      readOnly: Boolean(group?.readOnly) || options.readOnly,
+      required: Boolean(group?.required) || options.required,
+    };
+  };
+
+  const cleanupLabels = () => {
+    explicitLabels.forEach((label) => {
+      label.removeEventListener('click', handleExplicitLabelClick);
+    });
+    explicitLabels.clear();
+  };
+
+  const getLabelTargetId = () => {
+    if (options.id == null || options.id === '') {
+      return undefined;
+    }
+
+    return options.nativeButton ? element?.id : hiddenInput?.id;
+  };
+
+  const getExplicitLabels = () => {
+    const targetId = getLabelTargetId();
+    if (targetId == null) {
+      return [];
+    }
+
+    return Array.from(
+      element?.ownerDocument?.querySelectorAll<HTMLLabelElement>(
+        `label[for="${CSS.escape(targetId)}"]`,
+      ) ?? [],
+    );
+  };
+
+  const syncAriaLabelledBy = () => {
+    if (element == null) {
+      return;
+    }
+
+    const labels = new Set<HTMLLabelElement>();
+    const wrappingLabel = element.closest('label');
+    if (wrappingLabel instanceof HTMLLabelElement) {
+      labels.add(wrappingLabel);
+    }
+
+    (hiddenInput?.labels ?? []).forEach((label) => labels.add(label));
+    getExplicitLabels().forEach((label) => labels.add(label));
+
+    const labelIds = Array.from(labels)
+      .map((label) => ensureId(label, 'base-ui-radio-label'))
+      .filter(Boolean);
+
+    if (labelIds.length > 0) {
+      element.setAttribute('aria-labelledby', labelIds.join(' '));
+    } else {
+      element.removeAttribute('aria-labelledby');
+    }
+  };
+
+  const syncExplicitLabels = () => {
+    const nextLabels = new Set(getExplicitLabels());
+
+    explicitLabels.forEach((label) => {
+      if (!nextLabels.has(label)) {
+        label.removeEventListener('click', handleExplicitLabelClick);
+      }
+    });
+
+    nextLabels.forEach((label) => {
+      if (!explicitLabels.has(label)) {
+        label.addEventListener('click', handleExplicitLabelClick);
+      }
+    });
+
+    explicitLabels = nextLabels;
+  };
+
+  const ensureHiddenInput = () => {
+    if (element == null) {
+      return;
+    }
+
+    if (hiddenInput == null) {
+      hiddenInput = document.createElement('input');
+      hiddenInput.type = 'radio';
+      hiddenInput.tabIndex = -1;
+      hiddenInput.setAttribute('aria-hidden', 'true');
+      hiddenInput.addEventListener('change', handleInputChange);
+      hiddenInput.addEventListener('focus', () => element?.focus());
+    }
+
+    if (element.parentNode != null && hiddenInput.parentNode !== element.parentNode) {
+      element.parentNode.insertBefore(hiddenInput, element.nextSibling);
+    } else if (element.parentNode != null && hiddenInput.previousSibling !== element) {
+      element.parentNode.insertBefore(hiddenInput, element.nextSibling);
+    }
+  };
+
+  const syncIndicators = () => {
+    if (element == null) {
+      return;
+    }
+
+    const state = getState();
+    const indicators = element.querySelectorAll<HTMLElement>('[data-base-ui-radio-indicator]');
+
+    indicators.forEach((indicator) => {
+      const keepMounted = indicator.hasAttribute('data-keep-mounted');
+
+      indicator.toggleAttribute('data-checked', state.checked);
+      indicator.toggleAttribute('data-unchecked', !state.checked);
+      indicator.toggleAttribute('data-disabled', state.disabled);
+      indicator.toggleAttribute('data-readonly', state.readOnly);
+      indicator.toggleAttribute('data-required', state.required);
+
+      if (state.checked) {
+        indicator.removeAttribute('hidden');
+        indicator.style.display = '';
+      } else if (!keepMounted) {
+        indicator.setAttribute('hidden', '');
+        indicator.style.display = 'none';
+      }
+    });
+  };
+
+  const syncHiddenInput = () => {
+    if (hiddenInput == null) {
+      return;
+    }
+
+    const group = getGroupState();
+    const state = getState();
+
+    hiddenInput.checked = state.checked;
+    hiddenInput.disabled = state.disabled;
+    hiddenInput.required = state.required;
+
+    if (group?.name) {
+      hiddenInput.name = group.name;
+      hiddenInput.style.cssText = VISUALLY_HIDDEN_INPUT_STYLE;
+    } else {
+      hiddenInput.removeAttribute('name');
+      hiddenInput.style.cssText = VISUALLY_HIDDEN_STYLE;
+    }
+
+    if (options.value !== undefined) {
+      hiddenInput.value = serializeValue(options.value);
+    } else {
+      hiddenInput.removeAttribute('value');
+    }
+
+    if (!options.nativeButton && options.id) {
+      hiddenInput.id = options.id;
+    } else {
+      hiddenInput.removeAttribute('id');
+    }
+
+    assignRef(options.inputRef, hiddenInput);
+  };
+
+  const syncGroupRegistration = () => {
+    const group = getGroupState();
+    if (!group || element == null) {
+      return;
+    }
+
+    const state = getState();
+    group.registerControl(element, options.value, state.disabled);
+
+    if (hiddenInput != null) {
+      group.registerInput(hiddenInput, options.value, state.disabled);
+    }
+  };
+
+  const cleanupGroupRegistration = () => {
+    const group = getGroupState();
+    if (!group || element == null) {
+      return;
+    }
+
+    group.unregisterControl(element);
+    if (hiddenInput != null) {
+      group.unregisterInput(hiddenInput);
+    }
+  };
+
+  const sync = () => {
+    if (element == null) {
+      return;
+    }
+
+    const group = getGroupState();
+    const state = getState();
+
+    element.setAttribute('role', 'radio');
+    element.setAttribute('aria-checked', state.checked ? 'true' : 'false');
+    element.toggleAttribute('data-checked', state.checked);
+    element.toggleAttribute('data-unchecked', !state.checked);
+    element.toggleAttribute('data-disabled', state.disabled);
+    element.toggleAttribute('data-readonly', state.readOnly);
+    element.toggleAttribute('data-required', state.required);
+
+    if (state.disabled) {
+      element.setAttribute('aria-disabled', 'true');
+      element.tabIndex = -1;
+    } else {
+      element.removeAttribute('aria-disabled');
+      element.tabIndex = group ? group.getTabIndex(options.value, state.disabled) : 0;
+    }
+
+    if (state.readOnly) {
+      element.setAttribute('aria-readonly', 'true');
+    } else {
+      element.removeAttribute('aria-readonly');
+    }
+
+    if (state.required) {
+      element.setAttribute('aria-required', 'true');
+    } else {
+      element.removeAttribute('aria-required');
+    }
+
+    if (options.nativeButton && options.id && element instanceof HTMLButtonElement) {
+      element.id = options.id;
+      element.type = 'button';
+    }
+
+    ensureHiddenInput();
+    syncGroupRegistration();
+    syncHiddenInput();
+    syncExplicitLabels();
+    syncAriaLabelledBy();
+    syncIndicators();
+  };
+
+  const select = (event: Event) => {
+    const state = getState();
+    if (state.disabled || state.readOnly || state.checked) {
+      return;
+    }
+
+    const group = getGroupState();
+    if (group == null || options.value === undefined) {
+      return;
+    }
+
+    group.setCheckedValue(options.value, createChangeEventDetails(event));
+  };
+
+  const handleClick = (event: MouseEvent) => {
+    if (event.target === hiddenInput) {
+      return;
+    }
+
+    const state = getState();
+    if (state.disabled || state.readOnly) {
+      event.preventDefault();
+      return;
+    }
+
+    event.preventDefault();
+    select(event);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    const state = getState();
+    if (state.disabled || event.target !== element) {
+      return;
+    }
+
+    const group = getGroupState();
+    if (group != null) {
+      const moveResult = group.moveFocus(element as HTMLElement, event.key, event);
+      if (moveResult.handled) {
+        event.preventDefault();
+        return;
+      }
+    }
+
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+    }
+
+    if (event.key === 'Enter') {
+      select(event);
+    }
+  };
+
+  const handleKeyUp = (event: KeyboardEvent) => {
+    const state = getState();
+    if (state.disabled || state.readOnly || event.target !== element) {
+      return;
+    }
+
+    if (event.key === ' ') {
+      select(event);
+    }
+  };
+
+  function handleInputChange(event: Event) {
+    if (event.defaultPrevented || hiddenInput == null) {
+      return;
+    }
+
+    const state = getState();
+    if (state.disabled || state.readOnly) {
+      hiddenInput.checked = state.checked;
+      return;
+    }
+
+    const group = getGroupState();
+    if (group == null || options.value === undefined) {
+      hiddenInput.checked = state.checked;
+      return;
+    }
+
+    const committed = group.setCheckedValue(options.value, createChangeEventDetails(event));
+    if (!committed) {
+      hiddenInput.checked = state.checked;
+    }
+  }
+
+  function handleExplicitLabelClick(event: MouseEvent) {
+    if (event.defaultPrevented || hiddenInput == null) {
+      return;
+    }
+
+    if (event.target === hiddenInput) {
+      return;
+    }
+
+    event.preventDefault();
+    element?.click();
+  }
+
+  const handleGroupStateChange = () => {
+    sync();
+  };
+
+  return (instance: HTMLElement | null) => {
+    cleanupLabels();
+    cleanupGroupRegistration();
+    groupRoot?.removeEventListener(RADIO_GROUP_STATE_CHANGE_EVENT, handleGroupStateChange);
+    element?.removeEventListener('click', handleClick);
+    element?.removeEventListener('keydown', handleKeyDown);
+    element?.removeEventListener('keyup', handleKeyUp);
+    assignRef(options.inputRef, null);
+    hiddenInput?.remove();
+    hiddenInput = null;
+    groupRoot = null;
+    element = instance;
+
+    if (element == null) {
+      return;
+    }
+
+    groupRoot = element.closest(`[${RADIO_GROUP_ATTRIBUTE}]`);
+    groupRoot?.addEventListener(RADIO_GROUP_STATE_CHANGE_EVENT, handleGroupStateChange);
+    element.addEventListener('click', handleClick);
+    element.addEventListener('keydown', handleKeyDown);
+    element.addEventListener('keyup', handleKeyUp);
+    sync();
+  };
+}
+
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
 export const Radio = {
-  Root: RadioRootElement,
-  Indicator: RadioIndicatorElement,
+  Root: RadioRootHelper,
+  Indicator: RadioIndicatorHelper,
 } as const;
 
 export namespace RadioRoot {
-  export type Props = RadioRootProps;
+  export type Props<Value = unknown> = RadioRootProps<Value>;
   export type State = RadioRootState;
   export type ChangeEventReason = RadioRootChangeEventReason;
   export type ChangeEventDetails = RadioRootChangeEventDetails;
 }
 
 export namespace RadioIndicator {
-  export type Props = RadioIndicatorProps;
+  export type Props = RadioIndicatorHelperProps;
   export type State = RadioIndicatorState;
 }
 

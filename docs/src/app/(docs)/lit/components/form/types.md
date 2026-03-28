@@ -11,13 +11,14 @@ Enhances a nested `<form>` and renders a `<form-root>` custom element.
 
 **Form Props:**
 
-| Prop           | Type                                                                         | Default      | Description                                                                                                                                 |
-| :------------- | :--------------------------------------------------------------------------- | :----------- | :------------------------------------------------------------------------------------------------------------------------------------------ |
-| errors         | `Record<string, string \| string[]>`                                         | -            | Validation errors returned externally, typically after submission.&#xA;Keys must match the `name` attribute on `<field-root>`.              |
-| actionsRef     | `{ current: Form.Actions \| null }`                                          | -            | A ref to imperative actions.&#xA;`validate`: validates all fields when called.&#xA;Optionally pass a field name to validate a single field. |
-| noValidate     | `boolean`                                                                    | `true`       | Whether native HTML validation should be disabled on the nested form.                                                                       |
-| onFormSubmit   | `((formValues: Form.Values, eventDetails: Form.SubmitEventDetails) => void)` | -            | Event handler called when the form is submitted.&#xA;`preventDefault()` is called on the native submit event when used.                     |
-| validationMode | `Form.ValidationMode`                                                        | `'onSubmit'` | Determines when the form should be validated.&#xA;The `validationMode` prop on `<field-root>` takes precedence over this.                   |
+| Prop           | Type                                                                          | Default      | Description                                                                                                                                                                                                                  |
+| :------------- | :---------------------------------------------------------------------------- | :----------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| errors         | `Record<string, string \| string[]>`                                          | -            | Validation errors returned externally, typically after submission.&#xA;Keys must match the `name` attribute on `<field-root>`.                                                                                               |
+| actionsRef     | `{ current: Form.Actions \| null }`                                           | -            | A ref to imperative actions.&#xA;`validate`: validates all fields when called.&#xA;Optionally pass a field name to validate a single field.                                                                                  |
+| noValidate     | `boolean`                                                                     | `true`       | Whether native HTML validation should be disabled on the nested form.                                                                                                                                                        |
+| onFormSubmit   | `((formValues: Form.Values, eventDetails: Form.SubmitEventDetails) => void)`  | -            | Event handler called when the form is submitted.&#xA;`preventDefault()` is called on the native submit event when used.                                                                                                      |
+| validationMode | `Form.ValidationMode`                                                         | `'onSubmit'` | Determines when the form should be validated.&#xA;The `validationMode` prop on `<field-root>` takes precedence over this.                                                                                                    |
+| render         | `((props: HTMLProps, state: Form.State) => TemplateResult) \| TemplateResult` | -            | Allows you to replace the component's HTML element with a different tag,&#xA;or compose it with a template that has a single root element.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
 
 ### Form.Props
 
@@ -97,6 +98,12 @@ type FormApiProps = {
    * @default true
    */
   noValidate?: boolean;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: Form.State) => TemplateResult) | TemplateResult;
 };
 ```
 

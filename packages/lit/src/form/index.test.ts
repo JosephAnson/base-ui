@@ -92,6 +92,41 @@ describe('form', () => {
     expect(root).toHaveAttribute('data-base-ui-form-context');
   });
 
+  it('supports a static render template on the root', async () => {
+    const view = render(html`
+      <form-root .render=${html`<section data-testid="root"></section>`}>
+        <form></form>
+      </form-root>
+    `);
+    await waitForUpdate();
+
+    const root = view.querySelector('[data-testid="root"]') as HTMLElement;
+    expect(root).not.toBeNull();
+    expect(root.querySelector('form')).not.toBeNull();
+  });
+
+  it('supports a render function on the root', async () => {
+    let receivedProps: Record<string, unknown> | null = null;
+    let receivedState: Record<string, unknown> | null = null;
+
+    const view = render(html`
+      <form-root
+        .render=${(props: Record<string, unknown>, state: Record<string, unknown>) => {
+          receivedProps = props;
+          receivedState = state;
+          return html`<div data-testid="root"></div>`;
+        }}
+      >
+        <form></form>
+      </form-root>
+    `);
+    await waitForUpdate();
+
+    expect(receivedProps).toEqual({});
+    expect(receivedState).toEqual({});
+    expect(view.querySelector('[data-testid="root"] form')).not.toBeNull();
+  });
+
   it('sets novalidate on the nested form by default', async () => {
     const view = render(html`
       <form-root>

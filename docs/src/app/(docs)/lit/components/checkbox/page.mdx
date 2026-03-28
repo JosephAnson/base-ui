@@ -1,26 +1,114 @@
 # Checkbox
 
-<Subtitle>An easily stylable checkbox for Lit templates.</Subtitle>
-<Meta name="description" content="An easily stylable checkbox for Lit templates." />
+<Subtitle>An easily stylable checkbox component.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit checkbox component that is easy to customize."
+/>
 
 import { DemoCheckboxHero } from './demos/hero';
+import { TypesCheckboxIndicator, TypesCheckboxRoot } from './types';
 
 <DemoCheckboxHero />
 
+## Usage guidelines
+
+- **Form controls must have an accessible name**: It can be created using a `<label>` element or the [Field](/lit/components/field) component. See [Labeling a checkbox](#labeling-a-checkbox) and the [forms guide](/lit/handbook/forms).
+
 ## Anatomy
 
-```html title="Anatomy"
-<checkbox-root>
-  <checkbox-indicator>
-    <span>✓</span>
-  </checkbox-indicator>
-</checkbox-root>
+Import the component and assemble its parts:
+
+```ts title="Anatomy"
+import '@base-ui/lit/checkbox';
+
+html`<checkbox-root>
+  <checkbox-indicator></checkbox-indicator>
+</checkbox-root>`;
 ```
 
-## Status
+## Examples
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### Labeling a checkbox
+
+An enclosing `<label>` is the simplest labeling pattern:
+
+```ts title="Wrapping a label around a checkbox"
+html`<label>
+  <checkbox-root>
+    <checkbox-indicator></checkbox-indicator>
+  </checkbox-root>
+  Accept terms and conditions
+</label>`;
+```
+
+### Rendering as a native button
+
+By default, the custom-element API uses `<checkbox-root>` to support enclosing labels. Prefer the helper API with `nativeButton` when using sibling labels (`for`/`id`).
+
+```ts title="Sibling label pattern with a native button"
+import { html } from 'lit';
+import { Checkbox } from '@base-ui/lit/checkbox';
+
+html`<div>
+  <label for="notifications-checkbox">Enable notifications</label>
+  ${Checkbox.Root({
+    id: 'notifications-checkbox',
+    nativeButton: true,
+    render: html`<button></button>`,
+    children: Checkbox.Indicator(),
+  })}
+</div>`;
+```
+
+Native buttons with wrapping labels are supported by using the `render` callback so the hidden input is placed outside the label:
+
+For wrapping labels in Lit, prefer the default custom-element path shown above.
+
+### Form integration
+
+Use [Field](/lit/components/field) to handle label associations and form integration. In Lit, `<form-root>` provides the Base UI form behavior and enhances a nested native `<form>`:
+
+```ts title="Using Checkbox in a form"
+html`<form-root>
+  <form>
+    <field-root name="stayLoggedIn">
+      <field-label>
+        <checkbox-root>
+          <checkbox-indicator></checkbox-indicator>
+        </checkbox-root>
+        Stay logged in for 7 days
+      </field-label>
+    </field-root>
+  </form>
+</form-root>`;
+```
+
+## API reference
+
+### Root
+
+<TypesCheckboxRoot />
+
+### Indicator
+
+<TypesCheckboxIndicator />
 
 export const metadata = {
-  keywords: ['Lit Checkbox', 'Checkbox', 'Base UI Lit', 'Form control'],
+  keywords: [
+    'Lit Checkbox',
+    'Checkbox Component',
+    'Accessible Checkbox',
+    'Customizable Checkbox',
+    'Form Control Checkbox',
+    'Checkmark',
+    'Tick Box',
+    'Selection Control',
+    'Checkbox Input',
+    'Binary Input',
+    'Checked State',
+    'Indeterminate Checkbox',
+    'Tri-State Checkbox',
+    'Base UI',
+  ],
 };

@@ -155,7 +155,9 @@ type FieldRuntimeLike = {
 };
 
 interface SwitchHelperRootProps
-  extends SwitchRootProps, useRender.ComponentProps<'span', SwitchRootState> {
+  extends SwitchRootProps, Omit<useRender.ComponentProps<'span', SwitchRootState>, 'children'> {
+  /** Content to render inside the switch (e.g. a thumb element). */
+  children?: import('lit').TemplateResult | null | undefined;
   /**
    * Whether the rendered element should be treated as a native `<button>`.
    * Set to `true` when replacing the default element with a native button via `render`.

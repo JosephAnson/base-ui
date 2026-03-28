@@ -1,5 +1,5 @@
-import { ReactiveElement } from 'lit';
-import type { BaseUIChangeEventDetails } from '../types';
+import { ReactiveElement, render as renderTemplate, type TemplateResult } from 'lit';
+import type { BaseUIChangeEventDetails, ComponentRenderFn, HTMLProps } from '../types';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -8,6 +8,10 @@ const TOGGLE_GROUP_ROOT_ATTRIBUTE = 'data-base-ui-toggle-group-root';
 export const TOGGLE_GROUP_STATE_CHANGE_EVENT = 'base-ui-toggle-group-state-change';
 
 type ToggleGroupOrientation = 'horizontal' | 'vertical';
+type ToggleGroupRootRenderProps = HTMLProps<HTMLElement>;
+type ToggleGroupRootRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<ToggleGroupRootRenderProps, ToggleGroupRootState>;
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -42,6 +46,7 @@ export class ToggleGroupRootElement extends ReactiveElement {
     multiple: { type: Boolean },
     orientation: { type: String, reflect: true },
     loopFocus: { type: Boolean, attribute: 'loop-focus' },
+    render: { attribute: false },
   };
 
   declare disabled: boolean;
@@ -51,6 +56,12 @@ export class ToggleGroupRootElement extends ReactiveElement {
 
   /** The orientation of the toggle group for keyboard navigation. */
   declare orientation: ToggleGroupOrientation;
+
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   */
+  declare render: ToggleGroupRootRenderProp | undefined;
 
   /**
    * Controlled value: array of pressed toggle values.
@@ -73,6 +84,7 @@ export class ToggleGroupRootElement extends ReactiveElement {
 
   private internalValue: string[] = [];
   private initialized = false;
+  private renderedElement: HTMLElement | null = null;
 
   constructor() {
     super();
@@ -112,6 +124,7 @@ export class ToggleGroupRootElement extends ReactiveElement {
   override disconnectedCallback() {
     super.disconnectedCallback();
     this.removeEventListener('keydown', this.handleKeyDown);
+    this.resetRenderedElement();
   }
 
   protected override updated() {
@@ -123,6 +136,14 @@ export class ToggleGroupRootElement extends ReactiveElement {
   /** Returns the current array of pressed values. */
   getValue(): readonly string[] {
     return this.value ?? this.internalValue;
+  }
+
+  getState(): ToggleGroupRootState {
+    return {
+      disabled: this.disabled,
+      multiple: this.multiple,
+      orientation: this.orientation,
+    };
   }
 
   get isValueInitialized(): boolean {
@@ -175,9 +196,17 @@ export class ToggleGroupRootElement extends ReactiveElement {
   // ── Private ─────────────────────────────────────────────────────────────
 
   private syncAttributes() {
-    this.setAttribute('data-orientation', this.orientation);
-    this.toggleAttribute('data-disabled', this.disabled);
-    this.toggleAttribute('data-multiple', this.multiple);
+    const group = this.ensureGroupElement();
+
+    this.removeAttribute('role');
+    this.removeAttribute('data-orientation');
+    this.removeAttribute('data-disabled');
+    this.removeAttribute('data-multiple');
+
+    group.setAttribute('role', 'group');
+    group.setAttribute('data-orientation', this.orientation);
+    group.toggleAttribute('data-disabled', this.disabled);
+    group.toggleAttribute('data-multiple', this.multiple);
   }
 
   private publishStateChange() {
@@ -303,6 +332,49 @@ export class ToggleGroupRootElement extends ReactiveElement {
       item.tabIndex = item === current ? 0 : -1;
     });
   }
+
+  private ensureGroupElement(): HTMLElement {
+    if (this.render == null) {
+      this.resetRenderedElement();
+      this.renderedElement = this;
+      return this;
+    }
+
+    const contentNodes =
+      this.renderedElement && this.renderedElement !== this
+        ? Array.from(this.renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this.renderedElement);
+
+    const state = this.getState();
+    const renderProps: ToggleGroupRootRenderProps = {
+      role: 'group',
+    };
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, state) : this.render;
+
+    this.style.display = 'contents';
+    const nextGroup = materializeTemplateRoot(template);
+
+    if (nextGroup !== this) {
+      this.replaceChildren(nextGroup);
+      nextGroup.append(...contentNodes);
+    } else {
+      this.resetRenderedElement();
+    }
+
+    this.renderedElement = nextGroup;
+    return nextGroup;
+  }
+
+  private resetRenderedElement() {
+    if (this.renderedElement == null || this.renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this.renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this.renderedElement = null;
+  }
 }
 
 if (!customElements.get('toggle-group-root')) {
@@ -356,6 +428,12 @@ export interface ToggleGroupRootProps {
    * @default false
    */
   multiple?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ToggleGroupRootRenderProp | undefined;
 }
 
 export type ToggleGroupProps = ToggleGroupRootProps;
@@ -391,6 +469,16 @@ function createChangeEventDetails(event: Event): ToggleGroupRootChangeEventDetai
     },
     reason: 'none',
   };
+}
+
+function materializeTemplateRoot(template: TemplateResult): HTMLElement {
+  const container = document.createElement('div');
+  renderTemplate(template, container);
+
+  return (
+    Array.from(container.children).find((child): child is HTMLElement => child instanceof HTMLElement) ??
+    container
+  );
 }
 
 declare global {

@@ -1,5 +1,7 @@
 /* eslint-disable react/function-component-definition */
 import * as React from 'react';
+import type { TemplateResult } from 'lit';
+import type { ComponentRenderFn, HTMLProps } from '@base-ui/lit/types';
 
 export type TransitionStatus = 'starting' | 'ending' | undefined;
 
@@ -75,9 +77,29 @@ export interface RootApiProps {
    * @default false
    */
   disabled?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: TemplateResult | ComponentRenderFn<HTMLProps, RootState> | undefined;
 }
 
-export interface TriggerApiProps {}
+export interface TriggerApiProps {
+  /**
+   * Whether the component renders a native `<button>` element when replacing it
+   * via the `render` prop.
+   * Set to `false` if the rendered element is not a button.
+   * @default true
+   */
+  nativeButton?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: TemplateResult | ComponentRenderFn<HTMLProps, TriggerState> | undefined;
+}
 
 export interface PanelApiProps {
   /**
@@ -93,6 +115,12 @@ export interface PanelApiProps {
    * @default false
    */
   keepMounted?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: TemplateResult | ComponentRenderFn<HTMLProps, PanelState> | undefined;
 }
 
 export enum TriggerDataAttributes {

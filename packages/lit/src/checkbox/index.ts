@@ -1,11 +1,12 @@
 import { ReactiveElement } from 'lit';
-import { BaseHTMLElement, ensureId } from '../utils/index.ts';
+import { useRender } from '../use-render';
+import { BaseHTMLElement, ensureId } from '../utils';
 import {
   CHECKBOX_GROUP_ATTRIBUTE,
   CHECKBOX_GROUP_STATE_CHANGE_EVENT,
   getCheckboxGroupRuntimeState,
   type CheckboxGroupRuntimeState,
-} from '../checkbox-group/shared.ts';
+} from '../checkbox-group/shared';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -16,6 +17,14 @@ const VISUALLY_HIDDEN_INPUT_STYLE =
   'position:absolute;clip-path:inset(50%);overflow:hidden;white-space:nowrap;border:0;padding:0;width:1px;height:1px;margin:-1px';
 const VISUALLY_HIDDEN_STYLE =
   'position:fixed;top:0;left:0;clip-path:inset(50%);overflow:hidden;white-space:nowrap;border:0;padding:0;width:1px;height:1px;margin:-1px';
+
+function getAriaCheckedValue(indeterminate: boolean, checked: boolean) {
+  if (indeterminate) {
+    return 'mixed';
+  }
+
+  return checked ? 'true' : 'false';
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -51,6 +60,47 @@ export interface CheckboxRootChangeEventDetails {
   reason: 'none';
 }
 
+export interface CheckboxRootProps {
+  checked?: boolean | undefined;
+  defaultChecked?: boolean | undefined;
+  disabled?: boolean | undefined;
+  readOnly?: boolean | undefined;
+  required?: boolean | undefined;
+  indeterminate?: boolean | undefined;
+  name?: string | undefined;
+  value?: string | undefined;
+  uncheckedValue?: string | undefined;
+  parent?: boolean | undefined;
+  form?: string | undefined;
+  id?: string | undefined;
+  onCheckedChange?:
+    | ((checked: boolean, eventDetails: CheckboxRootChangeEventDetails) => void)
+    | undefined;
+}
+
+export interface CheckboxIndicatorProps {
+  keepMounted?: boolean | undefined;
+}
+
+type RefObject<T> = {
+  current: T | null;
+};
+
+type RefCallback<T> = (instance: T | null) => void;
+
+type Ref<T> = RefCallback<T> | RefObject<T> | null | undefined;
+
+export interface CheckboxProps
+  extends Omit<useRender.ComponentProps<'span', CheckboxRootState>, 'checked'>,
+    CheckboxRootProps {
+  inputRef?: Ref<HTMLInputElement> | undefined;
+  nativeButton?: boolean | undefined;
+}
+
+export interface CheckboxIndicatorHelperProps
+  extends CheckboxIndicatorProps,
+    useRender.ComponentProps<'span', CheckboxIndicatorState> {}
+
 // ─── CheckboxRootElement ────────────────────────────────────────────────────────
 
 /**
@@ -72,16 +122,16 @@ export class CheckboxRootElement extends ReactiveElement {
     parent: { type: Boolean },
   };
 
-  private _checked: boolean | undefined;
+  private controlledChecked: boolean | undefined;
 
   /** Whether the checkbox is checked. When defined, checkbox is controlled. */
   get checked(): boolean | undefined {
-    return this._checked;
+    return this.controlledChecked;
   }
 
   set checked(val: boolean | undefined) {
-    const old = this._checked;
-    this._checked = val;
+    const old = this.controlledChecked;
+    this.controlledChecked = val;
     if (old !== val) {
       this.requestUpdate();
     }
@@ -103,11 +153,11 @@ export class CheckboxRootElement extends ReactiveElement {
     | ((checked: boolean, eventDetails: CheckboxRootChangeEventDetails) => void)
     | undefined;
 
-  private _internalChecked = false;
-  private _initialized = false;
-  private _input: HTMLInputElement | null = null;
-  private _uncheckedInput: HTMLInputElement | null = null;
-  private _groupRoot: Element | null = null;
+  private internalChecked = false;
+  private initialized = false;
+  private hiddenInput: HTMLInputElement | null = null;
+  private uncheckedInput: HTMLInputElement | null = null;
+  private groupRoot: Element | null = null;
 
   constructor() {
     super();
@@ -127,44 +177,44 @@ export class CheckboxRootElement extends ReactiveElement {
   override connectedCallback() {
     super.connectedCallback();
 
-    if (!this._initialized) {
-      this._initialized = true;
-      this._internalChecked = this.checked ?? this.defaultChecked;
+    if (!this.initialized) {
+      this.initialized = true;
+      this.internalChecked = this.checked ?? this.defaultChecked;
     }
 
-    this._ensureHiddenInput();
-    this._syncGroupRoot(
+    this.ensureHiddenInput();
+    this.syncGroupRoot(
       this.closest(`[${CHECKBOX_GROUP_ATTRIBUTE}]`),
     );
-    this._syncGroupDisabledState();
-    this.addEventListener('click', this._handleClick);
-    this.addEventListener('keydown', this._handleKeyDown);
-    this.addEventListener('keyup', this._handleKeyUp);
+    this.syncGroupDisabledState();
+    this.addEventListener('click', this.handleClick);
+    this.addEventListener('keydown', this.handleKeyDown);
+    this.addEventListener('keyup', this.handleKeyUp);
     this.syncAttributes();
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    this.removeEventListener('click', this._handleClick);
-    this.removeEventListener('keydown', this._handleKeyDown);
-    this.removeEventListener('keyup', this._handleKeyUp);
+    this.removeEventListener('click', this.handleClick);
+    this.removeEventListener('keydown', this.handleKeyDown);
+    this.removeEventListener('keyup', this.handleKeyUp);
 
-    this._cleanupGroupDisabledState();
-    this._syncGroupRoot(null);
+    this.cleanupGroupDisabledState();
+    this.syncGroupRoot(null);
 
-    this._input?.remove();
-    this._input = null;
-    this._uncheckedInput?.remove();
-    this._uncheckedInput = null;
+    this.hiddenInput?.remove();
+    this.hiddenInput = null;
+    this.uncheckedInput?.remove();
+    this.uncheckedInput = null;
   }
 
   protected override updated() {
-    this._syncGroupDisabledState();
+    this.syncGroupDisabledState();
     this.syncAttributes();
   }
 
   getChecked(): boolean {
-    const group = this._getGroupState();
+    const group = this.getGroupState();
 
     // If in a group with parent support
     if (group && group.allValues.length > 0) {
@@ -182,11 +232,11 @@ export class CheckboxRootElement extends ReactiveElement {
     }
 
     // Standalone: use own controlled/uncontrolled state
-    return this.checked ?? this._internalChecked;
+    return this.checked ?? this.internalChecked;
   }
 
   getIndeterminate(): boolean {
-    const group = this._getGroupState();
+    const group = this.getGroupState();
 
     // Parent checkbox shows indeterminate when some (but not all/none) are checked
     if (group && group.allValues.length > 0 && this.parent) {
@@ -198,7 +248,7 @@ export class CheckboxRootElement extends ReactiveElement {
   }
 
   getState(): CheckboxRootState {
-    const group = this._getGroupState();
+    const group = this.getGroupState();
     return {
       checked: this.getChecked(),
       disabled: Boolean(group?.disabled) || this.disabled,
@@ -208,61 +258,61 @@ export class CheckboxRootElement extends ReactiveElement {
     };
   }
 
-  private _ensureHiddenInput() {
-    if (!this._input) {
-      this._input = document.createElement('input');
-      this._input.type = 'checkbox';
-      this._input.tabIndex = -1;
-      this._input.setAttribute('aria-hidden', 'true');
-      this._input.addEventListener('change', this._handleInputChange);
-      this._input.addEventListener('focus', () => this.focus());
-      this.appendChild(this._input);
+  private ensureHiddenInput() {
+    if (!this.hiddenInput) {
+      this.hiddenInput = document.createElement('input');
+      this.hiddenInput.type = 'checkbox';
+      this.hiddenInput.tabIndex = -1;
+      this.hiddenInput.setAttribute('aria-hidden', 'true');
+      this.hiddenInput.addEventListener('change', this.handleInputChange);
+      this.hiddenInput.addEventListener('focus', () => this.focus());
+      this.appendChild(this.hiddenInput);
     }
   }
 
-  private _syncHiddenInput() {
-    if (!this._input) return;
+  private syncHiddenInput() {
+    if (!this.hiddenInput) {return;}
 
     const state = this.getState();
     const isChecked = state.checked;
 
-    this._input.checked = isChecked;
-    this._input.disabled = state.disabled;
-    this._input.required = state.required;
-    this._input.indeterminate = state.indeterminate;
+    this.hiddenInput.checked = isChecked;
+    this.hiddenInput.disabled = state.disabled;
+    this.hiddenInput.required = state.required;
+    this.hiddenInput.indeterminate = state.indeterminate;
 
     // Parent checkboxes are excluded from form submission
     const effectiveName = this.parent ? undefined : this.name;
 
     if (effectiveName) {
-      this._input.name = effectiveName;
-      this._input.style.cssText = VISUALLY_HIDDEN_INPUT_STYLE;
+      this.hiddenInput.name = effectiveName;
+      this.hiddenInput.style.cssText = VISUALLY_HIDDEN_INPUT_STYLE;
     } else {
-      this._input.removeAttribute('name');
-      this._input.style.cssText = VISUALLY_HIDDEN_STYLE;
+      this.hiddenInput.removeAttribute('name');
+      this.hiddenInput.style.cssText = VISUALLY_HIDDEN_STYLE;
     }
 
     if (this.value !== undefined) {
-      this._input.value = this.value;
+      this.hiddenInput.value = this.value;
     }
 
     // Manage unchecked hidden input (not for parent checkboxes)
     if (!isChecked && effectiveName && this.uncheckedValue !== undefined) {
-      if (!this._uncheckedInput) {
-        this._uncheckedInput = document.createElement('input');
-        this._uncheckedInput.type = 'hidden';
-        this.appendChild(this._uncheckedInput);
+      if (!this.uncheckedInput) {
+        this.uncheckedInput = document.createElement('input');
+        this.uncheckedInput.type = 'hidden';
+        this.appendChild(this.uncheckedInput);
       }
-      this._uncheckedInput.name = effectiveName;
-      this._uncheckedInput.value = this.uncheckedValue;
-    } else if (this._uncheckedInput) {
-      this._uncheckedInput.remove();
-      this._uncheckedInput = null;
+      this.uncheckedInput.name = effectiveName;
+      this.uncheckedInput.value = this.uncheckedValue;
+    } else if (this.uncheckedInput) {
+      this.uncheckedInput.remove();
+      this.uncheckedInput = null;
     }
   }
 
-  private _syncAriaLabelledBy() {
-    const control = this._input;
+  private syncAriaLabelledBy() {
+    const control = this.hiddenInput;
     if (!control || !('labels' in control)) {
       this.removeAttribute('aria-labelledby');
       return;
@@ -294,7 +344,7 @@ export class CheckboxRootElement extends ReactiveElement {
     this.setAttribute('role', 'checkbox');
     this.setAttribute(
       'aria-checked',
-      isIndeterminate ? 'mixed' : isChecked ? 'true' : 'false',
+      getAriaCheckedValue(isIndeterminate, isChecked),
     );
 
     if (state.disabled) {
@@ -318,7 +368,7 @@ export class CheckboxRootElement extends ReactiveElement {
     }
 
     // aria-controls for parent checkbox
-    this._syncAriaControls();
+    this.syncAriaControls();
 
     // Data attributes
     if (isIndeterminate) {
@@ -339,16 +389,16 @@ export class CheckboxRootElement extends ReactiveElement {
     this.toggleAttribute('data-readonly', state.readOnly);
     this.toggleAttribute('data-required', state.required);
 
-    this._syncHiddenInput();
+    this.syncHiddenInput();
 
     queueMicrotask(() => {
-      this._syncAriaLabelledBy();
+      this.syncAriaLabelledBy();
       this.dispatchEvent(new CustomEvent(STATE_CHANGE_EVENT, { bubbles: false }));
     });
   }
 
-  private _syncAriaControls() {
-    const group = this._getGroupState();
+  private syncAriaControls() {
+    const group = this.getGroupState();
     if (!this.parent || !group || group.allValues.length === 0) {
       this.removeAttribute('aria-controls');
       return;
@@ -359,11 +409,11 @@ export class CheckboxRootElement extends ReactiveElement {
     this.setAttribute('aria-controls', childIds);
   }
 
-  private _toggle(event: Event) {
+  private toggleCheckbox(event: Event) {
     const state = this.getState();
-    if (state.disabled || state.readOnly) return;
+    if (state.disabled || state.readOnly) {return;}
 
-    const group = this._getGroupState();
+    const group = this.getGroupState();
 
     // Parent checkbox uses group's toggleParent
     if (group && this.parent) {
@@ -385,51 +435,51 @@ export class CheckboxRootElement extends ReactiveElement {
     const eventDetails = createChangeEventDetails(event);
     this.onCheckedChange?.(nextChecked, eventDetails);
 
-    if (eventDetails.isCanceled) return;
+    if (eventDetails.isCanceled) {return;}
 
     if (this.checked === undefined) {
-      this._internalChecked = nextChecked;
+      this.internalChecked = nextChecked;
     }
 
     this.syncAttributes();
     this.requestUpdate();
   }
 
-  private _handleClick = (event: MouseEvent) => {
-    if (event.target === this._input) return;
+  private handleClick = (event: MouseEvent) => {
+    if (event.target === this.hiddenInput) {return;}
     const state = this.getState();
     if (state.disabled || state.readOnly) {
       event.preventDefault();
       return;
     }
     event.preventDefault();
-    this._toggle(event);
+    this.toggleCheckbox(event);
   };
 
-  private _handleKeyDown = (event: KeyboardEvent) => {
-    if (this.getState().disabled) return;
-    if (event.target !== this) return;
+  private handleKeyDown = (event: KeyboardEvent) => {
+    if (this.getState().disabled) {return;}
+    if (event.target !== this) {return;}
 
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault();
     }
 
     if (event.key === 'Enter') {
-      this._toggle(event);
+      this.toggleCheckbox(event);
     }
   };
 
-  private _handleKeyUp = (event: KeyboardEvent) => {
-    if (this.getState().disabled || this.readOnly) return;
-    if (event.target !== this) return;
+  private handleKeyUp = (event: KeyboardEvent) => {
+    if (this.getState().disabled || this.readOnly) {return;}
+    if (event.target !== this) {return;}
 
     if (event.key === ' ') {
-      this._toggle(event);
+      this.toggleCheckbox(event);
     }
   };
 
-  private _handleInputChange = (event: Event) => {
-    if (event.defaultPrevented) return;
+  private handleInputChange = (event: Event) => {
+    if (event.defaultPrevented) {return;}
 
     const input = event.currentTarget as HTMLInputElement;
     const state = this.getState();
@@ -439,7 +489,7 @@ export class CheckboxRootElement extends ReactiveElement {
       return;
     }
 
-    const group = this._getGroupState();
+    const group = this.getGroupState();
 
     if (group && this.parent) {
       const eventDetails = createChangeEventDetails(event);
@@ -466,46 +516,46 @@ export class CheckboxRootElement extends ReactiveElement {
     }
 
     if (this.checked === undefined) {
-      this._internalChecked = nextChecked;
+      this.internalChecked = nextChecked;
     }
 
     this.syncAttributes();
     this.requestUpdate();
   };
 
-  private _getGroupState(): CheckboxGroupRuntimeState | null {
-    return getCheckboxGroupRuntimeState(this._groupRoot);
+  private getGroupState(): CheckboxGroupRuntimeState | null {
+    return getCheckboxGroupRuntimeState(this.groupRoot);
   }
 
-  private _syncGroupRoot(root: Element | null) {
-    if (this._groupRoot === root) return;
+  private syncGroupRoot(root: Element | null) {
+    if (this.groupRoot === root) {return;}
 
-    this._groupRoot?.removeEventListener(
+    this.groupRoot?.removeEventListener(
       CHECKBOX_GROUP_STATE_CHANGE_EVENT,
-      this._handleGroupStateChange,
+      this.handleGroupStateChange,
     );
-    this._groupRoot = root;
-    this._groupRoot?.addEventListener(
+    this.groupRoot = root;
+    this.groupRoot?.addEventListener(
       CHECKBOX_GROUP_STATE_CHANGE_EVENT,
-      this._handleGroupStateChange,
+      this.handleGroupStateChange,
     );
   }
 
-  private _syncGroupDisabledState() {
-    const group = this._getGroupState();
-    if (!group || this.parent || !this.value) return;
+  private syncGroupDisabledState() {
+    const group = this.getGroupState();
+    if (!group || this.parent || !this.value) {return;}
 
     group.disabledStates.set(this.value, this.disabled);
   }
 
-  private _cleanupGroupDisabledState() {
-    const group = this._getGroupState();
-    if (!group || this.parent || !this.value) return;
+  private cleanupGroupDisabledState() {
+    const group = this.getGroupState();
+    if (!group || this.parent || !this.value) {return;}
 
     group.disabledStates.delete(this.value);
   }
 
-  private _handleGroupStateChange = () => {
+  private handleGroupStateChange = () => {
     this.syncAttributes();
   };
 }
@@ -525,27 +575,27 @@ export class CheckboxIndicatorElement extends BaseHTMLElement {
     return ['keep-mounted'];
   }
 
-  private _root: CheckboxRootElement | null = null;
-  private _handler = () => this._syncVisibility();
+  private rootElement: CheckboxRootElement | null = null;
+  private stateChangeHandler = () => this.syncVisibility();
 
   connectedCallback() {
-    this._root = this.closest('checkbox-root') as CheckboxRootElement | null;
-    if (!this._root) {
+    this.rootElement = this.closest('checkbox-root') as CheckboxRootElement | null;
+    if (!this.rootElement) {
       console.error(CONTEXT_ERROR);
       return;
     }
 
-    this._root.addEventListener(STATE_CHANGE_EVENT, this._handler);
-    queueMicrotask(() => this._syncVisibility());
+    this.rootElement.addEventListener(STATE_CHANGE_EVENT, this.stateChangeHandler);
+    queueMicrotask(() => this.syncVisibility());
   }
 
   disconnectedCallback() {
-    this._root?.removeEventListener(STATE_CHANGE_EVENT, this._handler);
-    this._root = null;
+    this.rootElement?.removeEventListener(STATE_CHANGE_EVENT, this.stateChangeHandler);
+    this.rootElement = null;
   }
 
   attributeChangedCallback() {
-    this._syncVisibility();
+    this.syncVisibility();
   }
 
   get keepMounted(): boolean {
@@ -556,9 +606,9 @@ export class CheckboxIndicatorElement extends BaseHTMLElement {
     this.toggleAttribute('keep-mounted', val);
   }
 
-  private _syncVisibility() {
-    if (!this._root) return;
-    const state = this._root.getState();
+  private syncVisibility() {
+    if (!this.rootElement) {return;}
+    const state = this.rootElement.getState();
     const shouldShow = state.checked || state.indeterminate;
 
     if (shouldShow) {
@@ -569,12 +619,12 @@ export class CheckboxIndicatorElement extends BaseHTMLElement {
       this.style.display = 'none';
     }
 
-    this._syncDataAttributes();
+    this.syncDataAttributes();
   }
 
-  private _syncDataAttributes() {
-    if (!this._root) return;
-    const state = this._root.getState();
+  private syncDataAttributes() {
+    if (!this.rootElement) {return;}
+    const state = this.rootElement.getState();
 
     if (state.indeterminate) {
       this.setAttribute('data-indeterminate', '');
@@ -617,14 +667,650 @@ function createChangeEventDetails(event: Event): CheckboxRootChangeEventDetails 
   };
 }
 
+/**
+ * Represents the checkbox itself.
+ * Renders a `<span>` element and a hidden `<input>` beside by default.
+ *
+ * Documentation: [Base UI Checkbox](https://base-ui.com/react/components/checkbox)
+ */
+function CheckboxRootHelper(props: CheckboxProps) {
+  const {
+    checked,
+    defaultChecked = false,
+    disabled = false,
+    form,
+    id,
+    indeterminate = false,
+    inputRef,
+    name,
+    nativeButton = false,
+    onCheckedChange,
+    parent = false,
+    readOnly = false,
+    render,
+    required = false,
+    uncheckedValue,
+    value = 'on',
+    ...elementProps
+  } = props;
+
+  return useRender({
+    defaultTagName: nativeButton ? 'button' : 'span',
+    render,
+    state: {
+      checked: Boolean(checked),
+      disabled,
+      indeterminate,
+      readOnly,
+      required,
+    },
+    ref: createCheckboxBehaviorRef({
+      checked,
+      defaultChecked,
+      disabled,
+      form,
+      id,
+      indeterminate,
+      inputRef,
+      name,
+      nativeButton,
+      onCheckedChange,
+      parent,
+      readOnly,
+      required,
+      uncheckedValue,
+      value,
+    }),
+    props: {
+      'data-base-ui-checkbox-control': '',
+      role: 'checkbox',
+      ...elementProps,
+    },
+  });
+}
+
+/**
+ * Indicates whether the checkbox is checked.
+ * Renders a `<span>` element by default.
+ */
+function CheckboxIndicatorHelper(props: CheckboxIndicatorHelperProps) {
+  const { keepMounted = false, render, ...elementProps } = props;
+
+  return useRender({
+    defaultTagName: 'span',
+    render,
+    state: {
+      checked: false,
+      disabled: false,
+      indeterminate: false,
+      readOnly: false,
+      required: false,
+    } satisfies CheckboxIndicatorState,
+    props: {
+      'data-base-ui-checkbox-indicator': '',
+      'data-keep-mounted': keepMounted ? '' : undefined,
+      ...elementProps,
+    },
+  });
+}
+
+function createCheckboxBehaviorRef(options: {
+  checked: boolean | undefined;
+  defaultChecked: boolean;
+  disabled: boolean;
+  form: string | undefined;
+  id: string | undefined;
+  indeterminate: boolean;
+  inputRef: Ref<HTMLInputElement> | undefined;
+  name: string | undefined;
+  nativeButton: boolean;
+  onCheckedChange:
+    | ((checked: boolean, eventDetails: CheckboxRootChangeEventDetails) => void)
+    | undefined;
+  parent: boolean;
+  readOnly: boolean;
+  required: boolean;
+  uncheckedValue: string | undefined;
+  value: string;
+}) {
+  let element: HTMLElement | null = null;
+  let hiddenInput: HTMLInputElement | null = null;
+  let uncheckedInput: HTMLInputElement | null = null;
+  let groupRoot: Element | null = null;
+  let internalChecked = options.defaultChecked;
+  let explicitLabels = new Set<HTMLLabelElement>();
+
+  function assignRef<T>(ref: Ref<T>, instance: T | null) {
+    if (ref == null) {
+      return;
+    }
+
+    if (typeof ref === 'function') {
+      ref(instance);
+      return;
+    }
+
+    ref.current = instance;
+  }
+
+  function getGroupState() {
+    return getCheckboxGroupRuntimeState(groupRoot) as CheckboxGroupRuntimeState | null;
+  }
+
+  function getChecked() {
+    const group = getGroupState();
+
+    if (group && group.allValues.length > 0) {
+      if (options.parent) {
+        return group.value.length === group.allValues.length;
+      }
+
+      return group.value.includes(options.value);
+    }
+
+    if (group) {
+      return group.value.includes(options.value);
+    }
+
+    return options.checked ?? internalChecked;
+  }
+
+  function getIndeterminate() {
+    const group = getGroupState();
+
+    if (group && group.allValues.length > 0 && options.parent) {
+      const checkedCount = group.value.length;
+      return checkedCount > 0 && checkedCount < group.allValues.length;
+    }
+
+    return options.indeterminate;
+  }
+
+  function getState(): CheckboxRootState {
+    const group = getGroupState();
+
+    return {
+      checked: getChecked(),
+      disabled: Boolean(group?.disabled) || options.disabled,
+      indeterminate: getIndeterminate(),
+      readOnly: options.readOnly,
+      required: options.required,
+    };
+  }
+
+  function getLabelTargetId() {
+    if (options.id == null || options.id === '') {
+      return undefined;
+    }
+
+    return options.nativeButton ? element?.id : hiddenInput?.id;
+  }
+
+  function getExplicitLabels() {
+    const targetId = getLabelTargetId();
+    if (targetId == null) {
+      return [];
+    }
+
+    return Array.from(
+      element?.ownerDocument?.querySelectorAll<HTMLLabelElement>(
+        `label[for="${CSS.escape(targetId)}"]`,
+      ) ?? [],
+    );
+  }
+
+  function cleanupLabels() {
+    explicitLabels.forEach((label) => {
+      label.removeEventListener('click', handleExplicitLabelClick);
+    });
+    explicitLabels.clear();
+  }
+
+  function syncExplicitLabels() {
+    const nextLabels = new Set(getExplicitLabels());
+
+    explicitLabels.forEach((label) => {
+      if (!nextLabels.has(label)) {
+        label.removeEventListener('click', handleExplicitLabelClick);
+      }
+    });
+
+    nextLabels.forEach((label) => {
+      if (!explicitLabels.has(label)) {
+        label.addEventListener('click', handleExplicitLabelClick);
+      }
+    });
+
+    explicitLabels = nextLabels;
+  }
+
+  function syncAriaLabelledBy() {
+    if (element == null) {
+      return;
+    }
+
+    const labels = new Set<HTMLLabelElement>();
+    const wrappingLabel = element.closest('label');
+    if (wrappingLabel instanceof HTMLLabelElement) {
+      labels.add(wrappingLabel);
+    }
+
+    (hiddenInput?.labels ?? []).forEach((label) => labels.add(label));
+    getExplicitLabels().forEach((label) => labels.add(label));
+
+    const labelIds = Array.from(labels)
+      .map((label) => ensureId(label, 'base-ui-checkbox-label'))
+      .filter(Boolean);
+
+    if (labelIds.length > 0) {
+      element.setAttribute('aria-labelledby', labelIds.join(' '));
+    } else {
+      element.removeAttribute('aria-labelledby');
+    }
+  }
+
+  function syncAriaControls() {
+    if (element == null) {
+      return;
+    }
+
+    const group = getGroupState();
+    if (!options.parent || !group || group.allValues.length === 0) {
+      element.removeAttribute('aria-controls');
+      return;
+    }
+
+    const checkboxId = ensureId(element, 'base-ui-checkbox-parent');
+    const childIds = group.allValues.map((itemValue) => `${checkboxId}-${itemValue}`).join(' ');
+    element.setAttribute('aria-controls', childIds);
+  }
+
+  function ensureHiddenInputs() {
+    if (element == null) {
+      return;
+    }
+
+    if (hiddenInput == null) {
+      hiddenInput = document.createElement('input');
+      hiddenInput.type = 'checkbox';
+      hiddenInput.tabIndex = -1;
+      hiddenInput.setAttribute('aria-hidden', 'true');
+      hiddenInput.addEventListener('change', handleInputChange);
+      hiddenInput.addEventListener('focus', () => element?.focus());
+    }
+
+    if (element.parentNode != null && hiddenInput.parentNode !== element.parentNode) {
+      element.parentNode.insertBefore(hiddenInput, element.nextSibling);
+    } else if (element.parentNode != null && hiddenInput.previousSibling !== element) {
+      element.parentNode.insertBefore(hiddenInput, element.nextSibling);
+    }
+  }
+
+  function syncHiddenInputs() {
+    if (hiddenInput == null) {
+      return;
+    }
+
+    const state = getState();
+    const isChecked = state.checked;
+    const effectiveName = options.parent ? undefined : options.name;
+
+    hiddenInput.checked = isChecked;
+    hiddenInput.disabled = state.disabled;
+    hiddenInput.required = state.required;
+    hiddenInput.indeterminate = state.indeterminate;
+
+    if (effectiveName) {
+      hiddenInput.name = effectiveName;
+      hiddenInput.style.cssText = VISUALLY_HIDDEN_INPUT_STYLE;
+    } else {
+      hiddenInput.removeAttribute('name');
+      hiddenInput.style.cssText = VISUALLY_HIDDEN_STYLE;
+    }
+
+    hiddenInput.value = options.value;
+
+    if (options.form) {
+      hiddenInput.setAttribute('form', options.form);
+    } else {
+      hiddenInput.removeAttribute('form');
+    }
+
+    if (!options.nativeButton && options.id) {
+      hiddenInput.id = options.id;
+    } else {
+      hiddenInput.removeAttribute('id');
+    }
+
+    if (!isChecked && effectiveName && options.uncheckedValue !== undefined) {
+      if (uncheckedInput == null) {
+        uncheckedInput = document.createElement('input');
+        uncheckedInput.type = 'hidden';
+      }
+
+      uncheckedInput.name = effectiveName;
+      uncheckedInput.value = options.uncheckedValue;
+
+      if (options.form) {
+        uncheckedInput.setAttribute('form', options.form);
+      } else {
+        uncheckedInput.removeAttribute('form');
+      }
+
+      if (
+        element?.parentNode != null &&
+        uncheckedInput.parentNode !== element.parentNode
+      ) {
+        element.parentNode.insertBefore(uncheckedInput, hiddenInput.nextSibling);
+      } else if (
+        element?.parentNode != null &&
+        uncheckedInput.previousSibling !== hiddenInput
+      ) {
+        element.parentNode.insertBefore(uncheckedInput, hiddenInput.nextSibling);
+      }
+    } else if (uncheckedInput != null) {
+      uncheckedInput.remove();
+      uncheckedInput = null;
+    }
+
+    assignRef(options.inputRef, hiddenInput);
+  }
+
+  function syncGroupDisabledState() {
+    const group = getGroupState();
+    if (!group || options.parent || !options.value) {
+      return;
+    }
+
+    group.disabledStates.set(options.value, options.disabled);
+  }
+
+  function cleanupGroupDisabledState() {
+    const group = getGroupState();
+    if (!group || options.parent || !options.value) {
+      return;
+    }
+
+    group.disabledStates.delete(options.value);
+  }
+
+  function syncIndicators() {
+    if (element == null) {
+      return;
+    }
+
+    const state = getState();
+    const indicators = element.querySelectorAll<HTMLElement>('[data-base-ui-checkbox-indicator]');
+
+    indicators.forEach((indicator) => {
+      const keepMounted = indicator.hasAttribute('data-keep-mounted');
+
+      if (state.indeterminate) {
+        indicator.setAttribute('data-indeterminate', '');
+        indicator.removeAttribute('data-checked');
+        indicator.removeAttribute('data-unchecked');
+      } else if (state.checked) {
+        indicator.setAttribute('data-checked', '');
+        indicator.removeAttribute('data-indeterminate');
+        indicator.removeAttribute('data-unchecked');
+      } else {
+        indicator.setAttribute('data-unchecked', '');
+        indicator.removeAttribute('data-indeterminate');
+        indicator.removeAttribute('data-checked');
+      }
+
+      indicator.toggleAttribute('data-disabled', state.disabled);
+      indicator.toggleAttribute('data-readonly', state.readOnly);
+      indicator.toggleAttribute('data-required', state.required);
+
+      if (state.checked || state.indeterminate) {
+        indicator.removeAttribute('hidden');
+        indicator.style.display = '';
+      } else if (!keepMounted) {
+        indicator.setAttribute('hidden', '');
+        indicator.style.display = 'none';
+      }
+    });
+  }
+
+  function sync() {
+    if (element == null) {
+      return;
+    }
+
+    const state = getState();
+
+    element.setAttribute('role', 'checkbox');
+    element.setAttribute(
+      'aria-checked',
+      getAriaCheckedValue(state.indeterminate, state.checked),
+    );
+
+    if (state.disabled) {
+      element.setAttribute('aria-disabled', 'true');
+      element.tabIndex = -1;
+    } else {
+      element.removeAttribute('aria-disabled');
+      element.tabIndex = 0;
+    }
+
+    if (state.readOnly) {
+      element.setAttribute('aria-readonly', 'true');
+    } else {
+      element.removeAttribute('aria-readonly');
+    }
+
+    if (state.required) {
+      element.setAttribute('aria-required', 'true');
+    } else {
+      element.removeAttribute('aria-required');
+    }
+
+    if (state.indeterminate) {
+      element.setAttribute('data-indeterminate', '');
+      element.removeAttribute('data-checked');
+      element.removeAttribute('data-unchecked');
+    } else if (state.checked) {
+      element.setAttribute('data-checked', '');
+      element.removeAttribute('data-indeterminate');
+      element.removeAttribute('data-unchecked');
+    } else {
+      element.setAttribute('data-unchecked', '');
+      element.removeAttribute('data-indeterminate');
+      element.removeAttribute('data-checked');
+    }
+
+    element.toggleAttribute('data-disabled', state.disabled);
+    element.toggleAttribute('data-readonly', state.readOnly);
+    element.toggleAttribute('data-required', state.required);
+
+    if (options.nativeButton && options.id && element instanceof HTMLButtonElement) {
+      element.id = options.id;
+      element.type = 'button';
+    }
+
+    ensureHiddenInputs();
+    syncGroupDisabledState();
+    syncHiddenInputs();
+    syncExplicitLabels();
+    syncAriaLabelledBy();
+    syncAriaControls();
+    syncIndicators();
+  }
+
+  function toggle(event: Event) {
+    const state = getState();
+    if (state.disabled || state.readOnly || state.indeterminate) {
+      return;
+    }
+
+    const nextChecked = !getChecked();
+    const eventDetails = createChangeEventDetails(event);
+    const group = getGroupState();
+
+    if (group && options.parent) {
+      group.toggleParent(eventDetails);
+      return;
+    }
+
+    if (group) {
+      group.toggleChild(options.value, nextChecked, eventDetails);
+      return;
+    }
+
+    options.onCheckedChange?.(nextChecked, eventDetails);
+    if (eventDetails.isCanceled) {
+      sync();
+      return;
+    }
+
+    if (options.checked === undefined) {
+      internalChecked = nextChecked;
+    }
+
+    sync();
+  }
+
+  function handleClick(event: MouseEvent) {
+    if (event.target === hiddenInput) {
+      return;
+    }
+
+    const state = getState();
+    if (state.disabled || state.readOnly) {
+      event.preventDefault();
+      return;
+    }
+
+    event.preventDefault();
+    toggle(event);
+  }
+
+  function handleKeyDown(event: KeyboardEvent) {
+    if (getState().disabled || event.target !== element) {
+      return;
+    }
+
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+    }
+
+    if (event.key === 'Enter') {
+      toggle(event);
+    }
+  }
+
+  function handleKeyUp(event: KeyboardEvent) {
+    const state = getState();
+    if (state.disabled || state.readOnly || event.target !== element) {
+      return;
+    }
+
+    if (event.key === ' ') {
+      toggle(event);
+    }
+  }
+
+  function handleInputChange(event: Event) {
+    if (event.defaultPrevented || hiddenInput == null) {
+      return;
+    }
+
+    const state = getState();
+    if (state.disabled || state.readOnly || state.indeterminate) {
+      hiddenInput.checked = getChecked();
+      return;
+    }
+
+    const nextChecked = hiddenInput.checked;
+    const eventDetails = createChangeEventDetails(event);
+    const group = getGroupState();
+
+    if (group && options.parent) {
+      group.toggleParent(eventDetails);
+      hiddenInput.checked = getChecked();
+      return;
+    }
+
+    if (group) {
+      group.toggleChild(options.value, nextChecked, eventDetails);
+      hiddenInput.checked = getChecked();
+      return;
+    }
+
+    options.onCheckedChange?.(nextChecked, eventDetails);
+    if (eventDetails.isCanceled) {
+      hiddenInput.checked = getChecked();
+      return;
+    }
+
+    if (options.checked === undefined) {
+      internalChecked = nextChecked;
+    }
+
+    sync();
+  }
+
+  function handleExplicitLabelClick(event: MouseEvent) {
+    if (event.defaultPrevented || hiddenInput == null) {
+      return;
+    }
+
+    if (event.target === hiddenInput) {
+      return;
+    }
+
+    event.preventDefault();
+    element?.click();
+  }
+
+  function handleGroupStateChange() {
+    sync();
+  }
+
+  return (instance: HTMLElement | null) => {
+    cleanupLabels();
+    cleanupGroupDisabledState();
+    groupRoot?.removeEventListener(CHECKBOX_GROUP_STATE_CHANGE_EVENT, handleGroupStateChange);
+    element?.removeEventListener('click', handleClick);
+    element?.removeEventListener('keydown', handleKeyDown);
+    element?.removeEventListener('keyup', handleKeyUp);
+    assignRef(options.inputRef, null);
+    hiddenInput?.remove();
+    uncheckedInput?.remove();
+    hiddenInput = null;
+    uncheckedInput = null;
+    groupRoot = null;
+    element = instance;
+
+    if (element == null) {
+      return;
+    }
+
+    groupRoot = element.closest(`[${CHECKBOX_GROUP_ATTRIBUTE}]`);
+    groupRoot?.addEventListener(CHECKBOX_GROUP_STATE_CHANGE_EVENT, handleGroupStateChange);
+    element.addEventListener('click', handleClick);
+    element.addEventListener('keydown', handleKeyDown);
+    element.addEventListener('keyup', handleKeyUp);
+    sync();
+  };
+}
+
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
+export const Checkbox = {
+  Root: CheckboxRootHelper,
+  Indicator: CheckboxIndicatorHelper,
+} as const;
+
 export namespace CheckboxRoot {
+  export type Props = CheckboxRootProps;
   export type State = CheckboxRootState;
   export type ChangeEventDetails = CheckboxRootChangeEventDetails;
 }
 
 export namespace CheckboxIndicator {
+  export type Props = CheckboxIndicatorHelperProps;
   export type State = CheckboxIndicatorState;
 }
 

@@ -9,11 +9,15 @@
 Groups a shared legend with related controls.
 Renders a `<fieldset-root>` custom element.
 
+**Root Props:**
+
+| Prop   | Type                                                                          | Default | Description                                                                                                                                                                                                                  |
+| :----- | :---------------------------------------------------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| render | `((props: HTMLProps, state: Root.State) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element with a different tag,&#xA;or compose it with a template that has a single root element.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
+
 ### Root.Props
 
-```typescript
-type RootProps = {};
-```
+Re-export of [Root](#root) props.
 
 ### Root.State
 
@@ -29,11 +33,15 @@ type RootState = {
 An accessible label that is automatically associated with the fieldset.
 Renders a `<fieldset-legend>` custom element.
 
+**Legend Props:**
+
+| Prop   | Type                                                                            | Default | Description                                                                                                                                                                                                                  |
+| :----- | :------------------------------------------------------------------------------ | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| render | `((props: HTMLProps, state: Legend.State) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element with a different tag,&#xA;or compose it with a template that has a single root element.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
+
 ### Legend.Props
 
-```typescript
-type LegendProps = {};
-```
+Re-export of [Legend](#legend) props.
 
 ### Legend.State
 
@@ -55,13 +63,27 @@ type Fieldset = { Root: React.FC<RootApiProps>; Legend: React.FC<LegendApiProps>
 ### LegendApiProps
 
 ```typescript
-type LegendApiProps = {};
+type LegendApiProps = {
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: Legend.State) => TemplateResult) | TemplateResult;
+};
 ```
 
 ### RootApiProps
 
 ```typescript
-type RootApiProps = {};
+type RootApiProps = {
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: Root.State) => TemplateResult) | TemplateResult;
+};
 ```
 
 ## Canonical Types

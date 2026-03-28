@@ -7,17 +7,20 @@
 ### Root
 
 Represents the radio button itself.
-Renders a `<radio-root>` custom element with a hidden `<input>` inside.
+Renders a `<span>` element and a hidden `<input>` beside by default.
 
 **Root Props:**
 
-| Prop     | Type      | Default | Description                                                    |
-| :------- | :-------- | :------ | :------------------------------------------------------------- |
-| value    | `unknown` | -       | The value that identifies this radio within a group.           |
-| disabled | `boolean` | `false` | Whether the component should ignore user interaction.          |
-| readOnly | `boolean` | `false` | Whether the user should be unable to select the radio button.  |
-| required | `boolean` | `false` | Whether the user must choose a value before submitting a form. |
-| id       | `string`  | -       | The id of the radio element.                                   |
+| Prop         | Type                                                                          | Default | Description                                                                                                                                                                                                              |
+| :----------- | :---------------------------------------------------------------------------- | :------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| value        | `unknown`                                                                     | -       | The value that identifies this radio within a group.                                                                                                                                                                     |
+| nativeButton | `boolean`                                                                     | `false` | Whether the rendered element should be treated as a native `<button>`.&#xA;Set to `true` when replacing the default element with a native button via `render`.                                                           |
+| disabled     | `boolean`                                                                     | `false` | Whether the component should ignore user interaction.                                                                                                                                                                    |
+| readOnly     | `boolean`                                                                     | `false` | Whether the user should be unable to select the radio button.                                                                                                                                                            |
+| required     | `boolean`                                                                     | `false` | Whether the user must choose a value before submitting a form.                                                                                                                                                           |
+| inputRef     | `React.Ref<HTMLInputElement>`                                                 | -       | A ref to access the hidden input element.                                                                                                                                                                                |
+| id           | `string`                                                                      | -       | The id of the radio element.                                                                                                                                                                                             |
+| render       | `((props: HTMLProps, state: Root.State) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element&#xA;with a different tag, or compose it with a template that has a single root element. Accepts a `TemplateResult` or a function that returns the template to render. |
 
 **Root Data Attributes:**
 
@@ -82,13 +85,14 @@ Re-export of [Root](#root) data-attributes.
 ### Indicator
 
 Indicates whether the radio button is selected.
-Renders a `<radio-indicator>` custom element.
+Renders a `<span>` element by default.
 
 **Indicator Props:**
 
-| Prop        | Type      | Default | Description                                               |
-| :---------- | :-------- | :------ | :-------------------------------------------------------- |
-| keepMounted | `boolean` | `false` | Whether the indicator should stay mounted when unchecked. |
+| Prop        | Type                                                                               | Default | Description                                                                                                                                                                                                              |
+| :---------- | :--------------------------------------------------------------------------------- | :------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| keepMounted | `boolean`                                                                          | `false` | Whether the indicator should stay mounted when unchecked.                                                                                                                                                                |
+| render      | `((props: HTMLProps, state: Indicator.State) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element&#xA;with a different tag, or compose it with a template that has a single root element. Accepts a `TemplateResult` or a function that returns the template to render. |
 
 **Indicator Data Attributes:**
 
@@ -126,19 +130,20 @@ Re-export of [Indicator](#indicator) data-attributes.
 ### RadioGroup
 
 Provides a shared state to a series of radio buttons.
-Renders a `<radio-group>` custom element.
+Renders a `<div>` element by default.
 
 **RadioGroup Props:**
 
-| Prop          | Type                                                                      | Default | Description                                     |
-| :------------ | :------------------------------------------------------------------------ | :------ | :---------------------------------------------- |
-| name          | `string`                                                                  | -       | Shared input name for form submission.          |
-| defaultValue  | `unknown`                                                                 | -       | Default selected value for uncontrolled mode.   |
-| value         | `unknown`                                                                 | -       | Controlled selected value.                      |
-| onValueChange | `((value: unknown, eventDetails: RadioGroup.ChangeEventDetails) => void)` | -       | Callback fired when the selected value changes. |
-| disabled      | `boolean`                                                                 | `false` | Whether the group is disabled.                  |
-| readOnly      | `boolean`                                                                 | `false` | Whether the group is read-only.                 |
-| required      | `boolean`                                                                 | `false` | Whether the group is required.                  |
+| Prop          | Type                                                                                | Default | Description                                                                                                                                                                                                              |
+| :------------ | :---------------------------------------------------------------------------------- | :------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| name          | `string`                                                                            | -       | Shared input name for form submission.                                                                                                                                                                                   |
+| defaultValue  | `unknown`                                                                           | -       | Default selected value for uncontrolled mode.                                                                                                                                                                            |
+| value         | `unknown`                                                                           | -       | Controlled selected value.                                                                                                                                                                                               |
+| onValueChange | `((value: unknown, eventDetails: RadioGroup.ChangeEventDetails) => void)`           | -       | Callback fired when the selected value changes.                                                                                                                                                                          |
+| disabled      | `boolean`                                                                           | `false` | Whether the group is disabled.                                                                                                                                                                                           |
+| readOnly      | `boolean`                                                                           | `false` | Whether the group is read-only.                                                                                                                                                                                          |
+| required      | `boolean`                                                                           | `false` | Whether the group is required.                                                                                                                                                                                           |
+| render        | `((props: HTMLProps, state: RadioGroup.State) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element&#xA;with a different tag, or compose it with a template that has a single root element. Accepts a `TemplateResult` or a function that returns the template to render. |
 
 **RadioGroup Data Attributes:**
 
@@ -223,6 +228,13 @@ type IndicatorApiProps = {
    * @default false
    */
   keepMounted?: boolean;
+  /**
+   * Allows you to replace the component's HTML element
+   * with a different tag, or compose it with a template that has a single root element.
+   *
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: Indicator.State) => TemplateResult) | TemplateResult;
 };
 ```
 
@@ -269,6 +281,13 @@ type RadioGroupApiProps = {
   name?: string;
   /** Callback fired when the selected value changes. */
   onValueChange?: (value: unknown, eventDetails: RadioGroup.ChangeEventDetails) => void;
+  /**
+   * Allows you to replace the component's HTML element
+   * with a different tag, or compose it with a template that has a single root element.
+   *
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: RadioGroup.State) => TemplateResult) | TemplateResult;
 };
 ```
 
@@ -295,6 +314,21 @@ type RootApiProps = {
   required?: boolean;
   /** The id of the radio element. */
   id?: string;
+  /** A ref to access the hidden input element. */
+  inputRef?: React.Ref<HTMLInputElement>;
+  /**
+   * Whether the rendered element should be treated as a native `<button>`.
+   * Set to `true` when replacing the default element with a native button via `render`.
+   * @default false
+   */
+  nativeButton?: boolean;
+  /**
+   * Allows you to replace the component's HTML element
+   * with a different tag, or compose it with a template that has a single root element.
+   *
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: Root.State) => TemplateResult) | TemplateResult;
 };
 ```
 

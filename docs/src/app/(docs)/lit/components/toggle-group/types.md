@@ -8,15 +8,16 @@
 
 **ToggleGroup Props:**
 
-| Prop          | Type                                                                            | Default        | Description                                                                                                                                                                            |
-| :------------ | :------------------------------------------------------------------------------ | :------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| defaultValue  | `string[]`                                                                      | -              | The open state of the toggle group represented by an array of&#xA;the values of all pressed toggle buttons.&#xA;This is the uncontrolled counterpart of `value`.                       |
-| value         | `string[]`                                                                      | -              | The open state of the toggle group represented by an array of&#xA;the values of all pressed toggle buttons.&#xA;This is the controlled counterpart of `defaultValue`.                  |
-| onValueChange | `((groupValue: string[], eventDetails: ToggleGroupChangeEventDetails) => void)` | -              | Callback fired when the pressed states of the toggle group changes.                                                                                                                    |
-| loopFocus     | `boolean`                                                                       | `true`         | Whether to loop keyboard focus back to the first item&#xA;when the end of the list is reached while using the arrow keys.                                                              |
-| multiple      | `boolean`                                                                       | `false`        | When `false` only one item in the group can be pressed. If any item in&#xA;the group becomes pressed, the others will become unpressed.&#xA;When `true` multiple items can be pressed. |
-| disabled      | `boolean`                                                                       | `false`        | Whether the toggle group should ignore user interaction.                                                                                                                               |
-| orientation   | `ToggleGroupOrientation`                                                        | `'horizontal'` | The orientation of the toggle group.                                                                                                                                                   |
+| Prop          | Type                                                                                | Default        | Description                                                                                                                                                                                                                  |
+| :------------ | :---------------------------------------------------------------------------------- | :------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| defaultValue  | `string[]`                                                                          | -              | The open state of the toggle group represented by an array of&#xA;the values of all pressed toggle buttons.&#xA;This is the uncontrolled counterpart of `value`.                                                             |
+| value         | `string[]`                                                                          | -              | The open state of the toggle group represented by an array of&#xA;the values of all pressed toggle buttons.&#xA;This is the controlled counterpart of `defaultValue`.                                                        |
+| onValueChange | `((groupValue: string[], eventDetails: ToggleGroupChangeEventDetails) => void)`     | -              | Callback fired when the pressed states of the toggle group changes.                                                                                                                                                          |
+| loopFocus     | `boolean`                                                                           | `true`         | Whether to loop keyboard focus back to the first item&#xA;when the end of the list is reached while using the arrow keys.                                                                                                    |
+| multiple      | `boolean`                                                                           | `false`        | When `false` only one item in the group can be pressed. If any item in&#xA;the group becomes pressed, the others will become unpressed.&#xA;When `true` multiple items can be pressed.                                       |
+| disabled      | `boolean`                                                                           | `false`        | Whether the toggle group should ignore user interaction.                                                                                                                                                                     |
+| orientation   | `ToggleGroupOrientation`                                                            | `'horizontal'` | The orientation of the toggle group.                                                                                                                                                                                         |
+| render        | `((props: HTMLProps, state: ToggleGroupState) => TemplateResult) \| TemplateResult` | -              | Allows you to replace the component's HTML element with a different tag,&#xA;or compose it with a template that has a single root element.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
 
 ## Additional Types
 
@@ -61,6 +62,12 @@ type ToggleGroupApiProps = {
    * @default 'horizontal'
    */
   orientation?: ToggleGroupOrientation;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: ToggleGroupState) => TemplateResult) | TemplateResult;
 };
 ```
 

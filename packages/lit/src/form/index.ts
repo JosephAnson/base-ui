@@ -1,3 +1,5 @@
+import { render as renderTemplate, type TemplateResult } from 'lit';
+import type { ComponentRenderFn, HTMLProps } from '../types';
 import { BaseHTMLElement } from '../utils';
 import {
   FORM_CONTEXT_ATTRIBUTE,
@@ -47,9 +49,18 @@ export interface FormProps {
    * A ref to imperative actions.
    */
   actionsRef?: { current: FormActions | null } | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: FormRenderProp | undefined;
 }
 
 export interface FormState {}
+
+type FormRenderProps = HTMLProps<HTMLElement>;
+type FormRenderProp = TemplateResult | ComponentRenderFn<FormRenderProps, FormState>;
 
 export { type FormValidationMode } from './shared';
 
@@ -106,6 +117,7 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
 
   /** Native submit handler. Called after validation passes. */
   onSubmit: ((event: SubmitEvent) => void) | undefined;
+  render: FormRenderProp | undefined;
 
   /** Ref object for imperative validation. */
   private actionsRefValue: { current: FormActions | null } | undefined;
@@ -129,6 +141,7 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
   private pendingFocusInvalid = false;
   private pendingFocusQueued = false;
   private lastPublishedStateKey: string | null = null;
+  private renderedElement: HTMLElement | null = null;
 
   constructor() {
     super();
@@ -138,6 +151,7 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
   connectedCallback() {
     this.style.display = 'contents';
     this.setAttribute(FORM_CONTEXT_ATTRIBUTE, '');
+    this.ensureRenderedElement();
 
     queueMicrotask(() => {
       this.attachForm();
@@ -151,6 +165,7 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
     }
     this.fields.clear();
     this.lastPublishedStateKey = null;
+    this.resetRenderedElement();
   }
 
   // --- FormRuntime implementation ---
@@ -197,6 +212,7 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
   // --- Private methods ---
 
   private attachForm() {
+    this.ensureRenderedElement();
     const form = this.querySelector('form');
     if (!form || this.formElement === form) {
       return;
@@ -338,6 +354,48 @@ export class FormRootElement extends BaseHTMLElement implements FormRuntime {
       control.select();
     }
   }
+
+  private ensureRenderedElement(): HTMLElement {
+    if (this.render == null) {
+      this.resetRenderedElement();
+      this.renderedElement = this;
+      return this;
+    }
+
+    if (this.renderedElement && this.renderedElement !== this && this.contains(this.renderedElement)) {
+      return this.renderedElement;
+    }
+
+    const contentNodes =
+      this.renderedElement && this.renderedElement !== this
+        ? Array.from(this.renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this.renderedElement);
+    const renderProps: FormRenderProps = {};
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, {}) : this.render;
+    const nextRoot = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+    if (nextRoot !== this) {
+      this.replaceChildren(nextRoot);
+      nextRoot.append(...contentNodes);
+    } else {
+      this.resetRenderedElement();
+    }
+
+    this.renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private resetRenderedElement() {
+    if (this.renderedElement == null || this.renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this.renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this.renderedElement = null;
+  }
 }
 
 if (!customElements.get('form-root')) {
@@ -364,6 +422,16 @@ export namespace Form {
   export type SubmitEventDetails = FormSubmitEventDetails;
   export type SubmitEventReason = FormSubmitEventReason;
   export type ValidationMode = FormValidationMode;
+}
+
+function materializeTemplateRoot(template: TemplateResult): HTMLElement {
+  const container = document.createElement('div');
+  renderTemplate(template, container);
+
+  return (
+    Array.from(container.children).find((child): child is HTMLElement => child instanceof HTMLElement) ??
+    container
+  );
 }
 
 // ─── Global type declarations ───────────────────────────────────────────────────

@@ -11,6 +11,7 @@ import {
 } from './index';
 import './index';
 import type { RadioRootElement } from '../radio';
+import { RADIO_GROUP_ATTRIBUTE } from './shared';
 
 describe('radio-group', () => {
   const containers = new Set<HTMLDivElement>();
@@ -60,10 +61,27 @@ describe('radio-group', () => {
   }
 
   it('exposes the radio-group runtime export and namespace aliases', () => {
-    expect(RadioGroup).toBe(RadioGroupElement);
+    expect(typeof RadioGroup).toBe('function');
+    expect(customElements.get('radio-group')).toBe(RadioGroupElement);
     expectTypeOf<RadioGroup.Props>().toEqualTypeOf<RadioGroupProps>();
     expectTypeOf<RadioGroup.State>().toEqualTypeOf<RadioGroupState>();
     expectTypeOf<RadioGroup.ChangeEventDetails>().toEqualTypeOf<RadioGroupChangeEventDetails>();
+  });
+
+  it('renders the helper group API', async () => {
+    const view = render(
+      html`${RadioGroup({
+        defaultValue: 'a',
+        children: [html`<radio-root .value=${'a'}></radio-root>`],
+      })}`,
+    );
+    await flushUpdates();
+
+    const group = view.querySelector(`[${RADIO_GROUP_ATTRIBUTE}]`) as HTMLElement;
+
+    expect(group.tagName).toBe('DIV');
+    expect(group).toHaveAttribute('role', 'radiogroup');
+    expect(group).toHaveAttribute(RADIO_GROUP_ATTRIBUTE);
   });
 
   it('renders radio-group as a custom element with role=radiogroup', async () => {

@@ -1,28 +1,94 @@
 # Tabs
 
-<Subtitle>Tabbed content navigation.</Subtitle>
-<Meta name="description" content="Tabbed content navigation." />
+<Subtitle>A component for toggling between related panels on the same page.</Subtitle>
+
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit tabs component for toggling between related panels on the same page."
+/>
+
+import { DemoTabsHero } from './demos/hero';
+import { TypesTabs } from './types';
+
+<DemoTabsHero />
 
 ## Anatomy
 
-```html title="Anatomy"
+Import the component and assemble its parts:
+
+```ts title="Anatomy"
+import '@base-ui/lit/tabs';
+import { html } from 'lit';
+
+html`
 <tabs-root>
   <tabs-list>
-    <tabs-tab value="one">Tab one</tabs-tab>
-    <tabs-tab value="two">Tab two</tabs-tab>
-    <tabs-tab value="three">Tab three</tabs-tab>
+    <tabs-tab value="overview">Overview</tabs-tab>
+    <tabs-tab value="projects">Projects</tabs-tab>
+    <tabs-tab value="account">Account</tabs-tab>
     <tabs-indicator></tabs-indicator>
   </tabs-list>
-  <tabs-panel value="one">Content for tab one.</tabs-panel>
-  <tabs-panel value="two">Content for tab two.</tabs-panel>
-  <tabs-panel value="three">Content for tab three.</tabs-panel>
+  <tabs-panel value="overview">Overview content.</tabs-panel>
+  <tabs-panel value="projects">Projects content.</tabs-panel>
+  <tabs-panel value="account">Account content.</tabs-panel>
 </tabs-root>
+`;
 ```
 
-## Status
+## Examples
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### Links
+
+Render a custom anchor element through the `render` prop when a tab should navigate.
+
+```ts title="Tabs as links" {6-8}
+import '@base-ui/lit/tabs';
+import { html } from 'lit';
+
+html`
+<tabs-root>
+  <tabs-list>
+    <tabs-tab .render=${html`<a href="/overview">Overview</a>`} value="overview"></tabs-tab>
+  </tabs-list>
+  <tabs-panel value="overview">Overview content.</tabs-panel>
+</tabs-root>
+`;
+```
+
+## API reference
+
+### Root
+
+<TypesTabs.Root />
+
+### List
+
+<TypesTabs.List />
+
+### Tab
+
+<TypesTabs.Tab />
+
+### Indicator
+
+<TypesTabs.Indicator />
+
+### Panel
+
+<TypesTabs.Panel />
 
 export const metadata = {
-  keywords: ['Lit Tabs', 'Tabs', 'Base UI Lit', 'Tabbed navigation'],
+  keywords: [
+    'Lit Tabs',
+    'Tabbed Interface Component',
+    'Tab Panel',
+    'Tab Control',
+    'Tabbed Navigation',
+    'Tabbed UI',
+    'Page Switcher',
+    'Content Switcher',
+    'View Switcher',
+    'Accessible Tabs',
+    'Base UI',
+  ],
 };

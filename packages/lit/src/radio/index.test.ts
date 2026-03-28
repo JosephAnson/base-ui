@@ -5,7 +5,7 @@ import {
   Radio,
   RadioIndicator,
   RadioIndicatorElement,
-  type RadioIndicatorProps,
+  type RadioIndicatorHelperProps,
   type RadioIndicatorState,
   RadioRoot,
   RadioRootElement,
@@ -19,6 +19,7 @@ import {
   setRadioGroupRuntimeState,
   type RadioGroupRuntimeState,
 } from '../radio-group/shared';
+import { RadioGroup } from '../radio-group';
 
 describe('radio', () => {
   const containers = new Set<HTMLDivElement>();
@@ -99,13 +100,32 @@ describe('radio', () => {
   }
 
   it('exposes the radio runtime export and namespace aliases', () => {
-    expect(Radio.Root).toBe(RadioRootElement);
-    expect(Radio.Indicator).toBe(RadioIndicatorElement);
-    expectTypeOf<RadioRoot.Props>().toEqualTypeOf<RadioRootProps>();
+    expect(typeof Radio.Root).toBe('function');
+    expect(typeof Radio.Indicator).toBe('function');
+    expect(customElements.get('radio-root')).toBe(RadioRootElement);
+    expect(customElements.get('radio-indicator')).toBe(RadioIndicatorElement);
+    expectTypeOf<RadioRoot.Props<string | null>>().toEqualTypeOf<RadioRootProps<string | null>>();
     expectTypeOf<RadioRoot.State>().toEqualTypeOf<RadioRootState>();
     expectTypeOf<RadioRoot.ChangeEventDetails>().toEqualTypeOf<RadioRootChangeEventDetails>();
-    expectTypeOf<RadioIndicator.Props>().toEqualTypeOf<RadioIndicatorProps>();
+    expectTypeOf<RadioIndicator.Props>().toEqualTypeOf<RadioIndicatorHelperProps>();
     expectTypeOf<RadioIndicator.State>().toEqualTypeOf<RadioIndicatorState>();
+  });
+
+  it('renders the helper root and indicator APIs', async () => {
+    const view = render(
+      html`${Radio.Root({
+        value: 'a',
+        children: Radio.Indicator({ keepMounted: true }),
+      })}`,
+    );
+    await flushUpdates();
+
+    const root = view.querySelector('[data-base-ui-radio-control]') as HTMLElement;
+    const indicator = root.querySelector('[data-base-ui-radio-indicator]') as HTMLElement;
+
+    expect(root.tagName).toBe('SPAN');
+    expect(root).toHaveAttribute('role', 'radio');
+    expect(indicator).toHaveAttribute('data-unchecked');
   });
 
   it('renders radio-root as a custom element with a hidden radio input', async () => {
@@ -195,6 +215,37 @@ describe('radio', () => {
     expect(labelB.id).not.toBe('');
     expect(labelA.id).not.toBe(labelB.id);
     expect(radio).toHaveAttribute('aria-labelledby', labelB.id);
+  });
+
+  it('supports a native button helper radio with a sibling label', async () => {
+    const view = render(html`
+      <div>
+        <label for="my-radio">A</label>
+        ${RadioGroup({
+          defaultValue: 'b',
+          children: [
+            Radio.Root({
+              id: 'my-radio',
+              nativeButton: true,
+              render: html`<button data-testid="a"></button>`,
+              value: 'a',
+            }),
+            Radio.Root({ value: 'b' }),
+          ],
+        })}
+      </div>
+    `);
+    await flushUpdates();
+
+    const buttonRadio = view.querySelector('[data-testid="a"]') as HTMLButtonElement;
+
+    expect(buttonRadio).toHaveAttribute('id', 'my-radio');
+    expect(buttonRadio).toHaveAttribute('aria-checked', 'false');
+
+    (view.querySelector('label[for="my-radio"]') as HTMLLabelElement).click();
+    await flushUpdates();
+
+    expect(buttonRadio).toHaveAttribute('aria-checked', 'true');
   });
 
   it('shows as checked when group value matches, including null values', async () => {

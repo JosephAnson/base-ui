@@ -1,4 +1,4 @@
-import { html, nothing, render as renderTemplate } from 'lit';
+import { html, nothing, render as renderTemplate, type TemplateResult } from 'lit';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import * as buttonModule from './index';
@@ -14,7 +14,7 @@ describe('button-root', () => {
     containers.clear();
   });
 
-  function render(result: ReturnType<typeof html>) {
+  function render(result: TemplateResult) {
     const container = document.createElement('div');
     document.body.append(container);
     containers.add(container);

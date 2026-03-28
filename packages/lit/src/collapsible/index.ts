@@ -1,4 +1,5 @@
-import { ReactiveElement } from 'lit';
+import { ReactiveElement, render as renderTemplate, type TemplateResult } from 'lit';
+import type { ComponentRenderFn, HTMLProps } from '../types';
 import { BaseHTMLElement, ensureId } from '../utils';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
@@ -12,6 +13,18 @@ const CONTEXT_ERROR = 'Base UI: Collapsible parts must be placed within <collaps
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
 type TransitionStatus = 'starting' | 'ending' | undefined;
+type CollapsibleRootRenderProps = HTMLProps<HTMLElement>;
+type CollapsibleRootRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<CollapsibleRootRenderProps, CollapsibleRootState>;
+type CollapsibleTriggerRenderProps = HTMLProps<HTMLElement>;
+type CollapsibleTriggerRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<CollapsibleTriggerRenderProps, CollapsibleTriggerState>;
+type CollapsiblePanelRenderProps = HTMLProps<HTMLElement>;
+type CollapsiblePanelRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<CollapsiblePanelRenderProps, CollapsiblePanelState>;
 
 export type CollapsibleChangeEventReason = 'trigger-press' | 'none';
 
@@ -54,9 +67,29 @@ export interface CollapsibleRootProps {
    * @default false
    */
   disabled?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: CollapsibleRootRenderProp | undefined;
 }
 
-export interface CollapsibleTriggerProps {}
+export interface CollapsibleTriggerProps {
+  /**
+   * Whether the component renders a native `<button>` element when replacing it
+   * via the `render` prop.
+   * Set to `false` if the rendered element is not a button.
+   * @default true
+   */
+  nativeButton?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: CollapsibleTriggerRenderProp | undefined;
+}
 
 export interface CollapsiblePanelProps {
   /**
@@ -71,6 +104,12 @@ export interface CollapsiblePanelProps {
    * @default false
    */
   keepMounted?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: CollapsiblePanelRenderProp | undefined;
 }
 
 export type CollapsibleRootChangeEventReason = CollapsibleChangeEventReason;
@@ -113,9 +152,11 @@ function createChangeEventDetails(
 export class CollapsibleRootElement extends ReactiveElement {
   static properties = {
     disabled: { type: Boolean },
+    render: { attribute: false },
   };
 
   declare disabled: boolean;
+  declare render: CollapsibleRootRenderProp | undefined;
 
   /** Default open state (uncontrolled). */
   defaultOpen = false;
@@ -131,6 +172,7 @@ export class CollapsibleRootElement extends ReactiveElement {
   private panelIdValue: string | undefined;
   private transitionStatusValue: TransitionStatus = undefined;
   private lastPublishedStateKey: string | null = null;
+  private renderedElement: HTMLElement | null = null;
 
   get open(): boolean | undefined {
     return this.openValue;
@@ -174,6 +216,7 @@ export class CollapsibleRootElement extends ReactiveElement {
     super.disconnectedCallback();
     this.lastPublishedStateKey = null;
     this.transitionStatusValue = undefined;
+    this.resetRenderedElement();
   }
 
   protected override updated() {
@@ -232,11 +275,19 @@ export class CollapsibleRootElement extends ReactiveElement {
 
   private syncAttributes() {
     const state = this.getState();
-    this.toggleAttribute('data-open', state.open);
-    this.toggleAttribute('data-closed', !state.open);
-    this.toggleAttribute('data-disabled', state.disabled);
-    this.toggleAttribute('data-starting-style', state.transitionStatus === 'starting');
-    this.toggleAttribute('data-ending-style', state.transitionStatus === 'ending');
+    const root = this.ensureRenderedElement();
+
+    this.removeAttribute('data-open');
+    this.removeAttribute('data-closed');
+    this.removeAttribute('data-disabled');
+    this.removeAttribute('data-starting-style');
+    this.removeAttribute('data-ending-style');
+
+    root.toggleAttribute('data-open', state.open);
+    root.toggleAttribute('data-closed', !state.open);
+    root.toggleAttribute('data-disabled', state.disabled);
+    root.toggleAttribute('data-starting-style', state.transitionStatus === 'starting');
+    root.toggleAttribute('data-ending-style', state.transitionStatus === 'ending');
   }
 
   private publishStateChange() {
@@ -252,6 +303,48 @@ export class CollapsibleRootElement extends ReactiveElement {
     }
     this.lastPublishedStateKey = nextKey;
     this.dispatchEvent(new CustomEvent(COLLAPSIBLE_STATE_CHANGE_EVENT));
+  }
+
+  private ensureRenderedElement(): HTMLElement {
+    if (this.render == null) {
+      this.resetRenderedElement();
+      this.renderedElement = this;
+      return this;
+    }
+
+    if (this.renderedElement && this.renderedElement !== this && this.contains(this.renderedElement)) {
+      return this.renderedElement;
+    }
+
+    const contentNodes =
+      this.renderedElement && this.renderedElement !== this
+        ? Array.from(this.renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this.renderedElement);
+    const renderProps: CollapsibleRootRenderProps = {};
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, this.getState()) : this.render;
+    const nextRoot = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+    if (nextRoot !== this) {
+      this.replaceChildren(nextRoot);
+      nextRoot.append(...contentNodes);
+    } else {
+      this.resetRenderedElement();
+    }
+
+    this.renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private resetRenderedElement() {
+    if (this.renderedElement == null || this.renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this.renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this.renderedElement = null;
   }
 }
 
@@ -270,31 +363,32 @@ if (!customElements.get('collapsible-root')) {
 export class CollapsibleTriggerElement extends BaseHTMLElement {
   private rootElement: CollapsibleRootElement | null = null;
   private stateHandler = () => this.syncAttributes();
+  render: CollapsibleTriggerRenderProp | undefined;
+  nativeButton = true;
+  private controlElement: HTMLElement | null = null;
+  private listenerTarget: HTMLElement | null = null;
 
   connectedCallback() {
-    this.rootElement = this.closest('collapsible-root') as CollapsibleRootElement | null;
-    if (!this.rootElement) {
-      console.error(CONTEXT_ERROR);
+    if (!this.attachRoot()) {
+      queueMicrotask(() => {
+        if (!this.isConnected || this.rootElement) {
+          return;
+        }
+
+        if (!this.attachRoot()) {
+          console.error(CONTEXT_ERROR);
+        }
+      });
       return;
     }
-
-    this.setAttribute('role', 'button');
-    this.setAttribute('tabindex', '0');
-
-    this.rootElement.addEventListener(COLLAPSIBLE_STATE_CHANGE_EVENT, this.stateHandler);
-
-    this.addEventListener('click', this.handleClick);
-    this.addEventListener('keydown', this.handleKeyDown);
-    this.addEventListener('keyup', this.handleKeyUp);
 
     queueMicrotask(() => this.syncAttributes());
   }
 
   disconnectedCallback() {
     this.rootElement?.removeEventListener(COLLAPSIBLE_STATE_CHANGE_EVENT, this.stateHandler);
-    this.removeEventListener('click', this.handleClick);
-    this.removeEventListener('keydown', this.handleKeyDown);
-    this.removeEventListener('keyup', this.handleKeyUp);
+    this.setListenerTarget(null);
+    this.resetControlElement();
     this.rootElement = null;
   }
 
@@ -324,7 +418,7 @@ export class CollapsibleTriggerElement extends BaseHTMLElement {
       return;
     }
 
-    if (event.target !== this) {
+    if (this.usesNativeButton() || event.target !== this.listenerTarget) {
       return;
     }
 
@@ -345,7 +439,7 @@ export class CollapsibleTriggerElement extends BaseHTMLElement {
       return;
     }
 
-    if (event.key === ' ' || event.key === 'Spacebar') {
+    if (!this.usesNativeButton() && (event.key === ' ' || event.key === 'Spacebar')) {
       event.preventDefault();
     }
   };
@@ -357,26 +451,131 @@ export class CollapsibleTriggerElement extends BaseHTMLElement {
 
     const state = this.rootElement.getState();
     const panelId = this.rootElement.getPanelId();
+    const control = this.ensureControlElement(state, panelId);
 
-    this.setAttribute('aria-expanded', String(state.open));
+    this.removeAttribute('role');
+    this.removeAttribute('tabindex');
+    this.removeAttribute('aria-expanded');
+    this.removeAttribute('aria-controls');
+    this.removeAttribute('data-panel-open');
+    this.removeAttribute('data-disabled');
+    this.removeAttribute('data-starting-style');
+    this.removeAttribute('data-ending-style');
+    this.removeAttribute('aria-disabled');
+
+    control.setAttribute('aria-expanded', String(state.open));
 
     if (state.open && panelId) {
-      this.setAttribute('aria-controls', panelId);
+      control.setAttribute('aria-controls', panelId);
     } else {
-      this.removeAttribute('aria-controls');
+      control.removeAttribute('aria-controls');
     }
 
-    this.toggleAttribute('data-panel-open', state.open);
-    this.toggleAttribute('data-disabled', state.disabled);
+    control.toggleAttribute('data-panel-open', state.open);
+    control.toggleAttribute('data-disabled', state.disabled);
+    control.toggleAttribute('data-starting-style', state.transitionStatus === 'starting');
+    control.toggleAttribute('data-ending-style', state.transitionStatus === 'ending');
 
-    if (state.disabled) {
-      this.setAttribute('aria-disabled', 'true');
+    if (this.usesNativeButton()) {
+      if (control instanceof HTMLButtonElement) {
+        control.type = 'button';
+        control.disabled = state.disabled;
+      }
+      control.removeAttribute('role');
+      control.removeAttribute('tabindex');
+      control.removeAttribute('aria-disabled');
     } else {
-      this.removeAttribute('aria-disabled');
+      control.setAttribute('role', 'button');
+      control.setAttribute('tabindex', '0');
+      if (state.disabled) {
+        control.setAttribute('aria-disabled', 'true');
+      } else {
+        control.removeAttribute('aria-disabled');
+      }
     }
 
-    this.toggleAttribute('data-starting-style', state.transitionStatus === 'starting');
-    this.toggleAttribute('data-ending-style', state.transitionStatus === 'ending');
+    this.setListenerTarget(control);
+  }
+
+  private usesNativeButton() {
+    return this.nativeButton && this.controlElement instanceof HTMLButtonElement;
+  }
+
+  private attachRoot() {
+    this.rootElement = this.closest('collapsible-root') as CollapsibleRootElement | null;
+    if (!this.rootElement) {
+      return false;
+    }
+
+    this.rootElement.addEventListener(COLLAPSIBLE_STATE_CHANGE_EVENT, this.stateHandler);
+    return true;
+  }
+
+  private ensureControlElement(state: CollapsibleTriggerState, panelId: string | undefined) {
+    if (this.render == null) {
+      this.resetControlElement();
+      this.controlElement = this;
+      return this;
+    }
+
+    if (this.controlElement && this.controlElement !== this && this.contains(this.controlElement)) {
+      return this.controlElement;
+    }
+
+    const contentNodes =
+      this.controlElement && this.controlElement !== this
+        ? Array.from(this.controlElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this.controlElement);
+    const renderProps: CollapsibleTriggerRenderProps = {
+      'aria-controls': state.open ? panelId : undefined,
+      'aria-expanded': String(state.open),
+      role: this.nativeButton ? undefined : 'button',
+      tabIndex: this.nativeButton ? undefined : 0,
+    };
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, state) : this.render;
+    const nextControl = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+    if (nextControl !== this) {
+      this.replaceChildren(nextControl);
+      nextControl.append(...contentNodes);
+    } else {
+      this.resetControlElement();
+    }
+
+    this.controlElement = nextControl;
+    return nextControl;
+  }
+
+  private resetControlElement() {
+    if (this.controlElement == null || this.controlElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this.controlElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this.controlElement = null;
+  }
+
+  private setListenerTarget(nextTarget: HTMLElement | null) {
+    if (this.listenerTarget === nextTarget) {
+      return;
+    }
+
+    if (this.listenerTarget) {
+      this.listenerTarget.removeEventListener('click', this.handleClick);
+      this.listenerTarget.removeEventListener('keydown', this.handleKeyDown);
+      this.listenerTarget.removeEventListener('keyup', this.handleKeyUp);
+    }
+
+    this.listenerTarget = nextTarget;
+
+    if (this.listenerTarget) {
+      this.listenerTarget.addEventListener('click', this.handleClick);
+      this.listenerTarget.addEventListener('keydown', this.handleKeyDown);
+      this.listenerTarget.addEventListener('keyup', this.handleKeyUp);
+    }
   }
 }
 
@@ -402,6 +601,7 @@ export class CollapsiblePanelElement extends BaseHTMLElement {
 
   /** Use hidden="until-found" for browser find-in-page support. */
   hiddenUntilFound = false;
+  render: CollapsiblePanelRenderProp | undefined;
 
   private rootElement: CollapsibleRootElement | null = null;
   private stateHandler = () => this.handleStateChange();
@@ -410,6 +610,8 @@ export class CollapsiblePanelElement extends BaseHTMLElement {
   private lastOpen: boolean | null = null;
   private frameId: number | null = null;
   private exitRunId = 0;
+  private renderedElement: HTMLElement | null = null;
+  private beforeMatchTarget: HTMLElement | null = null;
   private beforeMatchHandler = (event: Event) => {
     if (!this.rootElement) {
       return;
@@ -425,18 +627,26 @@ export class CollapsiblePanelElement extends BaseHTMLElement {
       this.style.display = 'block';
     }
 
-    this.rootElement = this.closest('collapsible-root') as CollapsibleRootElement | null;
-    if (!this.rootElement) {
-      console.error(CONTEXT_ERROR);
+    if (!this.attachRoot()) {
+      queueMicrotask(() => {
+        if (!this.isConnected || this.rootElement) {
+          return;
+        }
+
+        if (!this.attachRoot()) {
+          console.error(CONTEXT_ERROR);
+          return;
+        }
+
+        if (!this.rootElement?.getOpen()) {
+          this.setAttribute('hidden', '');
+        }
+
+        this.handleStateChange();
+      });
       return;
     }
 
-    ensureId(this, 'base-ui-collapsible-panel');
-    this.rootElement.setPanelId(this.id);
-    this.rootElement.addEventListener(COLLAPSIBLE_STATE_CHANGE_EVENT, this.stateHandler);
-    this.addEventListener('beforematch', this.beforeMatchHandler);
-
-    // Immediately hide if root is closed to prevent flash
     if (!this.rootElement.getOpen()) {
       this.setAttribute('hidden', '');
     }
@@ -446,13 +656,14 @@ export class CollapsiblePanelElement extends BaseHTMLElement {
 
   disconnectedCallback() {
     this.clearFrame();
-    this.removeEventListener('beforematch', this.beforeMatchHandler);
+    this.setBeforeMatchTarget(null);
     if (this.rootElement) {
       this.rootElement.setPanelId(undefined);
       this.rootElement.setTransitionStatus(undefined);
       this.rootElement.removeEventListener(COLLAPSIBLE_STATE_CHANGE_EVENT, this.stateHandler);
     }
     this.rootElement = null;
+    this.resetRenderedElement();
     this.mounted = false;
     this.lastOpen = null;
     this.transitionStatus = undefined;
@@ -510,9 +721,14 @@ export class CollapsiblePanelElement extends BaseHTMLElement {
     const open = state.open;
     const shouldStayMounted = this.keepMounted || this.hiddenUntilFound;
     const shouldRender = this.mounted || this.transitionStatus === 'ending' || shouldStayMounted;
+    const panel = this.ensurePanelElement({
+      disabled: state.disabled,
+      open,
+      transitionStatus: this.transitionStatus,
+    });
 
     if (!shouldRender) {
-      this.setAttribute('hidden', '');
+      panel.setAttribute('hidden', '');
       this.rootElement.setTransitionStatus(undefined);
       return;
     }
@@ -521,25 +737,30 @@ export class CollapsiblePanelElement extends BaseHTMLElement {
 
     // Sync hidden attribute
     if (this.hiddenUntilFound && hidden) {
-      this.setAttribute('hidden', 'until-found');
+      panel.setAttribute('hidden', 'until-found');
     } else if (hidden) {
-      this.setAttribute('hidden', '');
+      panel.setAttribute('hidden', '');
     } else {
-      this.removeAttribute('hidden');
+      panel.removeAttribute('hidden');
     }
 
     // Sync data attributes
-    this.toggleAttribute('data-open', open);
-    this.toggleAttribute('data-closed', !open);
-    this.toggleAttribute('data-disabled', state.disabled);
-    this.toggleAttribute('data-starting-style', this.transitionStatus === 'starting');
-    this.toggleAttribute('data-ending-style', this.transitionStatus === 'ending');
+    this.removeAttribute('data-open');
+    this.removeAttribute('data-closed');
+    this.removeAttribute('data-disabled');
+    this.removeAttribute('data-starting-style');
+    this.removeAttribute('data-ending-style');
+    panel.toggleAttribute('data-open', open);
+    panel.toggleAttribute('data-closed', !open);
+    panel.toggleAttribute('data-disabled', state.disabled);
+    panel.toggleAttribute('data-starting-style', this.transitionStatus === 'starting');
+    panel.toggleAttribute('data-ending-style', this.transitionStatus === 'ending');
 
     // CSS custom properties for height/width
-    const height = this.scrollHeight;
-    const width = this.scrollWidth;
-    this.style.setProperty(COLLAPSIBLE_PANEL_HEIGHT_VAR, height ? `${height}px` : 'auto');
-    this.style.setProperty(COLLAPSIBLE_PANEL_WIDTH_VAR, width ? `${width}px` : 'auto');
+    const height = panel.scrollHeight;
+    const width = panel.scrollWidth;
+    panel.style.setProperty(COLLAPSIBLE_PANEL_HEIGHT_VAR, height ? `${height}px` : 'auto');
+    panel.style.setProperty(COLLAPSIBLE_PANEL_WIDTH_VAR, width ? `${width}px` : 'auto');
 
     // Update root's transition status
     this.rootElement.setTransitionStatus(this.transitionStatus);
@@ -618,6 +839,89 @@ export class CollapsiblePanelElement extends BaseHTMLElement {
       this.frameId = null;
     }
   }
+
+  private ensurePanelElement(state: CollapsiblePanelState): HTMLElement {
+    if (this.render == null) {
+      this.resetRenderedElement();
+      this.renderedElement = this;
+      this.setBeforeMatchTarget(this);
+      if (!this.id) {
+        ensureId(this, 'base-ui-collapsible-panel');
+      }
+      this.rootElement?.setPanelId(this.id);
+      return this;
+    }
+
+    if (this.renderedElement && this.renderedElement !== this && this.contains(this.renderedElement)) {
+      this.setBeforeMatchTarget(this.renderedElement);
+      this.rootElement?.setPanelId(this.renderedElement.id);
+      return this.renderedElement;
+    }
+
+    const contentNodes =
+      this.renderedElement && this.renderedElement !== this
+        ? Array.from(this.renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this.renderedElement);
+    const renderProps: CollapsiblePanelRenderProps = {
+      hidden: !state.open,
+    };
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, state) : this.render;
+    const nextPanel = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+    if (nextPanel !== this) {
+      this.replaceChildren(nextPanel);
+      nextPanel.append(...contentNodes);
+    } else {
+      this.resetRenderedElement();
+    }
+
+    ensureId(nextPanel, 'base-ui-collapsible-panel');
+    this.renderedElement = nextPanel;
+    this.setBeforeMatchTarget(nextPanel);
+    this.rootElement?.setPanelId(nextPanel.id);
+    return nextPanel;
+  }
+
+  private resetRenderedElement() {
+    if (this.renderedElement == null || this.renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this.renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this.renderedElement = null;
+  }
+
+  private setBeforeMatchTarget(nextTarget: HTMLElement | null) {
+    if (this.beforeMatchTarget === nextTarget) {
+      return;
+    }
+
+    if (this.beforeMatchTarget) {
+      this.beforeMatchTarget.removeEventListener('beforematch', this.beforeMatchHandler);
+    }
+
+    this.beforeMatchTarget = nextTarget;
+
+    if (this.beforeMatchTarget) {
+      this.beforeMatchTarget.addEventListener('beforematch', this.beforeMatchHandler);
+    }
+  }
+
+  private attachRoot() {
+    this.rootElement = this.closest('collapsible-root') as CollapsibleRootElement | null;
+    if (!this.rootElement) {
+      return false;
+    }
+
+    ensureId(this, 'base-ui-collapsible-panel');
+    this.rootElement.setPanelId(this.id);
+    this.rootElement.addEventListener(COLLAPSIBLE_STATE_CHANGE_EVENT, this.stateHandler);
+    this.setBeforeMatchTarget(this);
+    return true;
+  }
 }
 
 if (!customElements.get('collapsible-panel')) {
@@ -629,6 +933,16 @@ export const Collapsible = {
   Trigger: CollapsibleTriggerElement,
   Panel: CollapsiblePanelElement,
 } as const;
+
+function materializeTemplateRoot(template: TemplateResult): HTMLElement {
+  const container = document.createElement('div');
+  renderTemplate(template, container);
+
+  return (
+    Array.from(container.children).find((child): child is HTMLElement => child instanceof HTMLElement) ??
+    container
+  );
+}
 
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 

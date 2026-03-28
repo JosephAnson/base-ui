@@ -1,25 +1,159 @@
 # Checkbox Group
 
-<Subtitle>A shared-state checkbox group for Lit templates.</Subtitle>
-<Meta name="description" content="A shared-state checkbox group for Lit templates." />
+<Subtitle>Provides shared state to a series of checkboxes.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit checkbox group component that provides a shared state for a series of checkboxes."
+/>
 
 import { DemoCheckboxGroupHero } from './demos/hero';
+import { DemoCheckboxGroupParent } from './demos/parent';
+import { DemoCheckboxGroupNested } from './demos/nested';
+import { TypesCheckboxGroup } from './types';
 
 <DemoCheckboxGroupHero />
 
+## Usage guidelines
+
+- **Form controls must have an accessible name**: It can be created using `<label>` elements, or the [Field](/lit/components/field) and [Fieldset](/lit/components/fieldset) components. See [Labeling a checkbox group](#labeling-a-checkbox-group) and the [forms guide](/lit/handbook/forms).
+
 ## Anatomy
 
-```html title="Anatomy"
-<checkbox-group>
-  <checkbox-root value="apple"></checkbox-root>
-  <checkbox-root value="orange"></checkbox-root>
-</checkbox-group>
+Checkbox Group is composed together with [Checkbox](/lit/components/checkbox). Import the component and place them together:
+
+```ts title="Anatomy"
+import '@base-ui/lit/checkbox';
+import '@base-ui/lit/checkbox-group';
+
+html`<checkbox-group>
+  <checkbox-root></checkbox-root>
+</checkbox-group>`;
 ```
 
-## Status
+## Examples
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### Labeling a checkbox group
+
+Label the group with `aria-labelledby` and a sibling label element:
+
+```ts title="Using aria-labelledby to label a checkbox group"
+html`<div id="protocols-label">Allowed network protocols</div>
+<checkbox-group aria-labelledby="protocols-label">
+  <!-- ... -->
+</checkbox-group>`;
+```
+
+An enclosing `<label>` is the simplest labeling pattern for each checkbox:
+
+```ts title="Using an enclosing label to label a checkbox"
+html`<label>
+  <checkbox-root value="http">
+    <checkbox-indicator></checkbox-indicator>
+  </checkbox-root>
+  HTTP
+</label>`;
+```
+
+### Rendering as a native button
+
+By default, the custom-element API uses `<checkbox-root>` to support enclosing labels. Prefer the helper API when using sibling labels (`for`/`id`).
+
+```ts title="Sibling label pattern with a native button"
+import { html } from 'lit';
+import { Checkbox } from '@base-ui/lit/checkbox';
+import { CheckboxGroup } from '@base-ui/lit/checkbox-group';
+
+html`<div id="protocols-label">Allowed network protocols</div>
+${CheckboxGroup({
+  'aria-labelledby': 'protocols-label',
+  children: html`<div>
+    <label for="protocol-http">HTTP</label>
+    ${Checkbox.Root({
+      id: 'protocol-http',
+      value: 'http',
+      nativeButton: true,
+      render: html`<button></button>`,
+      children: Checkbox.Indicator(),
+    })}
+  </div>`,
+})}`;
+```
+
+For wrapping labels in Lit, prefer the default custom-element path.
+
+### Form integration
+
+Use [Field](/lit/components/field) and [Fieldset](/lit/components/fieldset) for group labeling and form integration. In Lit, `<form-root>` provides the Base UI form behavior and enhances a nested native `<form>`:
+
+```ts title="Using Checkbox Group in a form"
+html`<form-root>
+  <form>
+    <field-root name="allowedNetworkProtocols">
+      <fieldset-root>
+        <fieldset-legend>Allowed network protocols</fieldset-legend>
+        <checkbox-group>
+          <field-item>
+            <field-label>
+              <checkbox-root value="http">
+                <checkbox-indicator></checkbox-indicator>
+              </checkbox-root>
+              HTTP
+            </field-label>
+          </field-item>
+          <field-item>
+            <field-label>
+              <checkbox-root value="https">
+                <checkbox-indicator></checkbox-indicator>
+              </checkbox-root>
+              HTTPS
+            </field-label>
+          </field-item>
+          <field-item>
+            <field-label>
+              <checkbox-root value="ssh">
+                <checkbox-indicator></checkbox-indicator>
+              </checkbox-root>
+              SSH
+            </field-label>
+          </field-item>
+        </checkbox-group>
+      </fieldset-root>
+    </field-root>
+  </form>
+</form-root>`;
+```
+
+### Parent checkbox
+
+A checkbox that controls other checkboxes within a `<CheckboxGroup>` can be created:
+
+1. Make `<checkbox-group>` a controlled component.
+2. Pass an array of all the child checkbox values to the `.allValues` prop on `<checkbox-group>`.
+3. Add the `parent` boolean prop to the parent `<checkbox-root>`.
+
+The group controls the parent checkbox's indeterminate state when some, but not all, child checkboxes are checked.
+
+<DemoCheckboxGroupParent />
+
+### Nested parent checkbox
+
+<DemoCheckboxGroupNested compact />
+
+## API reference
+
+<TypesCheckboxGroup.CheckboxGroup />
 
 export const metadata = {
-  keywords: ['Lit Checkbox Group', 'Checkbox Group', 'Base UI Lit'],
+  keywords: [
+    'Lit Checkbox Group',
+    'Checkbox Group Component',
+    'Grouped Checkboxes',
+    'Multiple Selection',
+    'Checkbox List',
+    'Multi-Select Checkboxes',
+    'Parent Child Checkbox',
+    'Accessible Checkbox Group',
+    'Form Fieldset Control',
+    'Base UI',
+  ],
 };

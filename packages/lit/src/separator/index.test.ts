@@ -100,4 +100,35 @@ describe('separator-root', () => {
     expect(element).toHaveAttribute('id', 'sep-1');
     expect(element).toHaveAttribute('data-testid', 'my-sep');
   });
+
+  it('supports a TemplateResult render prop', async () => {
+    const view = render(
+      html`<separator-root .render=${html`<div class="custom-separator"></div>`}></separator-root>`,
+    );
+    const host = view.querySelector('separator-root')!;
+    await waitForUpdate();
+
+    const element = host.querySelector('.custom-separator');
+    expect(host).toHaveStyle({ display: 'contents' });
+    expect(element).toHaveAttribute('role', 'separator');
+    expect(element).toHaveAttribute('aria-orientation', 'horizontal');
+    expect(element).toHaveAttribute('data-orientation', 'horizontal');
+  });
+
+  it('supports a render function', async () => {
+    const view = render(
+      html`<separator-root
+        orientation="vertical"
+        .render=${(_props: unknown, state: { orientation: string }) =>
+          html`<div data-state-orientation=${state.orientation}></div>`}
+      ></separator-root>`,
+    );
+    const host = view.querySelector('separator-root')!;
+    await waitForUpdate();
+
+    const element = host.querySelector('[data-state-orientation="vertical"]');
+    expect(element).toHaveAttribute('role', 'separator');
+    expect(element).toHaveAttribute('aria-orientation', 'vertical');
+    expect(element).toHaveAttribute('data-orientation', 'vertical');
+  });
 });

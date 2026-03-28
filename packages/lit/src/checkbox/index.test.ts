@@ -1,8 +1,19 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import {
+  Checkbox,
+  CheckboxIndicator,
+  CheckboxIndicatorElement,
+  CheckboxRoot,
+  type CheckboxIndicatorHelperProps,
+  type CheckboxIndicatorState,
+  type CheckboxRootChangeEventDetails,
+  CheckboxRootElement,
+  type CheckboxRootProps,
+  type CheckboxRootState,
+} from './index.ts';
 import './index.ts';
-import type { CheckboxRootElement, CheckboxRootChangeEventDetails } from './index.ts';
 
 describe('checkbox', () => {
   const containers = new Set<HTMLDivElement>();
@@ -35,6 +46,60 @@ describe('checkbox', () => {
   function getHiddenInput(container: HTMLElement) {
     return container.querySelector('input[type="checkbox"]') as HTMLInputElement;
   }
+
+  it('exposes the checkbox runtime export and namespace aliases', () => {
+    expect(typeof Checkbox.Root).toBe('function');
+    expect(typeof Checkbox.Indicator).toBe('function');
+    expect(customElements.get('checkbox-root')).toBe(CheckboxRootElement);
+    expect(customElements.get('checkbox-indicator')).toBe(CheckboxIndicatorElement);
+    expectTypeOf<CheckboxRoot.Props>().toEqualTypeOf<CheckboxRootProps>();
+    expectTypeOf<CheckboxRoot.State>().toEqualTypeOf<CheckboxRootState>();
+    expectTypeOf<CheckboxRoot.ChangeEventDetails>().toEqualTypeOf<CheckboxRootChangeEventDetails>();
+    expectTypeOf<CheckboxIndicator.Props>().toEqualTypeOf<CheckboxIndicatorHelperProps>();
+    expectTypeOf<CheckboxIndicator.State>().toEqualTypeOf<CheckboxIndicatorState>();
+  });
+
+  it('renders the helper root and indicator APIs', async () => {
+    const container = render(
+      html`${Checkbox.Root({
+        children: Checkbox.Indicator({ keepMounted: true }),
+      })}`,
+    );
+    await waitForUpdate();
+
+    const root = container.querySelector('[data-base-ui-checkbox-control]') as HTMLElement;
+    const indicator = root.querySelector('[data-base-ui-checkbox-indicator]') as HTMLElement;
+
+    expect(root.tagName).toBe('SPAN');
+    expect(root).toHaveAttribute('role', 'checkbox');
+    expect(root).toHaveAttribute('aria-checked', 'false');
+    expect(indicator).toHaveAttribute('data-unchecked');
+  });
+
+  it('supports a native button helper checkbox with a sibling label', async () => {
+    const container = render(html`
+      <div>
+        <label for="notifications-checkbox">Enable notifications</label>
+        ${Checkbox.Root({
+          id: 'notifications-checkbox',
+          nativeButton: true,
+          render: html`<button data-testid="checkbox"></button>`,
+          children: Checkbox.Indicator({ keepMounted: true }),
+        })}
+      </div>
+    `);
+    await waitForUpdate();
+
+    const checkbox = container.querySelector('[data-testid="checkbox"]') as HTMLButtonElement;
+
+    expect(checkbox).toHaveAttribute('id', 'notifications-checkbox');
+    expect(checkbox).toHaveAttribute('aria-checked', 'false');
+
+    (container.querySelector('label') as HTMLLabelElement).click();
+    await waitForUpdate();
+
+    expect(checkbox).toHaveAttribute('aria-checked', 'true');
+  });
 
   it('renders checkbox-root as a custom element with role=checkbox', async () => {
     const container = render(html`<checkbox-root></checkbox-root>`);

@@ -1,6 +1,7 @@
-import { ReactiveElement } from 'lit';
+import { ReactiveElement, nothing, render as renderTemplate, type TemplateResult } from 'lit';
 import { BaseHTMLElement, ensureId } from '../utils/index.ts';
 import { getDirection } from '../direction-provider/index.ts';
+import type { ComponentRenderFn, HTMLProps } from '../types';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -9,13 +10,23 @@ const TABS_STATE_CHANGE_EVENT = 'base-ui-tabs-state-change';
 
 type TabsOrientation = 'horizontal' | 'vertical';
 type TabActivationDirection = 'left' | 'right' | 'up' | 'down' | 'none';
-type TabValue = string | number;
+type TabValue = string | number | null;
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
 export interface TabsRootState {
   orientation: TabsOrientation;
   tabActivationDirection: TabActivationDirection;
+}
+
+export type TabsRootChangeEventReason = 'none';
+
+export interface TabsRootChangeEventDetails {
+  event: Event;
+  cancel(): void;
+  readonly isCanceled: boolean;
+  reason: TabsRootChangeEventReason;
+  activationDirection: TabActivationDirection;
 }
 
 export interface TabsListState extends TabsRootState {}
@@ -34,6 +45,38 @@ export interface TabsPanelState {
 export interface TabsIndicatorState {
   orientation: TabsOrientation;
 }
+
+export interface TabsRootProps {
+  value?: TabValue | undefined;
+  defaultValue?: TabValue | undefined;
+  orientation?: TabsOrientation | undefined;
+  onValueChange?:
+    | ((value: TabValue, eventDetails: TabsRootChangeEventDetails) => void)
+    | undefined;
+}
+
+export interface TabsListProps {
+  activateOnFocus?: boolean | undefined;
+  loopFocus?: boolean | undefined;
+}
+
+export interface TabsTabProps {
+  value?: TabValue | undefined;
+  disabled?: boolean | undefined;
+  render?: TabsTabRenderProp | undefined;
+}
+
+export interface TabsPanelProps {
+  value?: TabValue | undefined;
+  keepMounted?: boolean | undefined;
+}
+
+export interface TabsIndicatorProps {}
+
+type TabsTabRenderProps = HTMLProps<HTMLElement>;
+type TabsTabRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<TabsTabRenderProps, TabsTabState>;
 
 // ─── TabsRootElement ────────────────────────────────────────────────────────────
 
@@ -64,10 +107,13 @@ export class TabsRootElement extends ReactiveElement {
    * Callback fired when the active tab changes.
    * Set via `.onValueChange=${fn}`.
    */
-  onValueChange: ((value: TabValue, event: Event) => void) | undefined;
+  onValueChange:
+    | ((value: TabValue, eventDetails: TabsRootChangeEventDetails) => void)
+    | undefined;
 
   private _internalValue: TabValue | undefined;
   private _initialized = false;
+  private _hasExplicitDefaultValue = false;
   private _tabActivationDirection: TabActivationDirection = 'none';
 
   constructor() {
@@ -84,12 +130,15 @@ export class TabsRootElement extends ReactiveElement {
 
     if (!this._initialized) {
       this._initialized = true;
-      this._internalValue = this.value ?? this.defaultValue ?? 0;
+      this._hasExplicitDefaultValue =
+        this.hasAttribute('default-value') || this.defaultValue !== undefined;
+      this._internalValue = this.value ?? this.defaultValue ?? null;
     }
 
     this.style.display = 'contents';
     this.setAttribute(TABS_ROOT_ATTRIBUTE, '');
     this._syncAttributes();
+    queueMicrotask(() => this.refreshSelectionState());
   }
 
   protected override updated() {
@@ -100,7 +149,19 @@ export class TabsRootElement extends ReactiveElement {
 
   /** Returns the current active tab value. */
   getValue(): TabValue {
-    return this.value ?? this._internalValue ?? 0;
+    if (this.value !== undefined) {
+      return this.value;
+    }
+
+    if (this._internalValue != null) {
+      return this._internalValue;
+    }
+
+    if (this._hasExplicitDefaultValue) {
+      return this.defaultValue ?? null;
+    }
+
+    return this._getFirstEnabledTabValue();
   }
 
   /** Activates a tab by value. */
@@ -108,9 +169,20 @@ export class TabsRootElement extends ReactiveElement {
     const oldValue = this.getValue();
 
     // Determine activation direction
-    this._tabActivationDirection = this._getActivationDirection(oldValue, newValue);
+    const activationDirection = this._getActivationDirection(oldValue, newValue);
+    const eventDetails = createTabsChangeEventDetails(event, activationDirection);
 
-    this.onValueChange?.(newValue, event);
+    this._tabActivationDirection = activationDirection;
+
+    this.onValueChange?.(newValue, eventDetails);
+
+    if (eventDetails.isCanceled) {
+      this._tabActivationDirection = 'none';
+      this._syncAttributes();
+      this._publishStateChange();
+      this.requestUpdate();
+      return;
+    }
 
     // Update internal state (uncontrolled mode)
     if (this.value === undefined) {
@@ -130,6 +202,26 @@ export class TabsRootElement extends ReactiveElement {
     return this._tabActivationDirection;
   }
 
+  refreshSelectionState() {
+    this._syncSelectionState();
+  }
+
+  ensureInitialUncontrolledValue(candidateValue: TabValue, disabled: boolean) {
+    if (this.value !== undefined || this._hasExplicitDefaultValue || disabled || candidateValue == null) {
+      return;
+    }
+
+    if (this.getValue() != null) {
+      return;
+    }
+
+    this._internalValue = candidateValue;
+    this._tabActivationDirection = 'none';
+    this._syncAttributes();
+    this._publishStateChange();
+    this.requestUpdate();
+  }
+
   // ── Private ─────────────────────────────────────────────────────────────
 
   private _syncAttributes() {
@@ -143,15 +235,89 @@ export class TabsRootElement extends ReactiveElement {
     );
   }
 
+  private _getTabs(): TabsTabElement[] {
+    return Array.from(this.querySelectorAll<TabsTabElement>('tabs-tab'));
+  }
+
+  private _getTabValue(tab: TabsTabElement): TabValue {
+    if (tab.value !== undefined) {
+      return tab.value;
+    }
+
+    const attributeValue = tab.getAttribute('value');
+    if (attributeValue == null) {
+      return null;
+    }
+
+    const numericValue = Number(attributeValue);
+    return Number.isNaN(numericValue) ? attributeValue : numericValue;
+  }
+
+  private _isDisabledTab(tab: TabsTabElement | null) {
+    return tab?.disabled === true || tab?.hasAttribute('disabled') === true;
+  }
+
+  private _findTabByValue(value: TabValue): TabsTabElement | null {
+    if (value == null) {
+      return null;
+    }
+
+    return this._getTabs().find((tab) => Object.is(this._getTabValue(tab), value)) ?? null;
+  }
+
+  private _getFirstEnabledTabValue(): TabValue {
+    const firstEnabledTab = this._getTabs().find((tab) => !this._isDisabledTab(tab));
+    return firstEnabledTab ? this._getTabValue(firstEnabledTab) : null;
+  }
+
+  private _syncSelectionState() {
+    if (this.value !== undefined) {
+      return;
+    }
+
+    const currentValue = this.getValue();
+    const currentTab = this._findTabByValue(currentValue);
+    const selectionIsDisabled = this._isDisabledTab(currentTab);
+    const selectionIsMissing = currentValue !== null && currentTab == null;
+    const selectionIsUnset = currentValue == null && !this._hasExplicitDefaultValue;
+    const shouldHonorExplicitDefaultSelection =
+      this._hasExplicitDefaultValue &&
+      Object.is(currentValue, this.defaultValue) &&
+      selectionIsDisabled;
+
+    if (shouldHonorExplicitDefaultSelection) {
+      return;
+    }
+
+    if (!selectionIsUnset && !selectionIsDisabled && !selectionIsMissing) {
+      return;
+    }
+
+    const fallbackValue = this._getFirstEnabledTabValue();
+    if (Object.is(currentValue, fallbackValue)) {
+      return;
+    }
+
+    this._internalValue = fallbackValue;
+    this._tabActivationDirection = 'none';
+    this._syncAttributes();
+    this._publishStateChange();
+    this.requestUpdate();
+  }
+
   private _getActivationDirection(
     oldValue: TabValue,
     newValue: TabValue,
   ): TabActivationDirection {
+    if (oldValue == null || newValue == null) {
+      return 'none';
+    }
+
     // Try to determine direction from tab element positions
     const oldTab = this.querySelector(`[role="tab"][data-value="${oldValue}"]`) as HTMLElement | null;
     const newTab = this.querySelector(`[role="tab"][data-value="${newValue}"]`) as HTMLElement | null;
 
-    if (!oldTab || !newTab) return 'none';
+    if (!oldTab || !newTab) {return 'none';}
 
     const oldRect = oldTab.getBoundingClientRect();
     const newRect = newTab.getBoundingClientRect();
@@ -194,7 +360,10 @@ export class TabsListElement extends BaseHTMLElement {
     }
 
     this._syncAttributes();
-    queueMicrotask(() => this._syncTabIndices());
+    queueMicrotask(() => {
+      this._root?.refreshSelectionState();
+      this._syncTabIndices();
+    });
   }
 
   disconnectedCallback() {
@@ -229,15 +398,31 @@ export class TabsListElement extends BaseHTMLElement {
     );
   }
 
+  private _isDisabledTab(tab: HTMLElement) {
+    return tab.hasAttribute('disabled') || tab.getAttribute('aria-disabled') === 'true';
+  }
+
   _syncTabIndices(activeTab?: HTMLElement) {
     const tabs = this._getTabs();
-    if (tabs.length === 0) return;
+    if (tabs.length === 0) {return;}
 
     // Active tab gets tabindex=0, others get -1
+    const firstEnabledTab = tabs.find((tab) => !this._isDisabledTab(tab));
+    const firstEnabledValue = firstEnabledTab?.getAttribute('data-value');
+
+    if (firstEnabledValue != null) {
+      this._root?.ensureInitialUncontrolledValue(
+        this._parseValue(firstEnabledValue),
+        this._isDisabledTab(firstEnabledTab),
+      );
+    }
+
     const selectedValue = this._root?.getValue();
+    const selectedTab = tabs.find((tab) => tab.getAttribute('data-value') === String(selectedValue));
     const current =
       activeTab ??
-      tabs.find((t) => t.getAttribute('data-value') === String(selectedValue)) ??
+      (selectedTab && !this._isDisabledTab(selectedTab) ? selectedTab : undefined) ??
+      firstEnabledTab ??
       tabs[0];
 
     tabs.forEach((tab) => {
@@ -247,23 +432,23 @@ export class TabsListElement extends BaseHTMLElement {
 
   private _handleKeyDown = (event: KeyboardEvent) => {
     const target = event.target;
-    if (!(target instanceof HTMLElement) || target.getAttribute('role') !== 'tab') return;
+    if (!(target instanceof HTMLElement) || target.getAttribute('role') !== 'tab') {return;}
 
     // Modifier keys prevent navigation
-    if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {return;}
 
     const orientation = this._root?.getOrientation() ?? 'horizontal';
     const delta = this._getNavigationDelta(event.key, orientation);
-    if (delta == null) return;
+    if (delta == null) {return;}
 
     event.preventDefault();
 
     // Navigate ALL tabs including disabled ones (matches React behavior)
     const tabs = this._getTabs();
-    if (tabs.length === 0) return;
+    if (tabs.length === 0) {return;}
 
     const currentIndex = tabs.indexOf(target);
-    if (currentIndex === -1) return;
+    if (currentIndex === -1) {return;}
 
     let nextTab: HTMLElement;
 
@@ -300,10 +485,10 @@ export class TabsListElement extends BaseHTMLElement {
 
   private _getNavigationDelta(key: string, orientation: TabsOrientation): number | null {
     if (orientation === 'vertical') {
-      if (key === 'ArrowDown') return 1;
-      if (key === 'ArrowUp') return -1;
-      if (key === 'Home') return -Infinity;
-      if (key === 'End') return Infinity;
+      if (key === 'ArrowDown') {return 1;}
+      if (key === 'ArrowUp') {return -1;}
+      if (key === 'Home') {return -Infinity;}
+      if (key === 'End') {return Infinity;}
       return null;
     }
 
@@ -311,10 +496,10 @@ export class TabsListElement extends BaseHTMLElement {
     const forward = dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight';
     const backward = dir === 'rtl' ? 'ArrowRight' : 'ArrowLeft';
 
-    if (key === forward) return 1;
-    if (key === backward) return -1;
-    if (key === 'Home') return -Infinity;
-    if (key === 'End') return Infinity;
+    if (key === forward) {return 1;}
+    if (key === backward) {return -1;}
+    if (key === 'Home') {return -Infinity;}
+    if (key === 'End') {return Infinity;}
     return null;
   }
 
@@ -341,10 +526,13 @@ export class TabsTabElement extends BaseHTMLElement {
 
   disabled = false;
   value: TabValue | undefined;
+  render: TabsTabRenderProp | undefined;
 
   private _root: TabsRootElement | null = null;
   private _list: TabsListElement | null = null;
   private _handler = () => this._syncAttributes();
+  private _controlElement: HTMLElement | null = null;
+  private _listenerTarget: HTMLElement | null = null;
 
   attributeChangedCallback(name: string, _old: string | null, val: string | null) {
     if (name === 'disabled') {
@@ -355,36 +543,51 @@ export class TabsTabElement extends BaseHTMLElement {
         this.value = Number.isNaN(num) ? val : num;
       }
     }
+
+    if (this.value !== undefined) {
+      this._root?.ensureInitialUncontrolledValue(this.value, this.disabled);
+    }
+
+    queueMicrotask(() => {
+      this._root?.refreshSelectionState();
+      this._syncAttributes();
+      this._list?._syncTabIndices();
+    });
   }
 
   connectedCallback() {
     this._root = this.closest('tabs-root') as TabsRootElement | null;
     this._list = this.closest('tabs-list') as TabsListElement | null;
 
-    ensureId(this, 'base-ui-tab');
-    this.setAttribute('role', 'tab');
-
-    // Set data-value eagerly so parent list can find us during initial sync
-    if (this.value !== undefined) {
-      this.setAttribute('data-value', String(this.value));
+    this.disabled = this.disabled || this.hasAttribute('disabled');
+    const valueAttribute = this.getAttribute('value');
+    if (this.value === undefined && valueAttribute != null) {
+      const numericValue = Number(valueAttribute);
+      this.value = Number.isNaN(numericValue) ? valueAttribute : numericValue;
     }
 
-    this.addEventListener('click', this._handleClick);
-    this.addEventListener('keydown', this._handleKeyDown);
-    this.addEventListener('keyup', this._handleKeyUp);
+    this._prepareInitialControl();
 
     if (this._root) {
       this._root.addEventListener(TABS_STATE_CHANGE_EVENT, this._handler);
     }
 
-    queueMicrotask(() => this._syncAttributes());
+    queueMicrotask(() => {
+      this._root?.refreshSelectionState();
+      this._syncAttributes();
+      this._list?._syncTabIndices();
+    });
   }
 
   disconnectedCallback() {
-    this.removeEventListener('click', this._handleClick);
-    this.removeEventListener('keydown', this._handleKeyDown);
-    this.removeEventListener('keyup', this._handleKeyUp);
+    this._setListenerTarget(null);
     this._root?.removeEventListener(TABS_STATE_CHANGE_EVENT, this._handler);
+    this._root?.refreshSelectionState();
+    if (this.render != null) {
+      renderTemplate(nothing, this);
+      this._controlElement = null;
+      this.style.removeProperty('display');
+    }
     this._root = null;
     this._list = null;
   }
@@ -396,50 +599,79 @@ export class TabsTabElement extends BaseHTMLElement {
   private _syncAttributes() {
     const active = this._isActive();
     const orientation = this._root?.getOrientation() ?? 'horizontal';
+    const control = this._ensureControlElement({
+      active,
+      disabled: this.disabled,
+      orientation,
+    });
 
-    this.setAttribute('aria-selected', active ? 'true' : 'false');
-    this.toggleAttribute('data-active', active);
-    this.toggleAttribute('data-disabled', this.disabled);
-    this.setAttribute('data-orientation', orientation);
-    this.setAttribute(
+    this.removeAttribute('role');
+    this.removeAttribute('aria-selected');
+    this.removeAttribute('aria-controls');
+    this.removeAttribute('data-active');
+    this.removeAttribute('data-disabled');
+    this.removeAttribute('data-orientation');
+    this.removeAttribute(
+      'data-activation-direction',
+    );
+
+    control.setAttribute('role', 'tab');
+    control.setAttribute('aria-selected', active ? 'true' : 'false');
+    control.toggleAttribute('data-active', active);
+    control.toggleAttribute('data-disabled', this.disabled);
+    control.setAttribute('data-orientation', orientation);
+    control.setAttribute(
       'data-activation-direction',
       this._root?.getTabActivationDirection() ?? 'none',
     );
 
     if (this.value !== undefined) {
-      this.setAttribute('data-value', String(this.value));
+      control.setAttribute('data-value', String(this.value));
+      if (control !== this) {
+        this.setAttribute('data-value', String(this.value));
+      }
+    } else {
+      control.removeAttribute('data-value');
+      this.removeAttribute('data-value');
     }
 
     // Associate with panel
     const panelId = this._findPanelId();
     if (panelId) {
-      this.setAttribute('aria-controls', panelId);
+      control.setAttribute('aria-controls', panelId);
+    } else {
+      control.removeAttribute('aria-controls');
     }
+
+    this._setListenerTarget(control);
   }
 
   private _findPanelId(): string | null {
-    if (this.value === undefined || !this._root) return null;
-    const panel = this._root.querySelector(
-      `[role="tabpanel"][data-value="${this.value}"]`,
-    ) as HTMLElement | null;
+    if (this.value === undefined || !this._root) {return null;}
+    const panels = Array.from(
+      this._root.querySelectorAll<TabsPanelElement>(`[role="tabpanel"][data-value="${this.value}"]`),
+    );
+    const panel =
+      panels.find(
+        (candidate) => candidate.keepMounted || Object.is(this._root?.getValue(), this.value),
+      ) ?? null;
     return panel?.id ?? null;
   }
 
   private _handleClick = (event: MouseEvent) => {
-    if (this.disabled) return;
-    if (this.value === undefined || !this._root) return;
-    if (this._isActive()) return;
+    if (event.button !== 0) {return;}
+    if (this.disabled) {return;}
+    if (this.value === undefined || !this._root) {return;}
+    if (this._isActive()) {return;}
 
     this._root.setValue(this.value, event);
     this._list?._syncTabIndices(this);
   };
 
   private _handleKeyDown = (event: KeyboardEvent) => {
-    if (event.target !== this) return;
-
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault();
-      if (this.disabled) return;
+      if (this.disabled) {return;}
 
       if (event.key === 'Enter' && this.value !== undefined && this._root) {
         if (!this._isActive()) {
@@ -450,8 +682,7 @@ export class TabsTabElement extends BaseHTMLElement {
   };
 
   private _handleKeyUp = (event: KeyboardEvent) => {
-    if (event.target !== this) return;
-    if (this.disabled) return;
+    if (this.disabled) {return;}
 
     if (event.key === ' ' && this.value !== undefined && this._root) {
       if (!this._isActive()) {
@@ -459,6 +690,73 @@ export class TabsTabElement extends BaseHTMLElement {
       }
     }
   };
+
+  private _prepareInitialControl() {
+    const initialState: TabsTabState = {
+      active: false,
+      disabled: this.disabled,
+      orientation: this._root?.getOrientation() ?? 'horizontal',
+    };
+    const control = this._ensureControlElement(initialState);
+    ensureId(control, 'base-ui-tab');
+
+    if (this.value !== undefined) {
+      control.setAttribute('data-value', String(this.value));
+      this._root?.ensureInitialUncontrolledValue(this.value, this.disabled);
+    }
+  }
+
+  private _ensureControlElement(state: TabsTabState) {
+    if (this.render == null) {
+      this.style.removeProperty('display');
+      if (this._controlElement && this._controlElement !== this) {
+        renderTemplate(nothing, this);
+      }
+      this._controlElement = this;
+      ensureId(this, 'base-ui-tab');
+      return this;
+    }
+
+    const renderProps: TabsTabRenderProps = {
+      'aria-controls': this._findPanelId() ?? undefined,
+      'aria-selected': state.active ? 'true' : 'false',
+      role: 'tab',
+      tabIndex: 0,
+    };
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, state) : this.render;
+
+    this.style.display = 'contents';
+    renderTemplate(template, this);
+
+    const nextControl = Array.from(this.children).find(
+      (child): child is HTMLElement => child instanceof HTMLElement,
+    ) ?? this;
+
+    ensureId(nextControl, 'base-ui-tab');
+    this._controlElement = nextControl;
+    return nextControl;
+  }
+
+  private _setListenerTarget(nextTarget: HTMLElement | null) {
+    if (this._listenerTarget === nextTarget) {
+      return;
+    }
+
+    if (this._listenerTarget) {
+      this._listenerTarget.removeEventListener('click', this._handleClick);
+      this._listenerTarget.removeEventListener('keydown', this._handleKeyDown);
+      this._listenerTarget.removeEventListener('keyup', this._handleKeyUp);
+    }
+
+    this._listenerTarget = nextTarget;
+
+    if (this._listenerTarget) {
+      this._listenerTarget.addEventListener('click', this._handleClick);
+      this._listenerTarget.addEventListener('keydown', this._handleKeyDown);
+      this._listenerTarget.addEventListener('keyup', this._handleKeyUp);
+    }
+  }
 }
 
 if (!customElements.get('tabs-tab')) {
@@ -473,19 +771,21 @@ if (!customElements.get('tabs-tab')) {
  */
 export class TabsPanelElement extends BaseHTMLElement {
   static get observedAttributes() {
-    return ['value'];
+    return ['keep-mounted', 'value'];
   }
 
   value: TabValue | undefined;
 
   /** Keep the panel in the DOM when hidden. */
-  keepMounted = true;
+  keepMounted = false;
 
   private _root: TabsRootElement | null = null;
   private _handler = () => this._syncAttributes();
 
   attributeChangedCallback(name: string, _old: string | null, val: string | null) {
-    if (name === 'value') {
+    if (name === 'keep-mounted') {
+      this.keepMounted = val !== null;
+    } else if (name === 'value') {
       if (val !== null) {
         const num = Number(val);
         this.value = Number.isNaN(num) ? val : num;
@@ -495,6 +795,16 @@ export class TabsPanelElement extends BaseHTMLElement {
 
   connectedCallback() {
     this._root = this.closest('tabs-root') as TabsRootElement | null;
+
+    if (this.hasAttribute('keep-mounted')) {
+      this.keepMounted = true;
+    }
+
+    const valueAttribute = this.getAttribute('value');
+    if (this.value === undefined && valueAttribute != null) {
+      const numericValue = Number(valueAttribute);
+      this.value = Number.isNaN(numericValue) ? valueAttribute : numericValue;
+    }
 
     ensureId(this, 'base-ui-tabpanel');
     this.setAttribute('role', 'tabpanel');
@@ -538,11 +848,13 @@ export class TabsPanelElement extends BaseHTMLElement {
     const tabId = this._findTabId();
     if (tabId) {
       this.setAttribute('aria-labelledby', tabId);
+    } else {
+      this.removeAttribute('aria-labelledby');
     }
   }
 
   private _findTabId(): string | null {
-    if (this.value === undefined || !this._root) return null;
+    if (this.value === undefined || !this._root) {return null;}
     const tab = this._root.querySelector(
       `[role="tab"][data-value="${this.value}"]`,
     ) as HTMLElement | null;
@@ -596,7 +908,7 @@ export class TabsIndicatorElement extends BaseHTMLElement {
     );
 
     const selectedValue = this._root?.getValue();
-    if (selectedValue === undefined) {
+    if (selectedValue == null) {
       this.style.display = 'none';
       return;
     }
@@ -639,24 +951,60 @@ if (!customElements.get('tabs-indicator')) {
 // ─── Namespace & Tag declarations ───────────────────────────────────────────────
 
 export namespace TabsRoot {
+  export type Props = TabsRootProps;
   export type State = TabsRootState;
+  export type Orientation = TabsOrientation;
+  export type ChangeEventReason = TabsRootChangeEventReason;
+  export type ChangeEventDetails = TabsRootChangeEventDetails;
 }
 
 export namespace TabsList {
+  export type Props = TabsListProps;
   export type State = TabsListState;
 }
 
 export namespace TabsTab {
+  export type Props = TabsTabProps;
   export type State = TabsTabState;
   export type Value = TabValue;
+  export type ActivationDirection = TabActivationDirection;
 }
 
 export namespace TabsPanel {
+  export type Props = TabsPanelProps;
   export type State = TabsPanelState;
 }
 
 export namespace TabsIndicator {
+  export type Props = TabsIndicatorProps;
   export type State = TabsIndicatorState;
+}
+
+export const Tabs = {
+  Root: TabsRootElement,
+  List: TabsListElement,
+  Tab: TabsTabElement,
+  Panel: TabsPanelElement,
+  Indicator: TabsIndicatorElement,
+} as const;
+
+function createTabsChangeEventDetails(
+  event: Event,
+  activationDirection: TabActivationDirection,
+): TabsRootChangeEventDetails {
+  let canceled = false;
+
+  return {
+    activationDirection,
+    cancel() {
+      canceled = true;
+    },
+    get isCanceled() {
+      return canceled;
+    },
+    event,
+    reason: 'none',
+  };
 }
 
 declare global {

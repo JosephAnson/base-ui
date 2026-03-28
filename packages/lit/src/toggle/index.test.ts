@@ -1,4 +1,4 @@
-import { html, nothing, render as renderTemplate } from 'lit';
+import { html, nothing, render as renderTemplate, type TemplateResult } from 'lit';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import * as toggleModule from './index';
@@ -14,7 +14,7 @@ describe('toggle-root', () => {
     containers.clear();
   });
 
-  function render(result: ReturnType<typeof html>) {
+  function render(result: TemplateResult) {
     const container = document.createElement('div');
     document.body.append(container);
     containers.add(container);
@@ -217,7 +217,7 @@ describe('toggle-root', () => {
     renderTemplate(html`<toggle-root .pressed=${true}></toggle-root>`, view);
     await waitForUpdate();
 
-    const updatedToggle = view.querySelector('toggle-root')! as ToggleRootElement;
+    const updatedToggle = view.querySelector('toggle-root')! as toggleModule.ToggleRootElement;
     expect(updatedToggle).toHaveAttribute('aria-pressed', 'true');
   });
 

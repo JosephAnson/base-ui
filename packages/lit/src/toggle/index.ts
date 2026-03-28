@@ -295,6 +295,9 @@ if (!customElements.get('toggle-root')) {
   customElements.define('toggle-root', ToggleRootElement);
 }
 
+export type ToggleRootChangeEventReason = ToggleChangeEventReason;
+export type ToggleRootChangeEventDetails = ToggleChangeEventDetails;
+
 export namespace ToggleRoot {
   export type Props = ToggleRootProps;
   export type State = ToggleRootState;

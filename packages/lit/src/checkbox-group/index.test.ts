@@ -1,9 +1,18 @@
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import '../checkbox/index.ts';
 import './index.ts';
-import type { CheckboxGroupElement, CheckboxGroupChangeEventDetails } from './index.ts';
+import {
+  CHECKBOX_GROUP_ATTRIBUTE,
+} from './shared.ts';
+import {
+  CheckboxGroup,
+  type CheckboxGroupChangeEventDetails,
+  CheckboxGroupElement,
+  type CheckboxGroupProps,
+  type CheckboxGroupState,
+} from './index.ts';
 import type { CheckboxRootElement } from '../checkbox/index.ts';
 
 describe('checkbox-group', () => {
@@ -51,6 +60,40 @@ describe('checkbox-group', () => {
     }
     return null;
   }
+
+  it('exposes the checkbox-group runtime export and namespace aliases', () => {
+    expect(typeof CheckboxGroup).toBe('function');
+    expect(customElements.get('checkbox-group')).toBe(CheckboxGroupElement);
+    expectTypeOf<CheckboxGroup.Props>().toEqualTypeOf<CheckboxGroupProps>();
+    expectTypeOf<CheckboxGroup.State>().toEqualTypeOf<CheckboxGroupState>();
+    expectTypeOf<CheckboxGroup.ChangeEventDetails>().toEqualTypeOf<CheckboxGroupChangeEventDetails>();
+  });
+
+  it('renders the helper group API', async () => {
+    const container = render(html`${CheckboxGroup({
+      defaultValue: ['red'],
+      children: html`<checkbox-root .value=${'red'}></checkbox-root>`,
+    })}`);
+    await waitForUpdate();
+
+    const group = container.querySelector(`[${CHECKBOX_GROUP_ATTRIBUTE}]`) as HTMLElement;
+
+    expect(group.tagName).toBe('DIV');
+    expect(group).toHaveAttribute('role', 'group');
+    expect(group).toHaveAttribute(CHECKBOX_GROUP_ATTRIBUTE);
+  });
+
+  it('adds data-disabled to the helper group when disabled', async () => {
+    const container = render(html`${CheckboxGroup({
+      disabled: true,
+      children: html`<checkbox-root .value=${'red'}></checkbox-root>`,
+    })}`);
+    await waitForUpdate();
+
+    const group = container.querySelector(`[${CHECKBOX_GROUP_ATTRIBUTE}]`) as HTMLElement;
+
+    expect(group).toHaveAttribute('data-disabled');
+  });
 
   it('renders checkbox-group as a custom element with role=group', async () => {
     const container = render(html`<checkbox-group></checkbox-group>`);
@@ -147,6 +190,7 @@ describe('checkbox-group', () => {
 
     expect(getCheckbox(container, 'red')).toHaveAttribute('aria-disabled', 'true');
     expect(getCheckbox(container, 'green')).toHaveAttribute('aria-disabled', 'true');
+    expect(getGroup(container)).toHaveAttribute('data-disabled');
   });
 
   it('unchecks a child checkbox when clicked again', async () => {

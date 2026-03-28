@@ -112,10 +112,11 @@ An easily stylable avatar component.
     - Fallback
 - Exports:
   - Root
+    - Props: render
   - Image
-    - Props: onLoadingStatusChange
+    - Props: onLoadingStatusChange, render
   - Fallback
-    - Props: delay
+    - Props: delay, render
 - Types: Avatar, Fallback.Props, Fallback.State, FallbackApiProps, Image.Props, Image.State, ImageApiProps, ImageLoadingStatus, Root.Props, Root.State, RootApiProps
 
 </details>
@@ -168,16 +169,31 @@ A date picker calendar component.
 
 ## Checkbox
 
-An easily stylable checkbox for Lit templates.
+An easily stylable checkbox component.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Checkbox, Checkbox, Base UI Lit, Form control
+- Keywords: Lit Checkbox, Checkbox Component, Accessible Checkbox, Customizable Checkbox, Form Control Checkbox, Checkmark, Tick Box, Selection Control, Checkbox Input, Binary Input, Checked State, Indeterminate Checkbox, Tri-State Checkbox, Base UI
 - Sections:
+  - Usage guidelines
   - Anatomy
-  - Status
+  - Examples
+    - Labeling a checkbox
+    - Rendering as a native button
+    - Form integration
+  - API reference
+    - Root
+    - Indicator
+- Exports:
+  - Root
+    - Props: checked, defaultChecked, disabled, form, id, indeterminate, inputRef, name, nativeButton, onCheckedChange, parent, readOnly, render, required, uncheckedValue, value
+    - Data Attributes: data-checked, data-disabled, data-indeterminate, data-readonly, data-required, data-unchecked
+  - Indicator
+    - Props: keepMounted, render
+    - Data Attributes: data-checked, data-disabled, data-indeterminate, data-readonly, data-required, data-unchecked
+- Types: Checkbox, CheckboxRootChangeEventDetails, Indicator.DataAttributes, Indicator.Props, Indicator.State, IndicatorApiProps, Root.ChangeEventDetails, Root.DataAttributes, Root.Props, Root.State, RootApiProps
 
 </details>
 
@@ -185,16 +201,28 @@ An easily stylable checkbox for Lit templates.
 
 ## Checkbox Group
 
-A shared-state checkbox group for Lit templates.
+Provides shared state to a series of checkboxes.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Checkbox Group, Checkbox Group, Base UI Lit
+- Keywords: Lit Checkbox Group, Checkbox Group Component, Grouped Checkboxes, Multiple Selection, Checkbox List, Multi-Select Checkboxes, Parent Child Checkbox, Accessible Checkbox Group, Form Fieldset Control, Base UI
 - Sections:
+  - Usage guidelines
   - Anatomy
-  - Status
+  - Examples
+    - Labeling a checkbox group
+    - Rendering as a native button
+    - Form integration
+    - Parent checkbox
+    - Nested parent checkbox
+  - API reference
+- Exports:
+  - CheckboxGroup
+    - Props: allValues, defaultValue, disabled, onValueChange, render, value
+    - Data Attributes: data-disabled
+- Types: CheckboxGroup.ChangeEventDetails, CheckboxGroup.DataAttributes, CheckboxGroup.Props, CheckboxGroup.State, CheckboxGroupApiProps
 
 </details>
 
@@ -217,11 +245,12 @@ A collapsible panel controlled by a button.
     - Panel
 - Exports:
   - Root
-    - Props: defaultOpen, disabled, onOpenChange, open
+    - Props: defaultOpen, disabled, onOpenChange, open, render
   - Trigger
+    - Props: nativeButton, render
     - Data Attributes: data-panel-open
   - Panel
-    - Props: hiddenUntilFound, keepMounted
+    - Props: hiddenUntilFound, keepMounted, render
     - Data Attributes: data-closed, data-ending-style, data-open, data-starting-style
     - CSS Variables: --collapsible-panel-height, --collapsible-panel-width
 - Types: Collapsible, Panel.CssVars, Panel.DataAttributes, Panel.Props, Panel.State, PanelApiProps, Root.ChangeEventDetails, Root.ChangeEventReason, Root.Props, Root.State, RootApiProps, TransitionStatus, Trigger.DataAttributes, Trigger.Props, Trigger.State, TriggerApiProps
@@ -358,7 +387,9 @@ A native fieldset element with an easily stylable legend.
     - Legend
 - Exports:
   - Root
+    - Props: render
   - Legend
+    - Props: render
 - Types: Fieldset, Legend.Props, Legend.State, LegendApiProps, Root.Props, Root.State, RootApiProps
 
 </details>
@@ -383,7 +414,7 @@ A native form element with consolidated error handling.
   - API reference
 - Exports:
   - Form
-    - Props: actionsRef, errors, noValidate, onFormSubmit, validationMode
+    - Props: actionsRef, errors, noValidate, onFormSubmit, render, validationMode
 - Types: Form.Actions, Form.Props, Form.State, Form.SubmitEventDetails, Form.SubmitEventReason, Form.ValidationMode, Form.Values, FormApiProps
 
 </details>
@@ -600,6 +631,7 @@ An easily stylable radio button component.
   - Anatomy
   - Examples
     - Labeling a radio group
+    - Rendering as a native button
     - Form integration
   - API reference
     - RadioGroup
@@ -607,13 +639,13 @@ An easily stylable radio button component.
     - Indicator
 - Exports:
   - Root
-    - Props: disabled, id, readOnly, required, value
+    - Props: disabled, id, inputRef, nativeButton, readOnly, render, required, value
     - Data Attributes: data-checked, data-disabled, data-readonly, data-required, data-unchecked
   - Indicator
-    - Props: keepMounted
+    - Props: keepMounted, render
     - Data Attributes: data-checked, data-disabled, data-readonly, data-required, data-unchecked
   - RadioGroup
-    - Props: defaultValue, disabled, name, onValueChange, readOnly, required, value
+    - Props: defaultValue, disabled, name, onValueChange, readOnly, render, required, value
     - Data Attributes: data-dirty, data-disabled, data-filled, data-focused, data-invalid, data-readonly, data-required, data-touched, data-valid
 - Types: Indicator.DataAttributes, Indicator.Props, Indicator.State, IndicatorApiProps, Radio, RadioDocumentation, RadioGroup.ChangeEventDetails, RadioGroup.ChangeEventReason, RadioGroup.DataAttributes, RadioGroup.Props, RadioGroup.State, RadioGroupApiProps, Root.ChangeEventDetails, Root.ChangeEventReason, Root.DataAttributes, Root.Props, Root.State, RootApiProps
 
@@ -669,7 +701,7 @@ A separator element accessible to screen readers.
   - API reference
 - Exports:
   - Separator
-    - Props: orientation
+    - Props: orientation, render
 - Types: SeparatorProps
 
 </details>
@@ -727,16 +759,39 @@ A control that indicates whether a setting is on or off.
 
 ## Tabs
 
-Tabbed content navigation.
+A component for toggling between related panels on the same page.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Tabs, Tabs, Base UI Lit, Tabbed navigation
+- Keywords: Lit Tabs, Tabbed Interface Component, Tab Panel, Tab Control, Tabbed Navigation, Tabbed UI, Page Switcher, Content Switcher, View Switcher, Accessible Tabs, Base UI
 - Sections:
   - Anatomy
-  - Status
+  - Examples
+    - Links
+  - API reference
+    - Root
+    - List
+    - Tab
+    - Indicator
+    - Panel
+- Exports:
+  - Root
+    - Props: defaultValue, onValueChange, orientation, value
+    - Data Attributes: data-activation-direction, data-orientation
+  - List
+    - Props: activateOnFocus, loopFocus
+    - Data Attributes: data-activation-direction, data-orientation
+  - Panel
+    - Props: keepMounted, value
+    - Data Attributes: data-hidden, data-orientation
+  - Indicator
+    - Data Attributes: data-activation-direction, data-orientation
+  - Tab
+    - Props: disabled, render, value
+    - Data Attributes: data-activation-direction, data-active, data-disabled, data-orientation
+- Types: Indicator.CssVariables, Indicator.DataAttributes, Indicator.Props, Indicator.State, IndicatorApiProps, List.DataAttributes, List.Props, List.State, ListApiProps, Panel.DataAttributes, Panel.Props, Panel.State, PanelApiProps, Root.ChangeEventDetails, Root.DataAttributes, Root.Orientation, Root.Props, Root.State, RootApiProps, Tab.ActivationDirection, Tab.DataAttributes, Tab.Props, Tab.State, Tab.Value, TabApiProps, Tabs, TabsIndicatorState, TabsListState, TabsPanelState, TabsRootChangeEventDetails, TabsRootOrientation, TabsRootState, TabsTabActivationDirection, TabsTabState, TabsTabValue
 
 </details>
 
@@ -798,7 +853,7 @@ Provides a shared state to a series of toggle buttons.
     - ToggleGroup Data Attributes
 - Exports:
   - ToggleGroup
-    - Props: defaultValue, disabled, loopFocus, multiple, onValueChange, orientation, value
+    - Props: defaultValue, disabled, loopFocus, multiple, onValueChange, orientation, render, value
 - Types: ToggleGroupApiProps, ToggleGroupChangeEventDetails, ToggleGroupOrientation, ToggleGroupState
 
 </details>

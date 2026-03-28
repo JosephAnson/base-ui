@@ -103,6 +103,56 @@ describe('ToggleGroupRootElement', () => {
     expect(view.querySelector('toggle-group-root')).toHaveAttribute('data-multiple');
   });
 
+  it('supports a static render template on the root', async () => {
+    const view = render(html`
+      <toggle-group-root .render=${html`<div data-testid="group"></div>`}>
+        <toggle-root value="a" data-testid="a">A</toggle-root>
+        <toggle-root value="b" data-testid="b">B</toggle-root>
+      </toggle-group-root>
+    `);
+    await flush();
+
+    const group = view.querySelector('[data-testid="group"]') as HTMLElement;
+    expect(group).toHaveAttribute('role', 'group');
+    expect(group).toHaveAttribute('data-orientation', 'horizontal');
+    expect(group.querySelector('[data-testid="a"]')).not.toBeNull();
+    expect(group.querySelector('[data-testid="b"]')).not.toBeNull();
+  });
+
+  it('passes render function props and state to the root', async () => {
+    let receivedProps: Record<string, unknown> | null = null;
+    let receivedState: Record<string, unknown> | null = null;
+
+    const view = render(html`
+      <toggle-group-root
+        multiple
+        orientation="vertical"
+        .render=${(props: Record<string, unknown>, state: Record<string, unknown>) => {
+          receivedProps = props;
+          receivedState = state;
+          return html`<section data-testid="group"></section>`;
+        }}
+      >
+        <toggle-root value="a">A</toggle-root>
+      </toggle-group-root>
+    `);
+    await flush();
+
+    expect(receivedProps).toEqual(expect.objectContaining({ role: 'group' }));
+    expect(receivedState).toEqual(
+      expect.objectContaining({
+        disabled: false,
+        multiple: true,
+        orientation: 'vertical',
+      }),
+    );
+    expect(view.querySelector('[data-testid="group"]')).toHaveAttribute('role', 'group');
+    expect(view.querySelector('[data-testid="group"]')).toHaveAttribute(
+      'data-orientation',
+      'vertical',
+    );
+  });
+
   // ── Single selection (default) ─────────────────────────────────────────
 
   it('toggles items in single-select mode', async () => {

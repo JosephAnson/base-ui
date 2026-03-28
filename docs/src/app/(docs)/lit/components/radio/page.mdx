@@ -53,6 +53,29 @@ html`<label>
 </label>`;
 ```
 
+### Rendering as a native button
+
+Custom elements are the primary Lit API. If you need the React-style native-button path for sibling labels, use the optional helper API:
+
+```ts title="Sibling label pattern with a native button"
+import { html } from 'lit';
+import { Radio } from '@base-ui/lit/radio';
+import '@base-ui/lit/radio-group';
+
+html`<div id="storage-type">Storage type</div>
+  <radio-group aria-labelledby="storage-type" .defaultValue=${'ssd'}>
+    <div>
+      <label for="storage-type-ssd">SSD</label>
+      ${Radio.Root({
+        id: 'storage-type-ssd',
+        nativeButton: true,
+        render: html`<button></button>`,
+        value: 'ssd',
+      })}
+    </div>
+  </radio-group>`;
+```
+
 ### Form integration
 
 Use [Field](/lit/components/field) and [Fieldset](/lit/components/fieldset) for group labeling and form integration. In Lit, `<form-root>` provides the Base UI form behavior and enhances a nested native `<form>`:

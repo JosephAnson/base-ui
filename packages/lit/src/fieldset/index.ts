@@ -1,4 +1,5 @@
-import { ReactiveElement } from 'lit';
+import { ReactiveElement, render as renderTemplate, type TemplateResult } from 'lit';
+import type { ComponentRenderFn, HTMLProps } from '../types';
 import { BaseHTMLElement, ensureId } from '../utils';
 import {
   FIELDSET_CONTEXT_ATTRIBUTE,
@@ -15,6 +16,14 @@ import {
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
 const FIELDSET_LEGEND_ATTRIBUTE = 'data-base-ui-fieldset-legend';
+type FieldsetRootRenderProps = HTMLProps<HTMLElement>;
+type FieldsetRootRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<FieldsetRootRenderProps, FieldsetRootState>;
+type FieldsetLegendRenderProps = HTMLProps<HTMLElement>;
+type FieldsetLegendRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<FieldsetLegendRenderProps, FieldsetLegendState>;
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -38,9 +47,22 @@ export interface FieldsetRootProps {
    * @default false
    */
   disabled?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: FieldsetRootRenderProp | undefined;
 }
 
-export interface FieldsetLegendProps {}
+export interface FieldsetLegendProps {
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: FieldsetLegendRenderProp | undefined;
+}
 
 // ─── FieldsetRootElement ─────────────────────────────────────────────────────────
 
@@ -53,12 +75,15 @@ export interface FieldsetLegendProps {}
 export class FieldsetRootElement extends ReactiveElement implements FieldsetRuntime {
   static properties = {
     disabled: { type: Boolean },
+    render: { attribute: false },
   };
 
   declare disabled: boolean;
+  declare render: FieldsetRootRenderProp | undefined;
 
   private legendIdValue: string | undefined;
   private lastPublishedStateKey: string | null = null;
+  private renderedElement: HTMLElement | null = null;
 
   constructor() {
     super();
@@ -118,14 +143,18 @@ export class FieldsetRootElement extends ReactiveElement implements FieldsetRunt
   }
 
   private syncAttributes() {
-    this.toggleAttribute('data-disabled', this.disabled);
+    const root = this.ensureRenderedElement();
+
+    this.removeAttribute('data-disabled');
+    this.removeAttribute('aria-labelledby');
+    root.toggleAttribute('data-disabled', this.disabled);
 
     if (this.legendIdValue) {
       this.setAttribute(FIELDSET_LEGEND_ID_ATTRIBUTE, this.legendIdValue);
-      this.setAttribute('aria-labelledby', this.legendIdValue);
+      root.setAttribute('aria-labelledby', this.legendIdValue);
     } else {
       this.removeAttribute(FIELDSET_LEGEND_ID_ATTRIBUTE);
-      this.removeAttribute('aria-labelledby');
+      root.removeAttribute('aria-labelledby');
     }
   }
 
@@ -153,6 +182,50 @@ export class FieldsetRootElement extends ReactiveElement implements FieldsetRunt
     this.legendIdValue = nextLegendId;
     this.syncAttributes();
   }
+
+  private ensureRenderedElement(): HTMLElement {
+    if (this.render == null) {
+      this.resetRenderedElement();
+      this.renderedElement = this;
+      return this;
+    }
+
+    if (this.renderedElement && this.renderedElement !== this && this.contains(this.renderedElement)) {
+      return this.renderedElement;
+    }
+
+    const contentNodes =
+      this.renderedElement && this.renderedElement !== this
+        ? Array.from(this.renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this.renderedElement);
+    const renderProps: FieldsetRootRenderProps = {
+      'aria-labelledby': this.legendIdValue,
+    };
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, this.getState()) : this.render;
+    const nextRoot = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+    if (nextRoot !== this) {
+      this.replaceChildren(nextRoot);
+      nextRoot.append(...contentNodes);
+    } else {
+      this.resetRenderedElement();
+    }
+
+    this.renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private resetRenderedElement() {
+    if (this.renderedElement == null || this.renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this.renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this.renderedElement = null;
+  }
 }
 
 if (!customElements.get('fieldset-root')) {
@@ -170,27 +243,21 @@ if (!customElements.get('fieldset-root')) {
 export class FieldsetLegendElement extends BaseHTMLElement {
   private rootElement: FieldsetRootElement | null = null;
   private stateHandler = () => this.syncDataAttributes();
+  render: FieldsetLegendRenderProp | undefined;
+  private renderedElement: HTMLElement | null = null;
 
   connectedCallback() {
-    const root = getClosestFieldsetRoot(this);
-    if (!root) {
-      console.error(FIELDSET_CONTEXT_ERROR);
-      return;
+    if (!this.attachRoot()) {
+      queueMicrotask(() => {
+        if (!this.isConnected || this.rootElement) {
+          return;
+        }
+
+        if (!this.attachRoot()) {
+          console.error(FIELDSET_CONTEXT_ERROR);
+        }
+      });
     }
-
-    this.rootElement = root as FieldsetRootElement;
-    this.setAttribute(FIELDSET_LEGEND_ATTRIBUTE, '');
-
-    // Auto-generate an ID if none exists
-    ensureId(this, 'base-ui-fieldset-legend');
-
-    // Register legend ID with the root
-    if (this.rootElement) {
-      this.rootElement.setLegendId(this.id);
-    }
-
-    this.rootElement.addEventListener(FIELDSET_STATE_CHANGE_EVENT, this.stateHandler);
-    this.syncDataAttributes();
   }
 
   disconnectedCallback() {
@@ -202,6 +269,7 @@ export class FieldsetLegendElement extends BaseHTMLElement {
     }
 
     this.rootElement = null;
+    this.resetRenderedElement();
   }
 
   private syncDataAttributes() {
@@ -209,7 +277,67 @@ export class FieldsetLegendElement extends BaseHTMLElement {
       return;
     }
     const context = this.rootElement.getContext();
-    this.toggleAttribute('data-disabled', context.disabled);
+    const legend = this.ensureRenderedElement(context.disabled);
+
+    this.removeAttribute('data-disabled');
+    legend.toggleAttribute('data-disabled', context.disabled);
+  }
+
+  private ensureRenderedElement(disabled: boolean): HTMLElement {
+    if (this.render == null) {
+      this.resetRenderedElement();
+      this.renderedElement = this;
+      return this;
+    }
+
+    if (this.renderedElement && this.renderedElement !== this && this.contains(this.renderedElement)) {
+      return this.renderedElement;
+    }
+
+    const contentNodes =
+      this.renderedElement && this.renderedElement !== this
+        ? Array.from(this.renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this.renderedElement);
+    const state: FieldsetLegendState = { disabled };
+    const renderProps: FieldsetLegendRenderProps = {};
+    const template = typeof this.render === 'function' ? this.render(renderProps, state) : this.render;
+    const nextLegend = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+    if (nextLegend !== this) {
+      this.replaceChildren(nextLegend);
+      nextLegend.append(...contentNodes);
+    } else {
+      this.resetRenderedElement();
+    }
+
+    this.renderedElement = nextLegend;
+    return nextLegend;
+  }
+
+  private resetRenderedElement() {
+    if (this.renderedElement == null || this.renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this.renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this.renderedElement = null;
+  }
+
+  private attachRoot(): boolean {
+    const root = getClosestFieldsetRoot(this);
+    if (!root) {
+      return false;
+    }
+
+    this.rootElement = root as FieldsetRootElement;
+    this.setAttribute(FIELDSET_LEGEND_ATTRIBUTE, '');
+    ensureId(this, 'base-ui-fieldset-legend');
+    this.rootElement.setLegendId(this.id);
+    this.rootElement.addEventListener(FIELDSET_STATE_CHANGE_EVENT, this.stateHandler);
+    this.syncDataAttributes();
+    return true;
   }
 }
 
@@ -221,6 +349,16 @@ export const Fieldset = {
   Root: FieldsetRootElement,
   Legend: FieldsetLegendElement,
 } as const;
+
+function materializeTemplateRoot(template: TemplateResult): HTMLElement {
+  const container = document.createElement('div');
+  renderTemplate(template, container);
+
+  return (
+    Array.from(container.children).find((child): child is HTMLElement => child instanceof HTMLElement) ??
+    container
+  );
+}
 
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 

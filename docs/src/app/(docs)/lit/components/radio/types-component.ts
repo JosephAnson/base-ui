@@ -1,5 +1,7 @@
 /* eslint-disable react/function-component-definition */
 import * as React from 'react';
+import type { ComponentRenderFn, HTMLProps } from '@base-ui/lit/types';
+import type { TemplateResult } from 'lit';
 
 export interface RadioGroupState {
   /**
@@ -156,6 +158,13 @@ export interface RadioGroupApiProps {
   onValueChange?:
     | ((value: unknown, eventDetails: RadioGroupChangeEventDetails) => void)
     | undefined;
+  /**
+   * Allows you to replace the component's HTML element
+   * with a different tag, or compose it with a template that has a single root element.
+   *
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: TemplateResult | ComponentRenderFn<HTMLProps, RadioGroupState> | undefined;
 }
 
 export interface RootApiProps {
@@ -182,6 +191,23 @@ export interface RootApiProps {
    * The id of the radio element.
    */
   id?: string | undefined;
+  /**
+   * A ref to access the hidden input element.
+   */
+  inputRef?: React.Ref<HTMLInputElement> | undefined;
+  /**
+   * Whether the rendered element should be treated as a native `<button>`.
+   * Set to `true` when replacing the default element with a native button via `render`.
+   * @default false
+   */
+  nativeButton?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element
+   * with a different tag, or compose it with a template that has a single root element.
+   *
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: TemplateResult | ComponentRenderFn<HTMLProps, RootState> | undefined;
 }
 
 export interface IndicatorApiProps {
@@ -190,6 +216,13 @@ export interface IndicatorApiProps {
    * @default false
    */
   keepMounted?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element
+   * with a different tag, or compose it with a template that has a single root element.
+   *
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: TemplateResult | ComponentRenderFn<HTMLProps, IndicatorState> | undefined;
 }
 
 export enum RadioGroupDataAttributes {
@@ -279,19 +312,19 @@ export enum IndicatorDataAttributes {
 
 /**
  * Provides a shared state to a series of radio buttons.
- * Renders a `<radio-group>` custom element.
+ * Renders a `<div>` element by default.
  */
 export const RadioGroup: React.FC<RadioGroupApiProps> = () => null;
 
 /**
  * Represents the radio button itself.
- * Renders a `<radio-root>` custom element with a hidden `<input>` inside.
+ * Renders a `<span>` element and a hidden `<input>` beside by default.
  */
 export const Root: React.FC<RootApiProps> = () => null;
 
 /**
  * Indicates whether the radio button is selected.
- * Renders a `<radio-indicator>` custom element.
+ * Renders a `<span>` element by default.
  */
 export const Indicator: React.FC<IndicatorApiProps> = () => null;
 

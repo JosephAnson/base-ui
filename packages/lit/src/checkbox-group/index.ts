@@ -1,12 +1,13 @@
 import { ReactiveElement } from 'lit';
+import { useRender } from '../use-render';
 import {
   CHECKBOX_GROUP_ATTRIBUTE,
   CHECKBOX_GROUP_STATE_CHANGE_EVENT,
   createCheckboxGroupId,
   setCheckboxGroupRuntimeState,
   type CheckboxGroupRuntimeState,
-} from './shared.ts';
-import type { BaseUIChangeEventDetails } from '../types/index.ts';
+} from './shared';
+import type { BaseUIChangeEventDetails } from '../types';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,32 @@ export interface CheckboxGroupChangeEventDetails {
   cancel(): void;
   readonly isCanceled: boolean;
   reason: 'none';
+}
+
+export interface CheckboxGroupProps extends useRender.ComponentProps<'div', CheckboxGroupState> {
+  /**
+   * Controlled selected values.
+   */
+  value?: string[] | undefined;
+  /**
+   * Default selected values for uncontrolled mode.
+   */
+  defaultValue?: string[] | undefined;
+  /**
+   * All possible values of child checkboxes. Required for parent checkbox support.
+   */
+  allValues?: string[] | undefined;
+  /**
+   * Whether the group is disabled.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * Callback fired when the selected values change.
+   */
+  onValueChange?:
+    | ((value: string[], eventDetails: CheckboxGroupChangeEventDetails) => void)
+    | undefined;
 }
 
 // ─── CheckboxGroupElement ────────────────────────────────────────────────────────
@@ -49,41 +76,41 @@ export class CheckboxGroupElement extends ReactiveElement {
     | ((value: string[], eventDetails: CheckboxGroupChangeEventDetails) => void)
     | undefined;
 
-  private _value: string[] | undefined;
-  private _valueIsControlled = false;
-  private _internalValue: string[] = [];
-  private _initialized = false;
-  private _groupId = '';
-  private _parentCycleValue: string[] = [];
-  private _parentStatus: ParentStatus = 'mixed';
-  private _disabledStates = new Map<string, boolean>();
-  private _syncQueued = false;
-  private _lastPublishedStateKey: string | null = null;
+  private controlledValue: string[] | undefined;
+  private isValueControlled = false;
+  private internalValue: string[] = [];
+  private initialized = false;
+  private groupId = '';
+  private parentCycleValue: string[] = [];
+  private parentStatus: ParentStatus = 'mixed';
+  private disabledStates = new Map<string, boolean>();
+  private syncQueued = false;
+  private lastPublishedStateKey: string | null = null;
 
   /** Controlled value. When set, the group becomes controlled. */
   get value(): string[] | undefined {
-    return this._valueIsControlled ? this._value : undefined;
+    return this.isValueControlled ? this.controlledValue : undefined;
   }
 
   set value(val: string[] | undefined) {
     if (val === undefined) {
-      this._valueIsControlled = false;
-      this._value = undefined;
+      this.isValueControlled = false;
+      this.controlledValue = undefined;
     } else {
-      this._valueIsControlled = true;
-      this._value = val;
+      this.isValueControlled = true;
+      this.controlledValue = val;
     }
     this.requestUpdate();
   }
 
   /** Default value for uncontrolled mode. */
   get defaultValue(): string[] {
-    return this._internalValue;
+    return this.internalValue;
   }
 
   set defaultValue(val: string[]) {
-    if (!this._initialized) {
-      this._internalValue = [...val];
+    if (!this.initialized) {
+      this.internalValue = [...val];
     }
   }
 
@@ -99,32 +126,34 @@ export class CheckboxGroupElement extends ReactiveElement {
   override connectedCallback() {
     super.connectedCallback();
 
-    if (!this._initialized) {
-      this._initialized = true;
-      const initialValue = this._valueIsControlled
-        ? [...(this._value ?? [])]
-        : [...this._internalValue];
-      this._parentCycleValue = [...initialValue];
-      this._groupId = createCheckboxGroupId();
+    if (!this.initialized) {
+      this.initialized = true;
+      const initialValue = this.isValueControlled
+        ? [...(this.controlledValue ?? [])]
+        : [...this.internalValue];
+      this.parentCycleValue = [...initialValue];
+      this.groupId = createCheckboxGroupId();
     }
 
     this.setAttribute(CHECKBOX_GROUP_ATTRIBUTE, '');
     this.setAttribute('role', 'group');
+    this.toggleAttribute('data-disabled', this.disabled);
     // Publish runtime state immediately so child checkboxes can find it during connectedCallback
-    setCheckboxGroupRuntimeState(this, this._getRuntimeState());
-    this._scheduleDomSync();
+    setCheckboxGroupRuntimeState(this, this.getRuntimeState());
+    this.scheduleDomSync();
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
     setCheckboxGroupRuntimeState(this, null);
-    this._lastPublishedStateKey = null;
+    this.lastPublishedStateKey = null;
   }
 
   protected override updated() {
     this.setAttribute(CHECKBOX_GROUP_ATTRIBUTE, '');
     this.setAttribute('role', 'group');
-    this._scheduleDomSync();
+    this.toggleAttribute('data-disabled', this.disabled);
+    this.scheduleDomSync();
   }
 
   getState(): CheckboxGroupState {
@@ -133,39 +162,39 @@ export class CheckboxGroupElement extends ReactiveElement {
     };
   }
 
-  private _getCurrentValue(): string[] {
-    if (this._valueIsControlled) {
-      return [...(this._value ?? [])];
+  private getCurrentValue(): string[] {
+    if (this.isValueControlled) {
+      return [...(this.controlledValue ?? [])];
     }
-    return [...this._internalValue];
+    return [...this.internalValue];
   }
 
-  private _getRuntimeState(): CheckboxGroupRuntimeState {
+  private getRuntimeState(): CheckboxGroupRuntimeState {
     return {
-      id: this._groupId,
+      id: this.groupId,
       allValues: [...this.allValues],
-      value: this._getCurrentValue(),
+      value: this.getCurrentValue(),
       disabled: this.disabled,
-      disabledStates: this._disabledStates,
+      disabledStates: this.disabledStates,
       toggleChild: (
         value: string,
         checked: boolean,
         eventDetails: BaseUIChangeEventDetails<'none'>,
       ) => {
-        this._toggleChild(value, checked, eventDetails);
+        this.toggleChild(value, checked, eventDetails);
       },
       toggleParent: (eventDetails: BaseUIChangeEventDetails<'none'>) => {
-        this._toggleParent(eventDetails);
+        this.toggleParent(eventDetails);
       },
     };
   }
 
-  private _toggleChild(
+  private toggleChild(
     value: string,
     checked: boolean,
     eventDetails: BaseUIChangeEventDetails<'none'>,
   ) {
-    const nextValue = this._getCurrentValue();
+    const nextValue = this.getCurrentValue();
 
     if (checked) {
       if (!nextValue.includes(value)) {
@@ -178,86 +207,86 @@ export class CheckboxGroupElement extends ReactiveElement {
       }
     }
 
-    this._parentCycleValue = [...nextValue];
-    this._parentStatus = 'mixed';
-    this._commitValue(nextValue, eventDetails);
+    this.parentCycleValue = [...nextValue];
+    this.parentStatus = 'mixed';
+    this.commitValue(nextValue, eventDetails);
   }
 
-  private _toggleParent(eventDetails: BaseUIChangeEventDetails<'none'>) {
+  private toggleParent(eventDetails: BaseUIChangeEventDetails<'none'>) {
     const allValues = [...this.allValues];
-    const value = this._getCurrentValue();
+    const value = this.getCurrentValue();
 
     // "none" = disabled items that were already checked (they stay checked when toggling off)
     const none = allValues.filter(
       (itemValue) =>
-        this._disabledStates.get(itemValue) === true &&
-        this._parentCycleValue.includes(itemValue),
+        this.disabledStates.get(itemValue) === true &&
+        this.parentCycleValue.includes(itemValue),
     );
 
     // "all" = everything except disabled-unchecked items
     const all = allValues.filter(
       (itemValue) =>
-        this._disabledStates.get(itemValue) !== true ||
-        this._parentCycleValue.includes(itemValue),
+        this.disabledStates.get(itemValue) !== true ||
+        this.parentCycleValue.includes(itemValue),
     );
 
     const allOnOrOff =
-      this._parentCycleValue.length === all.length ||
-      this._parentCycleValue.length === 0;
+      this.parentCycleValue.length === all.length ||
+      this.parentCycleValue.length === 0;
 
     if (allOnOrOff) {
-      this._commitValue(value.length === all.length ? none : all, eventDetails);
+      this.commitValue(value.length === all.length ? none : all, eventDetails);
       return;
     }
 
-    if (this._parentStatus === 'mixed') {
-      this._parentStatus = 'on';
-      this._commitValue(all, eventDetails);
+    if (this.parentStatus === 'mixed') {
+      this.parentStatus = 'on';
+      this.commitValue(all, eventDetails);
       return;
     }
 
-    if (this._parentStatus === 'on') {
-      this._parentStatus = 'off';
-      this._commitValue(none, eventDetails);
+    if (this.parentStatus === 'on') {
+      this.parentStatus = 'off';
+      this.commitValue(none, eventDetails);
       return;
     }
 
-    this._parentStatus = 'mixed';
-    this._commitValue(this._parentCycleValue, eventDetails);
+    this.parentStatus = 'mixed';
+    this.commitValue(this.parentCycleValue, eventDetails);
   }
 
-  private _commitValue(
+  private commitValue(
     nextValue: string[],
     eventDetails: BaseUIChangeEventDetails<'none'> | CheckboxGroupChangeEventDetails,
   ) {
     this.onValueChange?.(nextValue, eventDetails as CheckboxGroupChangeEventDetails);
 
     if (eventDetails.isCanceled) {
-      this._scheduleDomSync();
+      this.scheduleDomSync();
       return;
     }
 
-    if (!this._valueIsControlled) {
-      this._internalValue = [...nextValue];
+    if (!this.isValueControlled) {
+      this.internalValue = [...nextValue];
     }
 
-    this._scheduleDomSync();
+    this.scheduleDomSync();
   }
 
-  private _scheduleDomSync() {
-    if (this._syncQueued) return;
+  private scheduleDomSync() {
+    if (this.syncQueued) {return;}
 
-    this._syncQueued = true;
+    this.syncQueued = true;
     queueMicrotask(() => {
       queueMicrotask(() => {
-        this._syncQueued = false;
-        this._publishStateChange();
+        this.syncQueued = false;
+        this.publishStateChange();
       });
     });
   }
 
-  private _publishStateChange() {
-    const runtimeState = this._getRuntimeState();
+  private publishStateChange() {
+    const runtimeState = this.getRuntimeState();
     setCheckboxGroupRuntimeState(this, runtimeState);
 
     const nextStateKey = JSON.stringify({
@@ -267,9 +296,9 @@ export class CheckboxGroupElement extends ReactiveElement {
       value: runtimeState.value,
     });
 
-    if (nextStateKey === this._lastPublishedStateKey) return;
+    if (nextStateKey === this.lastPublishedStateKey) {return;}
 
-    this._lastPublishedStateKey = nextStateKey;
+    this.lastPublishedStateKey = nextStateKey;
     this.dispatchEvent(new CustomEvent(CHECKBOX_GROUP_STATE_CHANGE_EVENT));
   }
 }
@@ -280,14 +309,208 @@ if (!customElements.get('checkbox-group')) {
 
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
+/**
+ * Provides a shared state to a series of checkboxes.
+ * Renders a `<div>` element by default.
+ *
+ * Documentation: [Base UI Checkbox Group](https://base-ui.com/react/components/checkbox-group)
+ */
+export function CheckboxGroup(props: CheckboxGroup.Props) {
+  const {
+    allValues = [],
+    defaultValue = [],
+    disabled = false,
+    onValueChange,
+    render,
+    value,
+    ...elementProps
+  } = props;
+
+  return useRender({
+    defaultTagName: 'div',
+    render,
+    state: { disabled },
+    ref: createCheckboxGroupBehaviorRef({
+      allValues,
+      defaultValue,
+      disabled,
+      onValueChange,
+      value,
+    }),
+    props: {
+      [CHECKBOX_GROUP_ATTRIBUTE]: '',
+      'data-disabled': disabled ? '' : undefined,
+      role: 'group',
+      ...elementProps,
+    },
+  });
+}
+
 export namespace CheckboxGroup {
+  export type Props = CheckboxGroupProps;
   export type State = CheckboxGroupState;
   export type ChangeEventDetails = CheckboxGroupChangeEventDetails;
 }
 
 // ─── Re-export shared types for consumers ───────────────────────────────────────
 
-export type { CheckboxGroupRuntimeState } from './shared.ts';
+export type { CheckboxGroupRuntimeState } from './shared';
+
+function createCheckboxGroupBehaviorRef(options: {
+  allValues: string[];
+  defaultValue: string[];
+  disabled: boolean;
+  onValueChange:
+    | ((value: string[], eventDetails: CheckboxGroupChangeEventDetails) => void)
+    | undefined;
+  value: string[] | undefined;
+}) {
+  let element: HTMLElement | null = null;
+  let internalValue = [...options.defaultValue];
+  let parentCycleValue = [...(options.value ?? options.defaultValue)];
+  let parentStatus: ParentStatus = 'mixed';
+  const disabledStates = new Map<string, boolean>();
+  const groupId = createCheckboxGroupId();
+  let lastPublishedStateKey: string | null = null;
+
+  function getCurrentValue() {
+    return options.value !== undefined ? [...options.value] : [...internalValue];
+  }
+
+  function getRuntimeState(): CheckboxGroupRuntimeState {
+    return {
+      id: groupId,
+      allValues: [...options.allValues],
+      value: getCurrentValue(),
+      disabled: options.disabled,
+      disabledStates,
+      toggleChild: (value, checked, eventDetails) => {
+        toggleChild(value, checked, eventDetails);
+      },
+      toggleParent: (eventDetails) => {
+        toggleParent(eventDetails);
+      },
+    };
+  }
+
+  function commitValue(
+    nextValue: string[],
+    eventDetails: BaseUIChangeEventDetails<'none'> | CheckboxGroupChangeEventDetails,
+  ) {
+    options.onValueChange?.(nextValue, eventDetails as CheckboxGroupChangeEventDetails);
+
+    if (eventDetails.isCanceled) {
+      sync();
+      return;
+    }
+
+    if (options.value === undefined) {
+      internalValue = [...nextValue];
+    }
+
+    sync();
+  }
+
+  function toggleChild(
+    value: string,
+    checked: boolean,
+    eventDetails: BaseUIChangeEventDetails<'none'>,
+  ) {
+    const nextValue = getCurrentValue();
+
+    if (checked) {
+      if (!nextValue.includes(value)) {
+        nextValue.push(value);
+      }
+    } else {
+      const valueIndex = nextValue.indexOf(value);
+      if (valueIndex !== -1) {
+        nextValue.splice(valueIndex, 1);
+      }
+    }
+
+    parentCycleValue = [...nextValue];
+    parentStatus = 'mixed';
+    commitValue(nextValue, eventDetails);
+  }
+
+  function toggleParent(eventDetails: BaseUIChangeEventDetails<'none'>) {
+    const value = getCurrentValue();
+
+    const none = options.allValues.filter(
+      (itemValue) =>
+        disabledStates.get(itemValue) === true && parentCycleValue.includes(itemValue),
+    );
+
+    const all = options.allValues.filter(
+      (itemValue) =>
+        disabledStates.get(itemValue) !== true || parentCycleValue.includes(itemValue),
+    );
+
+    const allOnOrOff = parentCycleValue.length === all.length || parentCycleValue.length === 0;
+
+    if (allOnOrOff) {
+      commitValue(value.length === all.length ? none : all, eventDetails);
+      return;
+    }
+
+    if (parentStatus === 'mixed') {
+      parentStatus = 'on';
+      commitValue(all, eventDetails);
+      return;
+    }
+
+    if (parentStatus === 'on') {
+      parentStatus = 'off';
+      commitValue(none, eventDetails);
+      return;
+    }
+
+    parentStatus = 'mixed';
+    commitValue(parentCycleValue, eventDetails);
+  }
+
+  function sync() {
+    if (element == null) {
+      return;
+    }
+
+    element.setAttribute(CHECKBOX_GROUP_ATTRIBUTE, '');
+    element.setAttribute('role', 'group');
+    element.toggleAttribute('data-disabled', options.disabled);
+    setCheckboxGroupRuntimeState(element, getRuntimeState());
+
+    const nextStateKey = JSON.stringify({
+      allValues: options.allValues,
+      disabled: options.disabled,
+      id: groupId,
+      value: getCurrentValue(),
+    });
+
+    if (nextStateKey === lastPublishedStateKey) {
+      return;
+    }
+
+    lastPublishedStateKey = nextStateKey;
+    element.dispatchEvent(new CustomEvent(CHECKBOX_GROUP_STATE_CHANGE_EVENT));
+  }
+
+  return (instance: HTMLElement | null) => {
+    if (element != null) {
+      setCheckboxGroupRuntimeState(element, null);
+    }
+
+    disabledStates.clear();
+    lastPublishedStateKey = null;
+    element = instance;
+
+    if (element == null) {
+      return;
+    }
+
+    sync();
+  };
+}
 
 // ─── Global type declarations ───────────────────────────────────────────────────
 

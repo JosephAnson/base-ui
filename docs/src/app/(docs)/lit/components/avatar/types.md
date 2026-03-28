@@ -6,11 +6,15 @@
 
 ### Root
 
+**Root Props:**
+
+| Prop   | Type                                                                          | Default | Description                                                                                                                                                                                                                  |
+| :----- | :---------------------------------------------------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| render | `((props: HTMLProps, state: Root.State) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element with a different tag,&#xA;or compose it with a template that has a single root element.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
+
 ### Root.Props
 
-```typescript
-type RootProps = {};
-```
+Re-export of [Root](#root) props.
 
 ### Root.State
 
@@ -25,9 +29,10 @@ type RootState = {
 
 **Image Props:**
 
-| Prop                  | Type                                     | Default | Description                                     |
-| :-------------------- | :--------------------------------------- | :------ | :---------------------------------------------- |
-| onLoadingStatusChange | `((status: ImageLoadingStatus) => void)` | -       | Callback fired when the loading status changes. |
+| Prop                  | Type                                                                           | Default | Description                                                                                                                                                                                                                  |
+| :-------------------- | :----------------------------------------------------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| onLoadingStatusChange | `((status: ImageLoadingStatus) => void)`                                       | -       | Callback fired when the loading status changes.                                                                                                                                                                              |
+| render                | `((props: HTMLProps, state: Image.State) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element with a different tag,&#xA;or compose it with a template that has a single root element.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
 
 ### Image.Props
 
@@ -46,9 +51,10 @@ type ImageState = {
 
 **Fallback Props:**
 
-| Prop  | Type     | Default | Description                                                              |
-| :---- | :------- | :------ | :----------------------------------------------------------------------- |
-| delay | `number` | -       | How long to wait before showing the fallback. Specified in milliseconds. |
+| Prop   | Type                                                                              | Default | Description                                                                                                                                                                                                                  |
+| :----- | :-------------------------------------------------------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| delay  | `number`                                                                          | -       | How long to wait before showing the fallback. Specified in milliseconds.                                                                                                                                                     |
+| render | `((props: HTMLProps, state: Fallback.State) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element with a different tag,&#xA;or compose it with a template that has a single root element.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
 
 ### Fallback.Props
 
@@ -81,6 +87,12 @@ type Avatar = {
 type FallbackApiProps = {
   /** How long to wait before showing the fallback. Specified in milliseconds. */
   delay?: number;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: Fallback.State) => TemplateResult) | TemplateResult;
 };
 ```
 
@@ -90,6 +102,12 @@ type FallbackApiProps = {
 type ImageApiProps = {
   /** Callback fired when the loading status changes. */
   onLoadingStatusChange?: (status: ImageLoadingStatus) => void;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: Image.State) => TemplateResult) | TemplateResult;
 };
 ```
 
@@ -102,7 +120,14 @@ type ImageLoadingStatus = 'idle' | 'loading' | 'loaded' | 'error';
 ### RootApiProps
 
 ```typescript
-type RootApiProps = {};
+type RootApiProps = {
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: Root.State) => TemplateResult) | TemplateResult;
+};
 ```
 
 ## Canonical Types

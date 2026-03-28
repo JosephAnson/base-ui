@@ -1,4 +1,5 @@
-import { ReactiveElement } from 'lit';
+import { ReactiveElement, render as renderTemplate, type TemplateResult } from 'lit';
+import type { ComponentRenderFn, HTMLProps } from '../types';
 import { BaseHTMLElement } from '../utils';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
@@ -10,6 +11,18 @@ const CONTEXT_ERROR =
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
 export type ImageLoadingStatus = 'idle' | 'loading' | 'loaded' | 'error';
+type AvatarRootRenderProps = HTMLProps<HTMLElement>;
+type AvatarRootRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<AvatarRootRenderProps, AvatarRootState>;
+type AvatarImageRenderProps = HTMLProps<HTMLElement>;
+type AvatarImageRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<AvatarImageRenderProps, AvatarImageState>;
+type AvatarFallbackRenderProps = HTMLProps<HTMLElement>;
+type AvatarFallbackRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<AvatarFallbackRenderProps, AvatarFallbackState>;
 
 export interface AvatarRootState {
   /**
@@ -21,13 +34,26 @@ export interface AvatarRootState {
 export interface AvatarImageState extends AvatarRootState {}
 export interface AvatarFallbackState extends AvatarRootState {}
 
-export interface AvatarRootProps {}
+export interface AvatarRootProps {
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: AvatarRootRenderProp | undefined;
+}
 
 export interface AvatarImageProps {
   /**
    * Callback fired when the loading status changes.
    */
   onLoadingStatusChange?: ((status: ImageLoadingStatus) => void) | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: AvatarImageRenderProp | undefined;
 }
 
 export interface AvatarFallbackProps {
@@ -35,6 +61,12 @@ export interface AvatarFallbackProps {
    * How long to wait before showing the fallback. Specified in milliseconds.
    */
   delay?: number | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: AvatarFallbackRenderProp | undefined;
 }
 
 // ─── AvatarRootElement ───────────────────────────────────────────────────────────
@@ -46,7 +78,13 @@ export interface AvatarFallbackProps {
  * Documentation: [Base UI Avatar](https://base-ui.com/react/components/avatar)
  */
 export class AvatarRootElement extends ReactiveElement {
+  static properties = {
+    render: { attribute: false },
+  };
+
+  declare render: AvatarRootRenderProp | undefined;
   private imageLoadingStatusValue: ImageLoadingStatus = 'idle';
+  private renderedElement: HTMLElement | null = null;
 
   override createRenderRoot() {
     return this;
@@ -63,6 +101,64 @@ export class AvatarRootElement extends ReactiveElement {
 
     this.imageLoadingStatusValue = status;
     this.dispatchEvent(new CustomEvent(STATUS_CHANGE_EVENT, { bubbles: false }));
+  }
+
+  override connectedCallback() {
+    super.connectedCallback();
+    this.ensureRenderedElement();
+  }
+
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this.resetRenderedElement();
+  }
+
+  getState(): AvatarRootState {
+    return {
+      imageLoadingStatus: this.getImageLoadingStatus(),
+    };
+  }
+
+  private ensureRenderedElement(): HTMLElement {
+    if (this.render == null) {
+      this.resetRenderedElement();
+      this.renderedElement = this;
+      return this;
+    }
+
+    if (this.renderedElement && this.renderedElement !== this && this.contains(this.renderedElement)) {
+      return this.renderedElement;
+    }
+
+    const contentNodes =
+      this.renderedElement && this.renderedElement !== this
+        ? Array.from(this.renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this.renderedElement);
+    const renderProps: AvatarRootRenderProps = {};
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, this.getState()) : this.render;
+    const nextRoot = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+    if (nextRoot !== this) {
+      this.replaceChildren(nextRoot);
+      nextRoot.append(...contentNodes);
+    } else {
+      this.resetRenderedElement();
+    }
+
+    this.renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private resetRenderedElement() {
+    if (this.renderedElement == null || this.renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this.renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this.renderedElement = null;
   }
 }
 
@@ -86,20 +182,24 @@ export class AvatarImageElement extends BaseHTMLElement {
   private loadingSourceKey: string | null = null;
   private statusHandler = () => this.syncVisibility();
   private imgElement: HTMLImageElement | null = null;
+  render: AvatarImageRenderProp | undefined;
+  private renderedElement: HTMLElement | null = null;
 
   /** Callback fired when the loading status changes. Set via `.onLoadingStatusChange=${fn}`. */
   onLoadingStatusChange: ((status: ImageLoadingStatus) => void) | undefined;
 
   connectedCallback() {
-    this.rootElement = this.closest('avatar-root') as AvatarRootElement | null;
-    if (!this.rootElement) {
-      console.error(CONTEXT_ERROR);
-      return;
-    }
+    if (!this.attachRoot()) {
+      queueMicrotask(() => {
+        if (!this.isConnected || this.rootElement) {
+          return;
+        }
 
-    this.rootElement.addEventListener(STATUS_CHANGE_EVENT, this.statusHandler);
-    this.syncImageLoading();
-    this.syncVisibility();
+        if (!this.attachRoot()) {
+          console.error(CONTEXT_ERROR);
+        }
+      });
+    }
   }
 
   disconnectedCallback() {
@@ -109,6 +209,7 @@ export class AvatarImageElement extends BaseHTMLElement {
     this.removeImgElement();
     this.rootElement?.removeEventListener(STATUS_CHANGE_EVENT, this.statusHandler);
     this.rootElement = null;
+    this.resetRenderedElement();
   }
 
   attributeChangedCallback(name: string) {
@@ -184,22 +285,27 @@ export class AvatarImageElement extends BaseHTMLElement {
 
   private syncVisibility() {
     const status = this.rootElement?.getImageLoadingStatus() ?? 'idle';
+    const target = this.ensureRenderedElement(status);
     if (status === 'loaded') {
-      this.style.display = '';
-      this.removeAttribute('hidden');
+      target.style.display = '';
+      target.removeAttribute('hidden');
       this.ensureImgElement();
     } else {
-      this.style.display = 'none';
-      this.setAttribute('hidden', '');
+      target.style.display = 'none';
+      target.setAttribute('hidden', '');
       this.removeImgElement();
     }
   }
 
   private ensureImgElement() {
+    const container = this.ensureRenderedElement(this.rootElement?.getImageLoadingStatus() ?? 'idle');
     if (!this.imgElement) {
-      this.imgElement = document.createElement('img');
-      this.imgElement.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
-      this.appendChild(this.imgElement);
+      this.imgElement =
+        container instanceof HTMLImageElement ? container : document.createElement('img');
+      if (!(container instanceof HTMLImageElement)) {
+        this.imgElement.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+        container.appendChild(this.imgElement);
+      }
     }
     const src = this.getAttribute('src');
     if (src) {
@@ -246,9 +352,75 @@ export class AvatarImageElement extends BaseHTMLElement {
 
   private removeImgElement() {
     if (this.imgElement) {
-      this.imgElement.remove();
+      if (this.imgElement !== this.renderedElement) {
+        this.imgElement.remove();
+      }
       this.imgElement = null;
     }
+  }
+
+  private attachRoot() {
+    this.rootElement = this.closest('avatar-root') as AvatarRootElement | null;
+    if (!this.rootElement) {
+      return false;
+    }
+
+    this.rootElement.addEventListener(STATUS_CHANGE_EVENT, this.statusHandler);
+    this.syncImageLoading();
+    this.syncVisibility();
+    return true;
+  }
+
+  private ensureRenderedElement(status: ImageLoadingStatus): HTMLElement {
+    if (this.render == null) {
+      this.resetRenderedElement();
+      this.renderedElement = this;
+      return this;
+    }
+
+    if (this.renderedElement && this.renderedElement !== this && this.contains(this.renderedElement)) {
+      return this.renderedElement;
+    }
+
+    const contentNodes =
+      this.renderedElement && this.renderedElement !== this
+        ? Array.from(this.renderedElement.childNodes).filter((node) => node !== this.imgElement)
+        : Array.from(this.childNodes).filter((node) => node !== this.renderedElement && node !== this.imgElement);
+    const state: AvatarImageState = { imageLoadingStatus: status };
+    const renderProps: AvatarImageRenderProps = {};
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, state) : this.render;
+    const nextRoot = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+    if (nextRoot !== this) {
+      this.replaceChildren(nextRoot);
+      nextRoot.append(...contentNodes);
+    } else {
+      this.resetRenderedElement();
+    }
+
+    if (this.imgElement && this.imgElement !== nextRoot && !nextRoot.contains(this.imgElement)) {
+      nextRoot.append(this.imgElement);
+    }
+
+    this.renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private resetRenderedElement() {
+    if (this.renderedElement == null || this.renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this.renderedElement.childNodes).filter(
+      (node) => node !== this.imgElement,
+    );
+    this.replaceChildren(...contentNodes);
+    if (this.imgElement && this.imgElement !== this.renderedElement) {
+      this.appendChild(this.imgElement);
+    }
+    this.renderedElement = null;
   }
 }
 
@@ -271,24 +443,28 @@ export class AvatarFallbackElement extends BaseHTMLElement {
   private delayPassed = true;
   private timeoutId: ReturnType<typeof setTimeout> | null = null;
   private statusHandler = () => this.syncVisibility();
+  render: AvatarFallbackRenderProp | undefined;
+  private renderedElement: HTMLElement | null = null;
 
   connectedCallback() {
-    this.rootElement = this.closest('avatar-root') as AvatarRootElement | null;
-    if (!this.rootElement) {
-      console.error(CONTEXT_ERROR);
-      return;
+    if (!this.attachRoot()) {
+      queueMicrotask(() => {
+        if (!this.isConnected || this.rootElement) {
+          return;
+        }
+
+        if (!this.attachRoot()) {
+          console.error(CONTEXT_ERROR);
+        }
+      });
     }
-
-    this.rootElement.addEventListener(STATUS_CHANGE_EVENT, this.statusHandler);
-
-    this.syncDelay();
-    this.syncVisibility();
   }
 
   disconnectedCallback() {
     this.clearDelay();
     this.rootElement?.removeEventListener(STATUS_CHANGE_EVENT, this.statusHandler);
     this.rootElement = null;
+    this.resetRenderedElement();
   }
 
   attributeChangedCallback() {
@@ -341,14 +517,70 @@ export class AvatarFallbackElement extends BaseHTMLElement {
 
   private syncVisibility() {
     const status = this.rootElement?.getImageLoadingStatus() ?? 'idle';
+    const target = this.ensureRenderedElement(status);
 
     if (status === 'loaded' || !this.delayPassed) {
-      this.style.display = 'none';
-      this.setAttribute('hidden', '');
+      target.style.display = 'none';
+      target.setAttribute('hidden', '');
     } else {
-      this.style.display = '';
-      this.removeAttribute('hidden');
+      target.style.display = '';
+      target.removeAttribute('hidden');
     }
+  }
+
+  private attachRoot() {
+    this.rootElement = this.closest('avatar-root') as AvatarRootElement | null;
+    if (!this.rootElement) {
+      return false;
+    }
+
+    this.rootElement.addEventListener(STATUS_CHANGE_EVENT, this.statusHandler);
+    this.syncDelay();
+    this.syncVisibility();
+    return true;
+  }
+
+  private ensureRenderedElement(status: ImageLoadingStatus): HTMLElement {
+    if (this.render == null) {
+      this.resetRenderedElement();
+      this.renderedElement = this;
+      return this;
+    }
+
+    if (this.renderedElement && this.renderedElement !== this && this.contains(this.renderedElement)) {
+      return this.renderedElement;
+    }
+
+    const contentNodes =
+      this.renderedElement && this.renderedElement !== this
+        ? Array.from(this.renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this.renderedElement);
+    const state: AvatarFallbackState = { imageLoadingStatus: status };
+    const renderProps: AvatarFallbackRenderProps = {};
+    const template =
+      typeof this.render === 'function' ? this.render(renderProps, state) : this.render;
+    const nextRoot = materializeTemplateRoot(template);
+
+    this.style.display = 'contents';
+    if (nextRoot !== this) {
+      this.replaceChildren(nextRoot);
+      nextRoot.append(...contentNodes);
+    } else {
+      this.resetRenderedElement();
+    }
+
+    this.renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private resetRenderedElement() {
+    if (this.renderedElement == null || this.renderedElement === this) {
+      return;
+    }
+
+    const contentNodes = Array.from(this.renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this.renderedElement = null;
   }
 }
 
@@ -361,6 +593,16 @@ export const Avatar = {
   Image: AvatarImageElement,
   Fallback: AvatarFallbackElement,
 } as const;
+
+function materializeTemplateRoot(template: TemplateResult): HTMLElement {
+  const container = document.createElement('div');
+  renderTemplate(template, container);
+
+  return (
+    Array.from(container.children).find((child): child is HTMLElement => child instanceof HTMLElement) ??
+    container
+  );
+}
 
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 

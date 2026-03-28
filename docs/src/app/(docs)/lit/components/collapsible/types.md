@@ -11,12 +11,13 @@ Renders a `<collapsible-root>` custom element.
 
 **Root Props:**
 
-| Prop         | Type                                                               | Default | Description                                                                                                                 |
-| :----------- | :----------------------------------------------------------------- | :------ | :-------------------------------------------------------------------------------------------------------------------------- |
-| defaultOpen  | `boolean`                                                          | `false` | Whether the collapsible panel is initially open. To render a controlled collapsible, use the `open` prop instead.           |
-| open         | `boolean`                                                          | -       | Whether the collapsible panel is currently open. To render an uncontrolled collapsible, use the `defaultOpen` prop instead. |
-| onOpenChange | `((open: boolean, eventDetails: Root.ChangeEventDetails) => void)` | -       | Event handler called when the panel is opened or closed.                                                                    |
-| disabled     | `boolean`                                                          | `false` | Whether the component should ignore user interaction.                                                                       |
+| Prop         | Type                                                                          | Default | Description                                                                                                                                                                                                                  |
+| :----------- | :---------------------------------------------------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| defaultOpen  | `boolean`                                                                     | `false` | Whether the collapsible panel is initially open. To render a controlled collapsible, use the `open` prop instead.                                                                                                            |
+| open         | `boolean`                                                                     | -       | Whether the collapsible panel is currently open. To render an uncontrolled collapsible, use the `defaultOpen` prop instead.                                                                                                  |
+| onOpenChange | `((open: boolean, eventDetails: Root.ChangeEventDetails) => void)`            | -       | Event handler called when the panel is opened or closed.                                                                                                                                                                     |
+| disabled     | `boolean`                                                                     | `false` | Whether the component should ignore user interaction.                                                                                                                                                                        |
+| render       | `((props: HTMLProps, state: Root.State) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element with a different tag,&#xA;or compose it with a template that has a single root element.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
 
 ### Root.Props
 
@@ -63,6 +64,13 @@ type RootChangeEventDetails = {
 A button that opens and closes the collapsible panel.
 Renders a `<collapsible-trigger>` custom element.
 
+**Trigger Props:**
+
+| Prop         | Type                                                                             | Default | Description                                                                                                                                                                                                                  |
+| :----------- | :------------------------------------------------------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| nativeButton | `boolean`                                                                        | `true`  | Whether the component renders a native `<button>` element when replacing it&#xA;via the `render` prop.&#xA;Set to `false` if the rendered element is not a button.                                                           |
+| render       | `((props: HTMLProps, state: Trigger.State) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element with a different tag,&#xA;or compose it with a template that has a single root element.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
+
 **Trigger Data Attributes:**
 
 | Attribute       | Type | Description                                 |
@@ -71,9 +79,7 @@ Renders a `<collapsible-trigger>` custom element.
 
 ### Trigger.Props
 
-```typescript
-type TriggerProps = {};
-```
+Re-export of [Trigger](#trigger) props.
 
 ### Trigger.State
 
@@ -97,10 +103,11 @@ Renders a `<collapsible-panel>` custom element.
 
 **Panel Props:**
 
-| Prop             | Type      | Default | Description                                                                                                                                                                                                     |
-| :--------------- | :-------- | :------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| hiddenUntilFound | `boolean` | `false` | Allows the browser's built-in page search to find and expand the panel contents.&#xA;Overrides the `keepMounted` prop and uses `hidden="until-found"`&#xA;to hide the element without removing it from the DOM. |
-| keepMounted      | `boolean` | `false` | Whether to keep the element in the DOM while the panel is hidden.&#xA;This prop is ignored when `hiddenUntilFound` is used.                                                                                     |
+| Prop             | Type                                                                           | Default | Description                                                                                                                                                                                                                  |
+| :--------------- | :----------------------------------------------------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| hiddenUntilFound | `boolean`                                                                      | `false` | Allows the browser's built-in page search to find and expand the panel contents.&#xA;Overrides the `keepMounted` prop and uses `hidden="until-found"`&#xA;to hide the element without removing it from the DOM.              |
+| keepMounted      | `boolean`                                                                      | `false` | Whether to keep the element in the DOM while the panel is hidden.&#xA;This prop is ignored when `hiddenUntilFound` is used.                                                                                                  |
+| render           | `((props: HTMLProps, state: Panel.State) => TemplateResult) \| TemplateResult` | -       | Allows you to replace the component's HTML element with a different tag,&#xA;or compose it with a template that has a single root element.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
 
 **Panel Data Attributes:**
 
@@ -172,6 +179,12 @@ type PanelApiProps = {
    * @default false
    */
   keepMounted?: boolean;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: Panel.State) => TemplateResult) | TemplateResult;
 };
 ```
 
@@ -199,6 +212,12 @@ type RootApiProps = {
    * @default false
    */
   disabled?: boolean;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: Root.State) => TemplateResult) | TemplateResult;
 };
 ```
 
@@ -211,7 +230,21 @@ type TransitionStatus = 'starting' | 'ending';
 ### TriggerApiProps
 
 ```typescript
-type TriggerApiProps = {};
+type TriggerApiProps = {
+  /**
+   * Whether the component renders a native `<button>` element when replacing it
+   * via the `render` prop.
+   * Set to `false` if the rendered element is not a button.
+   * @default true
+   */
+  nativeButton?: boolean;
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: ((props: HTMLProps, state: Trigger.State) => TemplateResult) | TemplateResult;
+};
 ```
 
 ## Canonical Types

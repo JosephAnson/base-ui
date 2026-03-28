@@ -100,6 +100,20 @@ describe('collapsible', () => {
     expect(root).toHaveAttribute('data-base-ui-collapsible-root');
   });
 
+  it('supports a static render template on the root', async () => {
+    const view = render(html`
+      <collapsible-root .render=${html`<section data-testid="root"></section>`}>
+        <collapsible-trigger>Toggle</collapsible-trigger>
+        <collapsible-panel>Content</collapsible-panel>
+      </collapsible-root>
+    `);
+    await waitForUpdate();
+
+    const root = view.querySelector('[data-testid="root"]') as HTMLElement;
+    expect(root).toHaveAttribute('data-closed');
+    expect(root.querySelector('collapsible-trigger')).not.toBeNull();
+  });
+
   it('wires ARIA attributes and toggles open on trigger click', async () => {
     const view = render(html`
       <collapsible-root>
@@ -131,6 +145,53 @@ describe('collapsible', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).not.toHaveAttribute('aria-controls');
     expect(panel).toHaveAttribute('hidden');
+  });
+
+  it('supports a rendered native button trigger', async () => {
+    const view = render(html`
+      <collapsible-root>
+        <collapsible-trigger
+          .render=${html`<button data-testid="trigger"></button>`}
+        >
+          Toggle
+        </collapsible-trigger>
+        <collapsible-panel>Content</collapsible-panel>
+      </collapsible-root>
+    `);
+    await waitForUpdate();
+
+    const trigger = view.querySelector('[data-testid="trigger"]') as HTMLButtonElement;
+    expect(trigger.type).toBe('button');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+    trigger.click();
+    await waitForUpdate();
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('supports a render function on the trigger with nativeButton disabled', async () => {
+    let receivedState: Record<string, unknown> | null = null;
+    const view = render(html`
+      <collapsible-root>
+        <collapsible-trigger
+          .nativeButton=${false}
+          .render=${(props: Record<string, unknown>, state: Record<string, unknown>) => {
+            receivedState = state;
+            return html`<a data-testid="trigger"></a>`;
+          }}
+        >
+          Toggle
+        </collapsible-trigger>
+        <collapsible-panel>Content</collapsible-panel>
+      </collapsible-root>
+    `);
+    await waitForUpdate();
+
+    const trigger = view.querySelector('[data-testid="trigger"]') as HTMLElement;
+    expect(receivedState).toEqual(expect.objectContaining({ open: false, disabled: false }));
+    expect(trigger).toHaveAttribute('role', 'button');
+    expect(trigger).toHaveAttribute('tabindex', '0');
   });
 
   it('supports controlled open state', async () => {
@@ -165,6 +226,22 @@ describe('collapsible', () => {
 
     expect(getTrigger(view)).toHaveAttribute('aria-expanded', 'false');
     expect(getPanel(view)).toHaveAttribute('hidden');
+  });
+
+  it('supports a static render template on the panel', async () => {
+    const view = render(html`
+      <collapsible-root .defaultOpen=${true}>
+        <collapsible-trigger>Toggle</collapsible-trigger>
+        <collapsible-panel .render=${html`<div data-testid="panel"></div>`}>
+          Content
+        </collapsible-panel>
+      </collapsible-root>
+    `);
+    await waitForUpdate();
+
+    const panel = view.querySelector('[data-testid="panel"]') as HTMLElement;
+    expect(panel).toHaveAttribute('data-open');
+    expect(panel.textContent?.trim()).toBe('Content');
   });
 
   it('calls onOpenChange with Base UI-style event details', async () => {
@@ -359,11 +436,12 @@ describe('collapsible', () => {
     expect(getPanel(view)).toHaveAttribute('id', 'my-panel');
   });
 
-  it('logs error when parts are used outside root', () => {
+  it('logs error when parts are used outside root', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(html`<collapsible-trigger>Orphan</collapsible-trigger>`);
     render(html`<collapsible-panel>Orphan panel</collapsible-panel>`);
+    await waitForUpdate();
 
     expect(errorSpy).toHaveBeenCalledTimes(2);
     expect(errorSpy).toHaveBeenCalledWith(

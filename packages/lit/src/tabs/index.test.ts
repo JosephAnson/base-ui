@@ -136,6 +136,32 @@ describe('Tabs', () => {
         expect(panels[0]).toHaveAttribute('aria-labelledby', tabs[0].id);
         expect(panels[1]).toHaveAttribute('aria-labelledby', tabs[1].id);
       });
+
+      it('syncs aria-controls to the mounted tab panel when keepMounted is false', async () => {
+        render(html`
+          <tabs-root .defaultValue=${'tab-0'}>
+            <tabs-list>
+              <tabs-tab value="tab-0">Tab 0</tabs-tab>
+              <tabs-tab value="tab-1">Tab 1</tabs-tab>
+            </tabs-list>
+            <tabs-panel value="tab-0">Panel 0</tabs-panel>
+            <tabs-panel value="tab-1">Panel 1</tabs-panel>
+          </tabs-root>
+        `);
+        await flush();
+
+        const tabs = Array.from(document.querySelectorAll<HTMLElement>('[role="tab"]'));
+        const panels = Array.from(document.querySelectorAll<HTMLElement>('[role="tabpanel"]'));
+
+        expect(tabs[0]).toHaveAttribute('aria-controls', panels[0].id);
+        expect(tabs[1]).not.toHaveAttribute('aria-controls');
+
+        tabs[1].click();
+        await flush();
+
+        expect(tabs[0]).not.toHaveAttribute('aria-controls');
+        expect(tabs[1]).toHaveAttribute('aria-controls', panels[1].id);
+      });
     });
 
     describe('prop: value', () => {
@@ -157,6 +183,27 @@ describe('Tabs', () => {
     });
 
     describe('disabled tabs', () => {
+      it('selects the second tab when the first one is disabled', async () => {
+        render(html`
+          <tabs-root>
+            <tabs-list>
+              <tabs-tab value="0" disabled>Disabled tab</tabs-tab>
+              <tabs-tab value="1">Enabled tab</tabs-tab>
+            </tabs-list>
+            <tabs-panel value="0" .keepMounted=${true}>Disabled panel</tabs-panel>
+            <tabs-panel value="1" .keepMounted=${true}>Enabled panel</tabs-panel>
+          </tabs-root>
+        `);
+        await flush();
+
+        const tabs = document.querySelectorAll<HTMLElement>('[role="tab"]');
+        const panels = document.querySelectorAll<HTMLElement>('[role="tabpanel"]');
+        expect(tabs[0]).toHaveAttribute('aria-selected', 'false');
+        expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
+        expect(panels[0]).toHaveAttribute('hidden');
+        expect(panels[1]).not.toHaveAttribute('hidden');
+      });
+
       it('should honor explicit defaultValue even if it points to a disabled tab', async () => {
         render(html`
           <tabs-root .defaultValue=${0}>
@@ -192,6 +239,32 @@ describe('Tabs', () => {
         expect(tabs[1]).toHaveAttribute('aria-selected', 'false');
         expect(tabs[2]).toHaveAttribute('aria-selected', 'false');
       });
+
+      it('does not select any tab when all tabs are disabled', async () => {
+        render(html`
+          <tabs-root>
+            <tabs-list>
+              <tabs-tab value="0" disabled>Tab 0</tabs-tab>
+              <tabs-tab value="1" disabled>Tab 1</tabs-tab>
+              <tabs-tab value="2" disabled>Tab 2</tabs-tab>
+            </tabs-list>
+            <tabs-panel value="0" .keepMounted=${true}>Panel 0</tabs-panel>
+            <tabs-panel value="1" .keepMounted=${true}>Panel 1</tabs-panel>
+            <tabs-panel value="2" .keepMounted=${true}>Panel 2</tabs-panel>
+          </tabs-root>
+        `);
+        await flush();
+
+        const tabs = document.querySelectorAll<HTMLElement>('[role="tab"]');
+        const panels = document.querySelectorAll<HTMLElement>('[role="tabpanel"]');
+
+        tabs.forEach((tab) => {
+          expect(tab).toHaveAttribute('aria-selected', 'false');
+        });
+        panels.forEach((panel) => {
+          expect(panel).toHaveAttribute('hidden');
+        });
+      });
     });
 
     describe('prop: onValueChange', () => {
@@ -214,6 +287,26 @@ describe('Tabs', () => {
 
         expect(handleChange).toHaveBeenCalledTimes(1);
         expect(handleChange.mock.calls[0][0]).toBe(1);
+      });
+
+      it('should not call onValueChange on non-main button clicks', async () => {
+        const handleChange = vi.fn();
+
+        render(html`
+          <tabs-root .value=${0} .onValueChange=${handleChange}>
+            <tabs-list>
+              <tabs-tab value="0"></tabs-tab>
+              <tabs-tab value="1"></tabs-tab>
+            </tabs-list>
+          </tabs-root>
+        `);
+        await flush();
+
+        const tabs = document.querySelectorAll<HTMLElement>('[role="tab"]');
+        tabs[1].dispatchEvent(new MouseEvent('click', { bubbles: true, button: 2, cancelable: true }));
+        await flush();
+
+        expect(handleChange).not.toHaveBeenCalled();
       });
 
       it('should not call onValueChange when already active', async () => {
@@ -897,6 +990,56 @@ describe('Tabs', () => {
       expect(document.querySelector('tabs-tab')).toHaveAttribute('data-disabled');
     });
 
+    it('supports rendering a link via a TemplateResult render prop', async () => {
+      render(html`
+        <tabs-root .defaultValue=${'overview'}>
+          <tabs-list>
+            <tabs-tab
+              value="overview"
+              .render=${html`<a href="/overview">Overview</a>`}
+            ></tabs-tab>
+            <tabs-tab value="projects">Projects</tabs-tab>
+          </tabs-list>
+          <tabs-panel value="overview" .keepMounted=${true}>Overview content</tabs-panel>
+          <tabs-panel value="projects" .keepMounted=${true}>Projects content</tabs-panel>
+        </tabs-root>
+      `);
+      await flush();
+
+      const link = document.querySelector('tabs-tab a') as HTMLAnchorElement;
+      expect(link).toHaveAttribute('role', 'tab');
+      expect(link).toHaveAttribute('href', '/overview');
+      expect(link).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('supports rendering a link via a render function', async () => {
+      render(html`
+        <tabs-root .defaultValue=${'overview'}>
+          <tabs-list>
+            <tabs-tab
+              value="overview"
+              .render=${(_props: unknown, _state: unknown) => html`<a href="/overview">Overview</a>`}
+            ></tabs-tab>
+            <tabs-tab value="projects">Projects</tabs-tab>
+          </tabs-list>
+          <tabs-panel value="overview" .keepMounted=${true}>Overview content</tabs-panel>
+          <tabs-panel value="projects" .keepMounted=${true}>Projects content</tabs-panel>
+        </tabs-root>
+      `);
+      await flush();
+
+      const link = document.querySelector('tabs-tab a') as HTMLAnchorElement;
+      const secondTab = document.querySelectorAll<HTMLElement>('[role="tab"]')[1];
+
+      expect(link).toHaveAttribute('role', 'tab');
+      expect(link).toHaveAttribute('href', '/overview');
+
+      secondTab.click();
+      await flush();
+
+      expect(link).toHaveAttribute('aria-selected', 'false');
+    });
+
     it('activates on Enter key', async () => {
       const handleChange = vi.fn();
       render(html`
@@ -1014,6 +1157,25 @@ describe('Tabs', () => {
       const panels = document.querySelectorAll<HTMLElement>('[role="tabpanel"]');
       expect(panels[0].tabIndex).toBe(0);
       expect(panels[1].tabIndex).toBe(-1);
+    });
+
+    it('defaults keepMounted to false', async () => {
+      render(html`
+        <tabs-root .defaultValue=${0}>
+          <tabs-list>
+            <tabs-tab value="0">Tab 1</tabs-tab>
+            <tabs-tab value="1">Tab 2</tabs-tab>
+          </tabs-list>
+          <tabs-panel value="0">Panel 1</tabs-panel>
+          <tabs-panel value="1">Panel 2</tabs-panel>
+        </tabs-root>
+      `);
+      await flush();
+
+      const panels = document.querySelectorAll<HTMLElement>('[role="tabpanel"]');
+      expect(panels[0]).not.toHaveAttribute('hidden');
+      expect(panels[1]).toHaveAttribute('hidden');
+      expect((document.querySelector('tabs-panel') as any).keepMounted).toBe(false);
     });
   });
 

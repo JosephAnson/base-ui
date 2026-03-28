@@ -8,9 +8,10 @@
 
 **Separator Props:**
 
-| Prop        | Type          | Default        | Description                       |
-| :---------- | :------------ | :------------- | :-------------------------------- |
-| orientation | `Orientation` | `'horizontal'` | The orientation of the separator. |
+| Prop        | Type                                                                                                           | Default        | Description                                                                                                                                                                                                                  |
+| :---------- | :------------------------------------------------------------------------------------------------------------- | :------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| orientation | `Orientation`                                                                                                  | `'horizontal'` | The orientation of the separator.                                                                                                                                                                                            |
+| render      | `((props: HTMLProps, state: { orientation: 'horizontal' \| 'vertical' }) => TemplateResult) \| TemplateResult` | -              | Allows you to replace the component's HTML element with a different tag,&#xA;or compose it with a template that has a single root element.&#xA;Accepts a `TemplateResult` or a function that returns the template to render. |
 
 ## Additional Types
 
@@ -18,6 +19,14 @@
 
 ```typescript
 type SeparatorProps = {
+  /**
+   * Allows you to replace the component's HTML element with a different tag,
+   * or compose it with a template that has a single root element.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?:
+    | ((props: HTMLProps, state: { orientation: 'horizontal' | 'vertical' }) => TemplateResult)
+    | TemplateResult;
   /**
    * The orientation of the separator.
    * @default 'horizontal'

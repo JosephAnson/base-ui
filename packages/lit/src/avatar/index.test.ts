@@ -95,6 +95,17 @@ describe('avatar', () => {
     expect(root?.textContent).toBe('LT');
   });
 
+  it('supports a static render template on the root', async () => {
+    const view = render(html`
+      <avatar-root .render=${html`<span data-testid="root"></span>`}>
+        <avatar-fallback>LT</avatar-fallback>
+      </avatar-root>
+    `);
+    await waitForUpdate();
+
+    expect(view.querySelector('[data-testid="root"] avatar-fallback')).not.toBeNull();
+  });
+
   it('tracks image loading status', async () => {
     const handleStatusChange = vi.fn();
     const view = render(html`
@@ -134,6 +145,25 @@ describe('avatar', () => {
 
     expect(image).not.toHaveAttribute('hidden');
     expect(fallback).toHaveAttribute('hidden');
+  });
+
+  it('supports a rendered image container', async () => {
+    const view = render(html`
+      <avatar-root>
+        <avatar-image
+          src="avatar.png"
+          .render=${html`<div data-testid="image"></div>`}
+        ></avatar-image>
+      </avatar-root>
+    `);
+    await waitForUpdate();
+
+    MockImage.instances[0].emitLoad();
+    await waitForUpdate();
+
+    const image = view.querySelector('[data-testid="image"]') as HTMLElement;
+    expect(image).not.toHaveAttribute('hidden');
+    expect(image.querySelector('img')).not.toBeNull();
   });
 
   it('updates rendered image attributes after the image has loaded', async () => {
@@ -211,6 +241,17 @@ describe('avatar', () => {
     expect(fallback).not.toHaveAttribute('hidden');
   });
 
+  it('supports a rendered fallback container', async () => {
+    const view = render(html`
+      <avatar-root>
+        <avatar-fallback .render=${html`<div data-testid="fallback"></div>`}>LT</avatar-fallback>
+      </avatar-root>
+    `);
+    await waitForUpdate();
+
+    expect(view.querySelector('[data-testid="fallback"]')?.textContent).toBe('LT');
+  });
+
   it('updates fallback visibility when delay changes after mount', async () => {
     vi.useFakeTimers();
 
@@ -285,11 +326,12 @@ describe('avatar', () => {
     mockImage.emitLoad();
   });
 
-  it('logs error when parts render outside avatar-root', () => {
+  it('logs error when parts render outside avatar-root', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(html`<avatar-image src="avatar.png"></avatar-image>`);
     render(html`<avatar-fallback>LT</avatar-fallback>`);
+    await waitForUpdate();
 
     expect(errorSpy).toHaveBeenCalledTimes(2);
     expect(errorSpy).toHaveBeenCalledWith(
