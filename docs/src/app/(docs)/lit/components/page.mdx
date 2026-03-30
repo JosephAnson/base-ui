@@ -44,18 +44,41 @@
 
 ## Accordion
 
-A Lit accordion that composes collapsible panels with heading and trigger parts.
+A set of collapsible panels with headings.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Accordion, Accordion, Base UI Lit, Disclosure, Collapsible panels
+- Keywords: Lit Accordion, Accordion Component, Collapsible Content, Expandable Panel, Accessible Accordion, Multi-Panel UI, Disclosure Widget, FAQ Component, Headless Lit Components, Base UI
 - Sections:
   - Anatomy
   - Examples
-    - Multiple panels
-  - Status
+    - Open multiple panels
+  - API reference
+    - Root
+    - Item
+    - Header
+    - Trigger
+    - Panel
+- Exports:
+  - Root
+    - Props: defaultValue, disabled, hiddenUntilFound, keepMounted, loopFocus, multiple, onValueChange, orientation, render, value
+    - Data Attributes: data-disabled, data-orientation
+  - Trigger
+    - Props: nativeButton, render
+    - Data Attributes: data-disabled, data-panel-open
+  - Item
+    - Props: disabled, onOpenChange, render, value
+    - Data Attributes: data-disabled, data-index, data-open
+  - Header
+    - Props: render
+    - Data Attributes: data-disabled, data-index, data-open
+  - Panel
+    - Props: hiddenUntilFound, keepMounted, render
+    - Data Attributes: data-disabled, data-ending-style, data-index, data-open, data-starting-style
+    - CSS Variables: --accordion-panel-height, --accordion-panel-width
+- Types: Accordion, Header.DataAttributes, Header.Props, Header.State, HeaderApiProps, Item.ChangeEventDetails, Item.ChangeEventReason, Item.DataAttributes, Item.Props, Item.State, ItemApiProps, Orientation, Panel.CssVars, Panel.DataAttributes, Panel.Props, Panel.State, PanelApiProps, Root.ChangeEventDetails, Root.ChangeEventReason, Root.DataAttributes, Root.Props, Root.State, RootApiProps, TransitionStatus, Trigger.DataAttributes, Trigger.Props, Trigger.State, TriggerApiProps
 
 </details>
 
@@ -546,17 +569,73 @@ A numeric input with increment/decrement controls.
 
 ## Popover
 
-An anchored popup for Lit templates.
+An accessible popup anchored to a button.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Popover, Popover, Base UI Lit
+- Keywords: Lit Popover, Popover Component, Popup Menu, Anchored Popup, Detached Trigger Popover, Base UI Lit
 - Sections:
-  - Open On Hover
   - Anatomy
-  - Status
+  - Examples
+    - Opening on hover
+    - Detached triggers
+    - Multiple triggers
+    - Controlled mode with multiple triggers
+    - Animating the Popover
+      - Position and Size
+      - Content
+  - API reference
+    - Root
+    - Trigger
+    - Backdrop
+    - Portal
+    - Positioner
+    - Popup
+    - Arrow
+    - Title
+    - Description
+    - Close
+    - Viewport
+    - createHandle
+    - Handle
+- Exports:
+  - Root
+    - Props: actionsRef, defaultOpen, defaultTriggerId, disablePointerDismissal, handle, modal, onOpenChange, onOpenChangeComplete, open, triggerId
+  - Trigger
+    - Props: closeDelay, delay, disabled, handle, id, nativeButton, openOnHover, payload, render
+    - Data Attributes: data-popup-open
+  - Portal
+    - Props: container, render
+    - Data Attributes: data-closed, data-open
+  - Backdrop
+    - Props: render
+    - Data Attributes: data-closed, data-open
+  - Positioner
+    - Props: align, alignOffset, anchor, arrowPadding, collisionAvoidance, collisionBoundary, collisionPadding, disableAnchorTracking, positionMethod, render, side, sideOffset, sticky
+    - Data Attributes: data-align, data-anchor-hidden, data-closed, data-open, data-side
+    - CSS Variables: --transform-origin
+  - Popup
+    - Props: render
+    - Data Attributes: data-closed, data-ending-style, data-open, data-starting-style
+  - Arrow
+    - Props: render
+    - Data Attributes: data-align, data-open, data-side, data-uncentered
+  - Title
+    - Props: render
+  - Description
+    - Props: render
+  - Close
+    - Props: disabled, nativeButton, render
+    - Data Attributes: data-disabled
+  - Viewport
+    - Props: render
+    - Data Attributes: data-activation-direction, data-instant, data-transitioning
+    - CSS Variables: --popup-height, --popup-width
+  - createHandle
+  - Handle
+- Types: Align, Arrow.DataAttributes, Arrow.Props, Arrow.State, ArrowApiProps, Backdrop.DataAttributes, Backdrop.Props, Backdrop.State, BackdropApiProps, Close.DataAttributes, Close.Props, Close.State, CloseApiProps, Description.Props, DescriptionApiProps, PopoverDocumentation, Popup.DataAttributes, Popup.Props, Popup.State, PopupApiProps, Portal.DataAttributes, Portal.Props, Portal.State, PortalApiProps, Positioner.CssVars, Positioner.DataAttributes, Positioner.Props, Positioner.State, PositionerApiProps, Root.Actions, Root.ChangeEventDetails, Root.ChangeEventReason, Root.Props, RootApiProps, Side, Title.Props, TitleApiProps, TransitionStatus, Trigger.DataAttributes, Trigger.Props, Trigger.State, TriggerApiProps, Viewport.CssVars, Viewport.DataAttributes, Viewport.Props, Viewport.State, ViewportApiProps
 
 </details>
 
@@ -863,16 +942,47 @@ Provides a shared state to a series of toggle buttons.
 
 ## Toolbar
 
-A toolbar for grouping action buttons.
+A container for grouping a set of buttons and controls.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Toolbar, Toolbar, Base UI Lit, Action bar
+- Keywords: Lit Toolbar, Toolbar Button Group, Action Bar, Button Bar, Command Strip, Headless Toolbar Component, Accessible Toolbar, Popup Trigger Toolbar, Base UI
 - Sections:
+  - Usage guidelines
   - Anatomy
-  - Status
+  - Examples
+    - Using with Menu
+    - Using with Tooltip
+    - Using with NumberField
+  - API reference
+    - Root
+    - Button
+    - Link
+    - Input
+    - Group
+    - Separator
+- Exports:
+  - Root
+    - Props: disabled, loopFocus, orientation, render
+    - Data Attributes: data-disabled, data-orientation
+  - Input
+    - Props: defaultValue, disabled, focusableWhenDisabled, render
+    - Data Attributes: data-disabled, data-focusable, data-orientation
+  - Group
+    - Props: disabled, render
+    - Data Attributes: data-disabled, data-orientation
+  - Separator
+    - Props: render
+    - Data Attributes: data-orientation
+  - Button
+    - Props: disabled, focusableWhenDisabled, nativeButton, render
+    - Data Attributes: data-disabled, data-focusable, data-orientation
+  - Link
+    - Props: render
+    - Data Attributes: data-orientation
+- Types: Button.DataAttributes, Button.Props, Button.State, ButtonApiProps, Group.DataAttributes, Group.Props, Group.State, GroupApiProps, Input.DataAttributes, Input.Props, Input.State, InputApiProps, Link.DataAttributes, Link.Props, Link.State, LinkApiProps, Root.DataAttributes, Root.ItemMetadata, Root.Orientation, Root.Props, Root.State, RootApiProps, Separator.DataAttributes, Separator.Props, Separator.State, SeparatorApiProps, Toolbar, ToolbarOrientation
 
 </details>
 
@@ -880,18 +990,59 @@ A toolbar for grouping action buttons.
 
 ## Tooltip
 
-A popup that appears when an element is hovered or focused.
+A popup that appears when an element is hovered or focused, showing a hint for sighted users.
 
 <details>
 
 <summary>Outline</summary>
 
-- Keywords: Lit Tooltip, Tooltip, Base UI Lit
+- Keywords: Lit Tooltip, Tooltip Component, Detached Trigger Tooltip, Hint, Help Text, Hover Text, Hover Hint, Accessible Tooltip, Animated Tooltip, Base UI Lit
 - Sections:
-  - Detached Triggers
-  - Multiple Triggers
-  - Controlled
+  - Usage guidelines
   - Anatomy
+  - Alternatives to tooltips
+    - Infotips
+    - Description text
+    - Contextual feedback messages
+  - Examples
+    - Detached triggers
+    - Multiple triggers
+    - Controlled mode with multiple triggers
+    - Animating the Tooltip
+      - Position and Size
+      - Content
+  - API reference
+    - Provider
+    - Root
+    - Trigger
+    - Portal
+    - Positioner
+    - Popup
+    - Arrow
+    - createHandle
+    - Handle
+- Exports:
+  - Root
+    - Props: actionsRef, children, defaultOpen, defaultTriggerId, disableHoverablePopup, disabled, handle, onOpenChange, onOpenChangeComplete, open, triggerId
+  - Provider
+    - Props: children, closeDelay, delay, timeout
+  - Trigger
+    - Props: children, closeDelay, closeOnClick, delay, disabled, handle, id, payload
+    - Data Attributes: data-popup-open, data-trigger-disabled
+  - Portal
+    - Props: children, container
+  - Positioner
+    - Props: align, alignOffset, arrowPadding, children, collisionAvoidance, collisionPadding, disableAnchorTracking, positionMethod, side, sideOffset, sticky
+    - Data Attributes: data-align, data-anchor-hidden, data-closed, data-open, data-side
+  - Popup
+    - Props: children
+    - Data Attributes: data-closed, data-ending-style, data-open, data-starting-style
+  - Arrow
+    - Props: children
+    - Data Attributes: data-align, data-open, data-side, data-uncentered
+  - createHandle
+  - Handle
+- Types: Align, Arrow.DataAttributes, Arrow.Props, Arrow.State, ArrowApiProps, Popup.DataAttributes, Popup.Props, Popup.State, PopupApiProps, Portal.Props, PortalApiProps, Positioner.DataAttributes, Positioner.Props, Positioner.State, PositionerApiProps, Provider.Props, ProviderApiProps, Root.Actions, Root.ChangeEventDetails, Root.ChangeEventReason, Root.Props, RootApiProps, Side, TooltipDocumentation, TransitionStatus, Trigger.DataAttributes, Trigger.Props, Trigger.State, TriggerApiProps
 
 </details>
 

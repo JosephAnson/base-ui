@@ -1,41 +1,73 @@
 # Accordion
 
-<Subtitle>
-  A Lit accordion that composes collapsible panels with heading and trigger parts.
-</Subtitle>
+<Subtitle>A set of collapsible panels with headings.</Subtitle>
 <Meta
   name="description"
-  content="A Lit accordion that composes collapsible panels with heading and trigger parts."
+  content="A high-quality, unstyled Lit accordion component that displays a set of collapsible panels with headings."
 />
 
 import { DemoAccordionHero } from './demos/hero';
 import { DemoAccordionMultiple } from './demos/multiple';
+import { TypesAccordion } from './types';
 
 <DemoAccordionHero />
 
 ## Anatomy
 
+Import the component and assemble its parts:
+
 ```html title="Anatomy"
 <accordion-root>
   <accordion-item value="item-1">
     <accordion-header>
-      <accordion-trigger>Section title</accordion-trigger>
+      <accordion-trigger />
     </accordion-header>
-    <accordion-panel>Section content</accordion-panel>
+    <accordion-panel />
   </accordion-item>
 </accordion-root>
 ```
 
 ## Examples
 
-### Multiple panels
+### Open multiple panels
+
+You can set up the accordion to allow multiple panels to be open at the same time using the `multiple` prop.
 
 <DemoAccordionMultiple compact />
 
-## Status
+## API reference
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### Root
+
+<TypesAccordion.Root />
+
+### Item
+
+<TypesAccordion.Item />
+
+### Header
+
+<TypesAccordion.Header />
+
+### Trigger
+
+<TypesAccordion.Trigger />
+
+### Panel
+
+<TypesAccordion.Panel />
 
 export const metadata = {
-  keywords: ['Lit Accordion', 'Accordion', 'Base UI Lit', 'Disclosure', 'Collapsible panels'],
+  keywords: [
+    'Lit Accordion',
+    'Accordion Component',
+    'Collapsible Content',
+    'Expandable Panel',
+    'Accessible Accordion',
+    'Multi-Panel UI',
+    'Disclosure Widget',
+    'FAQ Component',
+    'Headless Lit Components',
+    'Base UI',
+  ],
 };

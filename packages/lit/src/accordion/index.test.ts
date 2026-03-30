@@ -1,3 +1,5 @@
+/* eslint-disable import/extensions, no-plusplus, no-await-in-loop, no-promise-executor-return */
+/* eslint-disable testing-library/render-result-naming-convention */
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -40,12 +42,6 @@ describe('accordion', () => {
 
   function getRoot(container: HTMLElement) {
     return container.querySelector('accordion-root') as AccordionRootElement;
-  }
-
-  function getItem(container: HTMLElement, value: string) {
-    return Array.from(container.querySelectorAll('accordion-item')).find(
-      (item) => (item as AccordionItemElement).itemValue === value,
-    ) as AccordionItemElement | undefined;
   }
 
   function getTrigger(container: HTMLElement, index: number) {
@@ -524,5 +520,60 @@ describe('accordion', () => {
     );
     await waitForUpdate();
     expect(triggerA).toHaveFocus();
+  });
+
+  it('supports `value` as an attribute alias on items', async () => {
+    const container = render(html`
+      <accordion-root .defaultValue=${['a']}>
+        <accordion-item value="a">
+          <accordion-header>
+            <accordion-trigger>Toggle</accordion-trigger>
+          </accordion-header>
+          <accordion-panel>Content</accordion-panel>
+        </accordion-item>
+      </accordion-root>
+    `);
+    await waitForUpdate();
+
+    expect(getTrigger(container, 0)).toHaveAttribute('aria-expanded', 'true');
+    expect(getPanel(container, 0)).not.toHaveAttribute('hidden');
+  });
+
+  it('supports a rendered trigger target for keyboard and pointer interaction', async () => {
+    const container = render(html`
+      <accordion-root>
+        <accordion-item value="a">
+          <accordion-header>
+            <accordion-trigger .render=${html`<button class="rendered-trigger"></button>`}>
+              Toggle
+            </accordion-trigger>
+          </accordion-header>
+          <accordion-panel>Content</accordion-panel>
+        </accordion-item>
+      </accordion-root>
+    `);
+    await waitForUpdate();
+
+    const renderedTrigger = container.querySelector('.rendered-trigger') as HTMLButtonElement;
+    renderedTrigger.click();
+    await waitForUpdate();
+    expect(getPanel(container, 0)).not.toHaveAttribute('hidden');
+
+    renderedTrigger.focus();
+    renderedTrigger.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: ' ' }),
+    );
+    await waitForUpdate();
+    expect(getPanel(container, 0)).toHaveAttribute('hidden');
+  });
+
+  it('exports the Accordion runtime namespace', async () => {
+    const module = (await import('./index.ts')) as typeof import('./index.ts');
+
+    expect(module.Accordion.Root).toBeTypeOf('function');
+    expect(module.Accordion.Item).toBeTypeOf('function');
+    expect(module.Accordion.Header).toBeTypeOf('function');
+    expect(module.Accordion.Trigger).toBeTypeOf('function');
+    expect(module.Accordion.Panel).toBeTypeOf('function');
   });
 });

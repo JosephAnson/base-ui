@@ -582,6 +582,10 @@ if (!customElements.get('select-popup')) {
  * Documentation: [Base UI Select](https://base-ui.com/react/components/select)
  */
 export class SelectItemElement extends BaseHTMLElement {
+  static get observedAttributes() {
+    return ['disabled', 'label', 'value'];
+  }
+
   private _root: SelectRootElement | null = null;
   private _handler = () => this._syncAttributes();
 
@@ -593,6 +597,25 @@ export class SelectItemElement extends BaseHTMLElement {
 
   /** Optional label (defaults to textContent). */
   label: string | undefined;
+
+  attributeChangedCallback(name: string, _old: string | null, value: string | null) {
+    if (name === 'disabled') {
+      this.disabled = value !== null;
+      this._syncAttributes();
+      return;
+    }
+
+    if (name === 'label') {
+      this.label = value ?? undefined;
+      this._syncAttributes();
+      return;
+    }
+
+    if (name === 'value') {
+      this.value = value;
+      this._syncAttributes();
+    }
+  }
 
   connectedCallback() {
     this._root = this.closest('select-root') as SelectRootElement | null;

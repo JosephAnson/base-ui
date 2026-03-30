@@ -1,29 +1,149 @@
 # Toolbar
 
-<Subtitle>A toolbar for grouping action buttons.</Subtitle>
-<Meta name="description" content="A toolbar for grouping action buttons." />
+<Subtitle>A container for grouping a set of buttons and controls.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit toolbar component that groups a set of buttons and controls."
+/>
+
+import { html } from 'lit';
+import { DemoToolbarHero } from './demos/hero';
+import { TypesToolbar } from './types';
+
+<DemoToolbarHero />
+
+## Usage guidelines
+
+To ensure that toolbars are accessible and helpful, follow these guidelines:
+
+- **Use inputs sparingly**: Left and right arrow keys are used to both move the text insertion cursor in an input, and to navigate among controls in horizontal toolbars. When using an input in a horizontal toolbar, use only one and place it as the last element of the toolbar.
 
 ## Anatomy
 
-```html title="Anatomy"
-<toolbar-root>
-  <toolbar-group>
-    <toolbar-button>Cut</toolbar-button>
-    <toolbar-button>Copy</toolbar-button>
-    <toolbar-button>Paste</toolbar-button>
-  </toolbar-group>
-  <toolbar-separator></toolbar-separator>
-  <toolbar-group>
-    <toolbar-link href="/help">Help</toolbar-link>
-    <toolbar-input placeholder="Search..."></toolbar-input>
-  </toolbar-group>
-</toolbar-root>
+Import the component and assemble its parts:
+
+```ts title="Anatomy"
+import '@base-ui/lit/toolbar';
+import { html } from 'lit';
+
+html`
+  <toolbar-root>
+    <toolbar-button></toolbar-button>
+    <toolbar-link></toolbar-link>
+    <toolbar-separator></toolbar-separator>
+    <toolbar-group>
+      <toolbar-button></toolbar-button>
+      <toolbar-button></toolbar-button>
+    </toolbar-group>
+    <toolbar-input></toolbar-input>
+  </toolbar-root>
+`;
 ```
 
-## Status
+## Examples
 
-The Lit docs are being wired up around the current package surface. This page focuses on live examples and real package entrypoints.
+### Using with Menu
+
+All Base UI popup components that provide a trigger part can be integrated with a toolbar by passing the trigger to `<toolbar-button>` with the `render` prop:
+
+```ts {8} title="Using popups with toolbar"
+import '@base-ui/lit/menu';
+import '@base-ui/lit/toolbar';
+import { html } from 'lit';
+
+html`
+  <toolbar-root>
+    <menu-root>
+      <toolbar-button .render=${html`<menu-trigger>Toggle</menu-trigger>`}></toolbar-button>
+      <menu-portal>
+        <!-- Compose the rest of the menu -->
+      </menu-portal>
+    </menu-root>
+  </toolbar-root>
+`;
+```
+
+This applies to `alert-dialog`, `dialog`, `menu`, `popover`, and `select`.
+
+### Using with Tooltip
+
+Unlike other popups, the toolbar item should be passed to the `render` prop of `<tooltip-trigger>`:
+
+```ts {8} title="Using popups with toolbar"
+import '@base-ui/lit/toolbar';
+import '@base-ui/lit/tooltip';
+import { html } from 'lit';
+
+html`
+  <toolbar-root>
+    <tooltip-root>
+      <tooltip-trigger .render=${html`<toolbar-button></toolbar-button>`}></tooltip-trigger>
+      <tooltip-portal>
+        <!-- Compose the rest of the tooltip -->
+      </tooltip-portal>
+    </tooltip-root>
+  </toolbar-root>
+`;
+```
+
+### Using with NumberField
+
+To use a NumberField in the toolbar, pass `<number-field-input>` to `<toolbar-input>` using the `render` prop:
+
+```ts {10} title="Using NumberField with toolbar"
+import '@base-ui/lit/number-field';
+import '@base-ui/lit/toolbar';
+import { html } from 'lit';
+
+html`
+  <toolbar-root>
+    <number-field-root>
+      <number-field-group>
+        <number-field-decrement></number-field-decrement>
+        <toolbar-input .render=${html`<number-field-input></number-field-input>`}></toolbar-input>
+        <number-field-increment></number-field-increment>
+      </number-field-group>
+    </number-field-root>
+  </toolbar-root>
+`;
+```
+
+## API reference
+
+### Root
+
+<TypesToolbar.Root />
+
+### Button
+
+<TypesToolbar.Button />
+
+### Link
+
+<TypesToolbar.Link />
+
+### Input
+
+<TypesToolbar.Input />
+
+### Group
+
+<TypesToolbar.Group />
+
+### Separator
+
+<TypesToolbar.Separator />
 
 export const metadata = {
-  keywords: ['Lit Toolbar', 'Toolbar', 'Base UI Lit', 'Action bar'],
+  keywords: [
+    'Lit Toolbar',
+    'Toolbar Button Group',
+    'Action Bar',
+    'Button Bar',
+    'Command Strip',
+    'Headless Toolbar Component',
+    'Accessible Toolbar',
+    'Popup Trigger Toolbar',
+    'Base UI',
+  ],
 };

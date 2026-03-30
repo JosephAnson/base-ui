@@ -1,6 +1,8 @@
-import { ReactiveElement } from 'lit';
-import { BaseHTMLElement, ensureId } from '../utils/index.ts';
-import { getDirection } from '../direction-provider/index.ts';
+/* eslint-disable default-case, curly, no-nested-ternary, no-underscore-dangle */
+import { html, ReactiveElement, render as renderTemplate, type TemplateResult } from 'lit';
+import type { ComponentRenderFn, HTMLProps } from '../types';
+import { BaseHTMLElement, ensureId } from '../utils';
+import { getDirection } from '../direction-provider';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -12,6 +14,16 @@ const ACCORDION_ROOT_STATE_CHANGE_EVENT = 'base-ui-accordion-root-state-change';
 const ACCORDION_ITEM_STATE_CHANGE_EVENT = 'base-ui-accordion-item-state-change';
 const ACCORDION_PANEL_HEIGHT_VAR = '--accordion-panel-height';
 const ACCORDION_PANEL_WIDTH_VAR = '--accordion-panel-width';
+const ACCORDION_ROOT_OWNER_ATTRIBUTES = new Set(['id', 'render']);
+const ACCORDION_ITEM_OWNER_ATTRIBUTES = new Set(['id', 'render', 'value']);
+const ACCORDION_HEADER_OWNER_ATTRIBUTES = new Set(['id', 'render']);
+const ACCORDION_TRIGGER_OWNER_ATTRIBUTES = new Set(['id', 'render', 'native-button']);
+const ACCORDION_PANEL_OWNER_ATTRIBUTES = new Set([
+  'id',
+  'render',
+  'hidden-until-found',
+  'keep-mounted',
+]);
 
 const SUPPORTED_TRIGGER_KEYS = new Set([
   'ArrowDown',
@@ -26,14 +38,37 @@ const SUPPORTED_TRIGGER_KEYS = new Set([
 
 type Orientation = 'horizontal' | 'vertical';
 type TransitionStatus = 'starting' | 'ending' | undefined;
+type AccordionRootRenderProps = HTMLProps<HTMLElement>;
+type AccordionRootRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<AccordionRootRenderProps, AccordionRootState>;
+type AccordionItemRenderProps = HTMLProps<HTMLElement>;
+type AccordionItemRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<AccordionItemRenderProps, AccordionItemState>;
+type AccordionHeaderRenderProps = HTMLProps<HTMLElement>;
+type AccordionHeaderRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<AccordionHeaderRenderProps, AccordionHeaderState>;
+type AccordionTriggerRenderProps = HTMLProps<HTMLElement>;
+type AccordionTriggerRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<AccordionTriggerRenderProps, AccordionTriggerState>;
+type AccordionPanelRenderProps = HTMLProps<HTMLElement>;
+type AccordionPanelRenderProp =
+  | TemplateResult
+  | ComponentRenderFn<AccordionPanelRenderProps, AccordionPanelState>;
 
 export type AccordionItemChangeEventReason = 'trigger-press' | 'none';
 
 export interface AccordionItemChangeEventDetails {
   reason: AccordionItemChangeEventReason;
   event: Event;
+  readonly isPropagationAllowed: boolean;
   readonly isCanceled: boolean;
+  readonly trigger: Element | undefined;
   cancel(): void;
+  allowPropagation(): void;
 }
 
 export type AccordionRootChangeEventReason = 'trigger-press' | 'none';
@@ -41,11 +76,15 @@ export type AccordionRootChangeEventReason = 'trigger-press' | 'none';
 export interface AccordionRootChangeEventDetails {
   reason: AccordionRootChangeEventReason;
   event: Event;
+  readonly isPropagationAllowed: boolean;
   readonly isCanceled: boolean;
+  readonly trigger: Element | undefined;
   cancel(): void;
+  allowPropagation(): void;
 }
 
 export interface AccordionRootState {
+  value: unknown[];
   disabled: boolean;
   orientation: Orientation;
 }
@@ -61,21 +100,148 @@ export interface AccordionPanelState extends AccordionItemState {
   transitionStatus: TransitionStatus;
 }
 
+export interface AccordionRootProps<Value = unknown> {
+  /**
+   * The uncontrolled value of the item(s) that should be initially expanded.
+   */
+  defaultValue?: Value[] | undefined;
+  /**
+   * The controlled value of the item(s) that should be expanded.
+   */
+  value?: Value[] | undefined;
+  /**
+   * Event handler called when an accordion item is expanded or collapsed.
+   */
+  onValueChange?:
+    | ((value: Value[], eventDetails: AccordionRootChangeEventDetails) => void)
+    | undefined;
+  /**
+   * Allows the browser's built-in page search to find and expand the panel contents.
+   * @default false
+   */
+  hiddenUntilFound?: boolean | undefined;
+  /**
+   * Whether to keep the element in the DOM while the panel is closed.
+   * This prop is ignored when `hiddenUntilFound` is used.
+   * @default false
+   */
+  keepMounted?: boolean | undefined;
+  /**
+   * Whether to loop keyboard focus back to the first item.
+   * @default true
+   */
+  loopFocus?: boolean | undefined;
+  /**
+   * Whether multiple items can be open at the same time.
+   * @default false
+   */
+  multiple?: boolean | undefined;
+  /**
+   * Whether the component should ignore user interaction.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * The visual orientation of the accordion.
+   * @default 'vertical'
+   */
+  orientation?: Orientation | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: AccordionRootRenderProp | undefined;
+}
+
+export interface AccordionItemProps<Value = unknown> {
+  /**
+   * A unique value that identifies this accordion item.
+   */
+  value?: Value | undefined;
+  /**
+   * Event handler called when the panel is opened or closed.
+   */
+  onOpenChange?:
+    | ((open: boolean, eventDetails: AccordionItemChangeEventDetails) => void)
+    | undefined;
+  /**
+   * Whether the component should ignore user interaction.
+   * @default false
+   */
+  disabled?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: AccordionItemRenderProp | undefined;
+}
+
+export interface AccordionHeaderProps {
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: AccordionHeaderRenderProp | undefined;
+}
+
+export interface AccordionTriggerProps {
+  /**
+   * Whether the component renders a native `<button>` element when replacing it
+   * via the `render` prop.
+   * Set to `false` if the rendered element is not a button.
+   * @default true
+   */
+  nativeButton?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: AccordionTriggerRenderProp | undefined;
+}
+
+export interface AccordionPanelProps {
+  /**
+   * Allows the browser's built-in page search to find and expand the panel contents.
+   * @default false
+   */
+  hiddenUntilFound?: boolean | undefined;
+  /**
+   * Whether to keep the element in the DOM while the panel is closed.
+   * This prop is ignored when `hiddenUntilFound` is used.
+   * @default false
+   */
+  keepMounted?: boolean | undefined;
+  /**
+   * Allows you to replace the component's HTML element with a custom template.
+   * Accepts a `TemplateResult` or a function that returns the template to render.
+   */
+  render?: AccordionPanelRenderProp | undefined;
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
 function createItemChangeEventDetails(
   reason: AccordionItemChangeEventReason,
   event: Event,
+  trigger: Element | undefined,
 ): AccordionItemChangeEventDetails {
   let canceled = false;
+  let propagationAllowed = false;
   return {
     reason,
     event,
+    trigger,
+    get isPropagationAllowed() {
+      return propagationAllowed;
+    },
     get isCanceled() {
       return canceled;
     },
     cancel() {
       canceled = true;
+    },
+    allowPropagation() {
+      propagationAllowed = true;
     },
   };
 }
@@ -83,16 +249,25 @@ function createItemChangeEventDetails(
 function createRootChangeEventDetails(
   reason: AccordionRootChangeEventReason,
   event: Event,
+  trigger: Element | undefined,
 ): AccordionRootChangeEventDetails {
   let canceled = false;
+  let propagationAllowed = false;
   return {
     reason,
     event,
+    trigger,
+    get isPropagationAllowed() {
+      return propagationAllowed;
+    },
     get isCanceled() {
       return canceled;
     },
     cancel() {
       canceled = true;
+    },
+    allowPropagation() {
+      propagationAllowed = true;
     },
   };
 }
@@ -109,10 +284,12 @@ export class AccordionRootElement extends ReactiveElement {
   static properties = {
     disabled: { type: Boolean },
     orientation: { type: String, reflect: true },
+    render: { attribute: false },
   };
 
   declare disabled: boolean;
   declare orientation: Orientation;
+  declare render: AccordionRootRenderProp | undefined;
 
   /** Default value (uncontrolled). */
   defaultValue: unknown[] = [];
@@ -140,6 +317,7 @@ export class AccordionRootElement extends ReactiveElement {
   private _internalValue: unknown[] = [];
   private _initialized = false;
   private _lastPublishedStateKey: string | null = null;
+  private _renderedElement: HTMLElement | null = null;
 
   get value(): unknown[] | undefined {
     return this._value;
@@ -177,6 +355,7 @@ export class AccordionRootElement extends ReactiveElement {
     this.setAttribute(ACCORDION_ROOT_ATTRIBUTE, '');
     this.setAttribute('role', 'region');
     this._syncAttributes();
+    this._syncRenderedElement();
 
     queueMicrotask(() => this._publishStateChange());
   }
@@ -184,10 +363,12 @@ export class AccordionRootElement extends ReactiveElement {
   override disconnectedCallback() {
     super.disconnectedCallback();
     this._lastPublishedStateKey = null;
+    this._resetRenderedElement();
   }
 
   protected override updated() {
     this._syncAttributes();
+    this._syncRenderedElement();
     this._publishStateChange();
   }
 
@@ -199,7 +380,13 @@ export class AccordionRootElement extends ReactiveElement {
     return this.getValue().some((v) => Object.is(v, itemValue));
   }
 
-  handleValueChange(itemValue: unknown, nextOpen: boolean, event: Event): boolean {
+  handleValueChange(
+    itemValue: unknown,
+    nextOpen: boolean,
+    event: Event,
+    reason: AccordionRootChangeEventReason = 'none',
+    trigger: Element | undefined = undefined,
+  ): boolean {
     const currentValue = this.getValue();
     let nextValue: unknown[];
 
@@ -211,10 +398,13 @@ export class AccordionRootElement extends ReactiveElement {
       nextValue = currentValue.filter((v) => !Object.is(v, itemValue));
     }
 
-    const details = createRootChangeEventDetails('none', event);
+    const details = createRootChangeEventDetails(reason, event, trigger);
     this.onValueChange?.(nextValue, details);
 
     if (details.isCanceled) return false;
+    if (reason === 'trigger-press' && !details.isPropagationAllowed) {
+      event.stopPropagation();
+    }
 
     if (!this._valueIsControlled) {
       this._internalValue = nextValue;
@@ -227,6 +417,60 @@ export class AccordionRootElement extends ReactiveElement {
 
   private _syncAttributes() {
     this.toggleAttribute('data-disabled', this.disabled);
+    this.setAttribute('data-orientation', this.orientation);
+  }
+
+  private _syncRenderedElement(): HTMLElement {
+    if (this.render == null) {
+      this._resetRenderedElement();
+      this.style.removeProperty('display');
+      this._renderedElement = this;
+      return this;
+    }
+
+    if (
+      this._renderedElement &&
+      this._renderedElement !== this &&
+      this.contains(this._renderedElement)
+    ) {
+      copyHostAttributes(this, this._renderedElement, ACCORDION_ROOT_OWNER_ATTRIBUTES);
+      this.style.setProperty('display', 'contents');
+      return this._renderedElement;
+    }
+
+    const currentContentNodes =
+      this._renderedElement && this._renderedElement !== this
+        ? Array.from(this._renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this._renderedElement);
+    const template =
+      typeof this.render === 'function' ? this.render({}, this.getState()) : this.render;
+    const nextRoot = materializeTemplateRoot('accordion-root', template);
+
+    copyHostAttributes(this, nextRoot, ACCORDION_ROOT_OWNER_ATTRIBUTES);
+    nextRoot.replaceChildren(...currentContentNodes);
+    this.replaceChildren(nextRoot);
+    this.style.setProperty('display', 'contents');
+    this._renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private _resetRenderedElement() {
+    if (this._renderedElement == null || this._renderedElement === this) {
+      this._renderedElement = this;
+      return;
+    }
+
+    const contentNodes = Array.from(this._renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this._renderedElement = null;
+  }
+
+  getState(): AccordionRootState {
+    return {
+      value: this.getValue(),
+      disabled: this.disabled,
+      orientation: this.orientation,
+    };
   }
 
   private _publishStateChange() {
@@ -255,8 +499,22 @@ if (!customElements.get('accordion-root')) {
  * Documentation: [Base UI Accordion](https://base-ui.com/react/components/accordion)
  */
 export class AccordionItemElement extends BaseHTMLElement {
+  static override get observedAttributes() {
+    return ['value', 'disabled'];
+  }
+
   /** The value that identifies this item. */
   declare itemValue: unknown;
+
+  /** Alias of `itemValue` to match the React/public API surface. */
+  get value(): unknown {
+    return this.itemValue;
+  }
+
+  set value(nextValue: unknown) {
+    this.itemValue = nextValue;
+    this._syncAttributes();
+  }
 
   /** Whether this item is disabled. */
   disabled = false;
@@ -266,23 +524,39 @@ export class AccordionItemElement extends BaseHTMLElement {
     | ((open: boolean, eventDetails: AccordionItemChangeEventDetails) => void)
     | undefined;
 
+  render: AccordionItemRenderProp | undefined;
+
   private _root: AccordionRootElement | null = null;
   private _triggerId: string | undefined;
   private _panelId: string | undefined;
   private _handler = () => this._syncAttributes();
   private _lastPublishedStateKey: string | null = null;
+  private _renderedElement: HTMLElement | null = null;
+
+  override attributeChangedCallback(
+    name: string,
+    _oldValue: string | null,
+    newValue: string | null,
+  ) {
+    if (name === 'value') {
+      this.itemValue = newValue ?? undefined;
+      this._syncAttributes();
+    } else if (name === 'disabled') {
+      this.disabled = newValue !== null;
+      this._syncAttributes();
+    }
+  }
 
   connectedCallback() {
     this._root = this.closest('accordion-root') as AccordionRootElement | null;
     if (!this._root) {
-      console.error(
-        'Base UI: Accordion parts must be placed within <accordion-root>.',
-      );
+      console.error('Base UI: Accordion parts must be placed within <accordion-root>.');
       return;
     }
 
     this.setAttribute(ACCORDION_ITEM_ATTRIBUTE, '');
     this._root.addEventListener(ACCORDION_ROOT_STATE_CHANGE_EVENT, this._handler);
+    this._syncRenderedElement();
 
     queueMicrotask(() => this._syncAttributes());
   }
@@ -291,6 +565,7 @@ export class AccordionItemElement extends BaseHTMLElement {
     this._root?.removeEventListener(ACCORDION_ROOT_STATE_CHANGE_EVENT, this._handler);
     this._root = null;
     this._lastPublishedStateKey = null;
+    this._resetRenderedElement();
   }
 
   getRoot(): AccordionRootElement | null {
@@ -306,6 +581,7 @@ export class AccordionItemElement extends BaseHTMLElement {
     const root = this._root;
     const disabled = this.disabled || (root?.disabled ?? false);
     return {
+      value: root?.getValue() ?? [],
       disabled,
       orientation: root?.orientation ?? 'vertical',
       index: this._getIndex(),
@@ -336,12 +612,31 @@ export class AccordionItemElement extends BaseHTMLElement {
   toggle(nextOpen: boolean, event: Event, reason: AccordionItemChangeEventReason) {
     if (!this._root) return;
 
-    const details = createItemChangeEventDetails(reason, event);
+    const details = createItemChangeEventDetails(
+      reason,
+      event,
+      this.getTriggerElement() ?? undefined,
+    );
     this.onOpenChange?.(nextOpen, details);
 
     if (details.isCanceled) return;
+    if (reason === 'trigger-press' && !details.isPropagationAllowed) {
+      event.stopPropagation();
+    }
 
-    this._root.handleValueChange(this.itemValue, nextOpen, event);
+    this._root.handleValueChange(this.itemValue, nextOpen, event, reason, details.trigger);
+  }
+
+  getTriggerElement(): HTMLElement | null {
+    if (this._triggerId) {
+      const byId = this.querySelector<HTMLElement>(`#${CSS.escape(this._triggerId)}`);
+      if (byId) {
+        return byId;
+      }
+    }
+
+    const trigger = this.querySelector<AccordionTriggerElement>('accordion-trigger');
+    return trigger?.getFocusTarget() ?? trigger ?? null;
   }
 
   private _getIndex(): number {
@@ -363,7 +658,53 @@ export class AccordionItemElement extends BaseHTMLElement {
       this.setAttribute('data-index', String(state.index));
     }
 
+    this._syncRenderedElement();
     this._publishItemStateChange();
+  }
+
+  private _syncRenderedElement(): HTMLElement {
+    if (this.render == null) {
+      this._resetRenderedElement();
+      this.style.removeProperty('display');
+      this._renderedElement = this;
+      return this;
+    }
+
+    if (
+      this._renderedElement &&
+      this._renderedElement !== this &&
+      this.contains(this._renderedElement)
+    ) {
+      copyHostAttributes(this, this._renderedElement, ACCORDION_ITEM_OWNER_ATTRIBUTES);
+      this.style.setProperty('display', 'contents');
+      return this._renderedElement;
+    }
+
+    const currentContentNodes =
+      this._renderedElement && this._renderedElement !== this
+        ? Array.from(this._renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this._renderedElement);
+    const template =
+      typeof this.render === 'function' ? this.render({}, this.getState()) : this.render;
+    const nextRoot = materializeTemplateRoot('accordion-item', template);
+
+    copyHostAttributes(this, nextRoot, ACCORDION_ITEM_OWNER_ATTRIBUTES);
+    nextRoot.replaceChildren(...currentContentNodes);
+    this.replaceChildren(nextRoot);
+    this.style.setProperty('display', 'contents');
+    this._renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private _resetRenderedElement() {
+    if (this._renderedElement == null || this._renderedElement === this) {
+      this._renderedElement = this;
+      return;
+    }
+
+    const contentNodes = Array.from(this._renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this._renderedElement = null;
   }
 
   private _publishItemStateChange() {
@@ -396,13 +737,13 @@ if (!customElements.get('accordion-item')) {
 export class AccordionHeaderElement extends BaseHTMLElement {
   private _item: AccordionItemElement | null = null;
   private _handler = () => this._syncAttributes();
+  render: AccordionHeaderRenderProp | undefined;
+  private _renderedElement: HTMLElement | null = null;
 
   connectedCallback() {
     this._item = this.closest('accordion-item') as AccordionItemElement | null;
     if (!this._item) {
-      console.error(
-        'Base UI: Accordion parts must be placed within <accordion-item>.',
-      );
+      console.error('Base UI: Accordion parts must be placed within <accordion-item>.');
       return;
     }
 
@@ -410,12 +751,14 @@ export class AccordionHeaderElement extends BaseHTMLElement {
     this.setAttribute('aria-level', '3');
 
     this._item.addEventListener(ACCORDION_ITEM_STATE_CHANGE_EVENT, this._handler);
+    this._syncRenderedElement();
     queueMicrotask(() => this._syncAttributes());
   }
 
   disconnectedCallback() {
     this._item?.removeEventListener(ACCORDION_ITEM_STATE_CHANGE_EVENT, this._handler);
     this._item = null;
+    this._resetRenderedElement();
   }
 
   private _syncAttributes() {
@@ -428,6 +771,63 @@ export class AccordionHeaderElement extends BaseHTMLElement {
     if (Number.isInteger(state.index)) {
       this.setAttribute('data-index', String(state.index));
     }
+    this._syncRenderedElement();
+  }
+
+  private _syncRenderedElement(): HTMLElement {
+    if (this.render == null) {
+      this._resetRenderedElement();
+      this.style.removeProperty('display');
+      this._renderedElement = this;
+      return this;
+    }
+
+    if (
+      this._renderedElement &&
+      this._renderedElement !== this &&
+      this.contains(this._renderedElement)
+    ) {
+      copyHostAttributes(this, this._renderedElement, ACCORDION_HEADER_OWNER_ATTRIBUTES);
+      this.style.setProperty('display', 'contents');
+      return this._renderedElement;
+    }
+
+    const currentContentNodes =
+      this._renderedElement && this._renderedElement !== this
+        ? Array.from(this._renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this._renderedElement);
+    const template =
+      typeof this.render === 'function'
+        ? this.render(
+            {},
+            this._item?.getState() ?? {
+              value: [],
+              disabled: false,
+              orientation: 'vertical',
+              index: 0,
+              open: false,
+            },
+          )
+        : this.render;
+    const nextRoot = materializeTemplateRoot('accordion-header', template);
+
+    copyHostAttributes(this, nextRoot, ACCORDION_HEADER_OWNER_ATTRIBUTES);
+    nextRoot.replaceChildren(...currentContentNodes);
+    this.replaceChildren(nextRoot);
+    this.style.setProperty('display', 'contents');
+    this._renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private _resetRenderedElement() {
+    if (this._renderedElement == null || this._renderedElement === this) {
+      this._renderedElement = this;
+      return;
+    }
+
+    const contentNodes = Array.from(this._renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this._renderedElement = null;
   }
 }
 
@@ -444,15 +844,21 @@ if (!customElements.get('accordion-header')) {
  * Documentation: [Base UI Accordion](https://base-ui.com/react/components/accordion)
  */
 export class AccordionTriggerElement extends BaseHTMLElement {
+  static properties = {
+    nativeButton: { type: Boolean, attribute: 'native-button' },
+    render: { attribute: false },
+  };
+
+  nativeButton = true;
+  render: AccordionTriggerRenderProp | undefined;
   private _item: AccordionItemElement | null = null;
   private _handler = () => this._syncAttributes();
+  private _renderedElement: HTMLElement | null = null;
 
   connectedCallback() {
     this._item = this.closest('accordion-item') as AccordionItemElement | null;
     if (!this._item) {
-      console.error(
-        'Base UI: Accordion parts must be placed within <accordion-item>.',
-      );
+      console.error('Base UI: Accordion parts must be placed within <accordion-item>.');
       return;
     }
 
@@ -464,6 +870,7 @@ export class AccordionTriggerElement extends BaseHTMLElement {
     this._item.setTriggerId(this.id);
 
     this._item.addEventListener(ACCORDION_ITEM_STATE_CHANGE_EVENT, this._handler);
+    this._syncRenderedElement();
 
     this.addEventListener('click', this._handleClick);
     this.addEventListener('keydown', this._handleKeyDown);
@@ -481,6 +888,7 @@ export class AccordionTriggerElement extends BaseHTMLElement {
     this.removeEventListener('keydown', this._handleKeyDown);
     this.removeEventListener('keyup', this._handleKeyUp);
     this._item = null;
+    this._resetRenderedElement();
   }
 
   private _handleClick = (event: Event) => {
@@ -495,7 +903,7 @@ export class AccordionTriggerElement extends BaseHTMLElement {
 
   private _handleKeyDown = (event: KeyboardEvent) => {
     if (!this._item) return;
-    if (event.target !== this) return;
+    if (event.target !== this && event.target !== this.getFocusTarget()) return;
     const state = this._item.getState();
     if (state.disabled) return;
 
@@ -525,25 +933,32 @@ export class AccordionTriggerElement extends BaseHTMLElement {
       root.querySelectorAll<HTMLElement>(`[${ACCORDION_ITEM_ATTRIBUTE}]`),
     )
       .filter((item) => !item.hasAttribute('data-disabled'))
-      .map((item) => item.querySelector<HTMLElement>(`[${ACCORDION_TRIGGER_ATTRIBUTE}]`))
+      .map((item) =>
+        item.querySelector<AccordionTriggerElement>(`[${ACCORDION_TRIGGER_ATTRIBUTE}]`),
+      )
+      .map((trigger) => trigger?.getFocusTarget() ?? null)
       .filter((trigger): trigger is HTMLElement => trigger != null);
 
     if (activeTriggers.length === 0) return;
 
-    const currentIndex = activeTriggers.indexOf(this);
+    const currentIndex = activeTriggers.indexOf(this.getFocusTarget());
     const lastIndex = activeTriggers.length - 1;
     const loopFocus = root.loopFocus;
     let nextIndex = -1;
 
     const toNext = () => {
       nextIndex = loopFocus
-        ? (currentIndex + 1 > lastIndex ? 0 : currentIndex + 1)
+        ? currentIndex + 1 > lastIndex
+          ? 0
+          : currentIndex + 1
         : Math.min(currentIndex + 1, lastIndex);
     };
 
     const toPrev = () => {
       nextIndex = loopFocus
-        ? (currentIndex <= 0 ? lastIndex : currentIndex - 1)
+        ? currentIndex <= 0
+          ? lastIndex
+          : currentIndex - 1
         : Math.max(currentIndex - 1, 0);
     };
 
@@ -603,6 +1018,91 @@ export class AccordionTriggerElement extends BaseHTMLElement {
 
     this.toggleAttribute('data-starting-style', false);
     this.toggleAttribute('data-ending-style', false);
+    this._syncRenderedElement();
+  }
+
+  getFocusTarget(): HTMLElement {
+    if (
+      this._renderedElement &&
+      this._renderedElement !== this &&
+      this.contains(this._renderedElement)
+    ) {
+      return this._renderedElement;
+    }
+
+    return this;
+  }
+
+  private _syncRenderedElement(): HTMLElement {
+    if (this.render == null) {
+      this._resetRenderedElement();
+      this.style.removeProperty('display');
+      this._renderedElement = this;
+      return this;
+    }
+
+    if (
+      this._renderedElement &&
+      this._renderedElement !== this &&
+      this.contains(this._renderedElement)
+    ) {
+      copyHostAttributes(this, this._renderedElement, ACCORDION_TRIGGER_OWNER_ATTRIBUTES);
+      this._applyNativeButtonSemantics(this._renderedElement);
+      this.style.setProperty('display', 'contents');
+      return this._renderedElement;
+    }
+
+    const currentContentNodes =
+      this._renderedElement && this._renderedElement !== this
+        ? Array.from(this._renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this._renderedElement);
+    const template =
+      typeof this.render === 'function'
+        ? this.render(
+            {},
+            this._item?.getState() ?? {
+              value: [],
+              disabled: false,
+              orientation: 'vertical',
+              index: 0,
+              open: false,
+            },
+          )
+        : this.render;
+    const nextRoot = materializeTemplateRoot('accordion-trigger', template);
+
+    copyHostAttributes(this, nextRoot, ACCORDION_TRIGGER_OWNER_ATTRIBUTES);
+    nextRoot.replaceChildren(...currentContentNodes);
+    this.replaceChildren(nextRoot);
+    this._applyNativeButtonSemantics(nextRoot);
+    this.style.setProperty('display', 'contents');
+    this._renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private _applyNativeButtonSemantics(target: HTMLElement) {
+    if (this.nativeButton && target instanceof HTMLButtonElement) {
+      target.type = 'button';
+      target.disabled = this.hasAttribute('aria-disabled');
+      target.removeAttribute('role');
+      return;
+    }
+
+    if (!target.hasAttribute('tabindex')) {
+      target.setAttribute('tabindex', '0');
+    }
+    target.setAttribute('role', 'button');
+  }
+
+  private _resetRenderedElement() {
+    if (this._renderedElement == null || this._renderedElement === this) {
+      this._renderedElement = this;
+      return;
+    }
+
+    const contentNodes = Array.from(this._renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this._renderedElement = null;
   }
 }
 
@@ -619,11 +1119,19 @@ if (!customElements.get('accordion-trigger')) {
  * Documentation: [Base UI Accordion](https://base-ui.com/react/components/accordion)
  */
 export class AccordionPanelElement extends BaseHTMLElement {
+  static properties = {
+    keepMounted: { type: Boolean, attribute: 'keep-mounted' },
+    hiddenUntilFound: { type: Boolean, attribute: 'hidden-until-found' },
+    render: { attribute: false },
+  };
+
   /** Keep the panel in the DOM when closed. */
   keepMounted = false;
 
   /** Use hidden="until-found" for browser find-in-page support. */
   hiddenUntilFound = false;
+
+  render: AccordionPanelRenderProp | undefined;
 
   private _item: AccordionItemElement | null = null;
   private _handler = () => this._handleStateChange();
@@ -632,6 +1140,7 @@ export class AccordionPanelElement extends BaseHTMLElement {
   private _lastOpen: boolean | null = null;
   private _frameId: number | null = null;
   private _exitRunId = 0;
+  private _renderedElement: HTMLElement | null = null;
 
   connectedCallback() {
     // Custom elements default to display:inline where height/overflow are ignored.
@@ -642,9 +1151,7 @@ export class AccordionPanelElement extends BaseHTMLElement {
 
     this._item = this.closest('accordion-item') as AccordionItemElement | null;
     if (!this._item) {
-      console.error(
-        'Base UI: Accordion parts must be placed within <accordion-item>.',
-      );
+      console.error('Base UI: Accordion parts must be placed within <accordion-item>.');
       return;
     }
 
@@ -661,6 +1168,7 @@ export class AccordionPanelElement extends BaseHTMLElement {
     }
 
     this._item.addEventListener(ACCORDION_ITEM_STATE_CHANGE_EVENT, this._handler);
+    this._syncRenderedElement();
 
     // Immediately hide if item is closed to prevent flash
     if (!this._item.getOpen()) {
@@ -680,6 +1188,7 @@ export class AccordionPanelElement extends BaseHTMLElement {
     this._mounted = false;
     this._lastOpen = null;
     this._transitionStatus = undefined;
+    this._resetRenderedElement();
   }
 
   private _handleStateChange() {
@@ -689,10 +1198,7 @@ export class AccordionPanelElement extends BaseHTMLElement {
     const wasOpen = this._lastOpen;
     const root = this._item.getRoot();
     const shouldStayMounted =
-      this.keepMounted ||
-      this.hiddenUntilFound ||
-      root?.keepMounted ||
-      root?.hiddenUntilFound;
+      this.keepMounted || this.hiddenUntilFound || root?.keepMounted || root?.hiddenUntilFound;
 
     // Update aria-labelledby when trigger id may have changed
     const triggerId = this._item.getTriggerId();
@@ -727,14 +1233,9 @@ export class AccordionPanelElement extends BaseHTMLElement {
     const state = this._item.getState();
     const root = this._item.getRoot();
     const shouldStayMounted =
-      this.keepMounted ||
-      this.hiddenUntilFound ||
-      root?.keepMounted ||
-      root?.hiddenUntilFound;
-    const useHiddenUntilFound =
-      this.hiddenUntilFound || root?.hiddenUntilFound;
-    const shouldRender =
-      this._mounted || this._transitionStatus === 'ending' || shouldStayMounted;
+      this.keepMounted || this.hiddenUntilFound || root?.keepMounted || root?.hiddenUntilFound;
+    const useHiddenUntilFound = this.hiddenUntilFound || root?.hiddenUntilFound;
+    const shouldRender = this._mounted || this._transitionStatus === 'ending' || shouldStayMounted;
 
     if (!shouldRender) {
       this.setAttribute('hidden', '');
@@ -765,6 +1266,71 @@ export class AccordionPanelElement extends BaseHTMLElement {
     const width = this.scrollWidth;
     this.style.setProperty(ACCORDION_PANEL_HEIGHT_VAR, height ? `${height}px` : 'auto');
     this.style.setProperty(ACCORDION_PANEL_WIDTH_VAR, width ? `${width}px` : 'auto');
+    this._syncRenderedElement();
+  }
+
+  private _syncRenderedElement(): HTMLElement {
+    if (this.render == null) {
+      this._resetRenderedElement();
+      if (!this.style.display) {
+        this.style.display = 'block';
+      }
+      this._renderedElement = this;
+      return this;
+    }
+
+    if (
+      this._renderedElement &&
+      this._renderedElement !== this &&
+      this.contains(this._renderedElement)
+    ) {
+      copyHostAttributes(this, this._renderedElement, ACCORDION_PANEL_OWNER_ATTRIBUTES);
+      this.style.setProperty('display', 'contents');
+      return this._renderedElement;
+    }
+
+    const currentContentNodes =
+      this._renderedElement && this._renderedElement !== this
+        ? Array.from(this._renderedElement.childNodes)
+        : Array.from(this.childNodes).filter((node) => node !== this._renderedElement);
+    const template =
+      typeof this.render === 'function'
+        ? this.render(
+            {},
+            this._item?.getState() != null
+              ? {
+                  ...this._item.getState(),
+                  transitionStatus: this._transitionStatus,
+                }
+              : {
+                  value: [],
+                  disabled: false,
+                  orientation: 'vertical',
+                  index: 0,
+                  open: false,
+                  transitionStatus: this._transitionStatus,
+                },
+          )
+        : this.render;
+    const nextRoot = materializeTemplateRoot('accordion-panel', template);
+
+    copyHostAttributes(this, nextRoot, ACCORDION_PANEL_OWNER_ATTRIBUTES);
+    nextRoot.replaceChildren(...currentContentNodes);
+    this.replaceChildren(nextRoot);
+    this.style.setProperty('display', 'contents');
+    this._renderedElement = nextRoot;
+    return nextRoot;
+  }
+
+  private _resetRenderedElement() {
+    if (this._renderedElement == null || this._renderedElement === this) {
+      this._renderedElement = this;
+      return;
+    }
+
+    const contentNodes = Array.from(this._renderedElement.childNodes);
+    this.replaceChildren(...contentNodes);
+    this._renderedElement = null;
   }
 
   private _scheduleStartingCleanup() {
@@ -797,7 +1363,7 @@ export class AccordionPanelElement extends BaseHTMLElement {
 
     if (
       typeof this.getAnimations !== 'function' ||
-      (globalThis as typeof globalThis & { BASE_UI_ANIMATIONS_DISABLED?: boolean })
+      (globalThis as typeof globalThis & { BASE_UI_ANIMATIONS_DISABLED?: boolean | undefined })
         .BASE_UI_ANIMATIONS_DISABLED
     ) {
       this._finishExit(runId, keepMounted);
@@ -809,10 +1375,7 @@ export class AccordionPanelElement extends BaseHTMLElement {
       .catch(() => {
         if (runId !== this._exitRunId) return;
         const active = this.getAnimations();
-        if (
-          active.length > 0 &&
-          active.some((a) => a.pending || a.playState !== 'finished')
-        ) {
+        if (active.length > 0 && active.some((a) => a.pending || a.playState !== 'finished')) {
           this._waitForExitAnimations(runId, keepMounted);
           return;
         }
@@ -839,31 +1402,153 @@ if (!customElements.get('accordion-panel')) {
   customElements.define('accordion-panel', AccordionPanelElement);
 }
 
+function copyHostAttributes(
+  host: HTMLElement,
+  target: HTMLElement,
+  ignoredAttributes: Set<string>,
+) {
+  let copiedStyle = false;
+
+  Array.from(host.attributes).forEach((attribute) => {
+    if (ignoredAttributes.has(attribute.name)) {
+      return;
+    }
+
+    if (attribute.name === 'style') {
+      copiedStyle = true;
+      const declarations = Array.from(host.style)
+        .filter((propertyName) => propertyName !== 'display')
+        .map((propertyName) => {
+          const value = host.style.getPropertyValue(propertyName);
+          const priority = host.style.getPropertyPriority(propertyName);
+          return priority ? `${propertyName}: ${value} !important;` : `${propertyName}: ${value};`;
+        })
+        .join(' ');
+
+      if (declarations.trim().length > 0) {
+        target.setAttribute('style', declarations);
+      } else {
+        target.removeAttribute('style');
+      }
+      return;
+    }
+
+    target.setAttribute(attribute.name, attribute.value);
+  });
+
+  if (!copiedStyle && target.getAttribute('style') != null && target.style.display === '') {
+    target.removeAttribute('style');
+  }
+}
+
+function materializeTemplateRoot(name: string, template: TemplateResult): HTMLElement {
+  const container = document.createElement('div');
+  renderTemplate(template, container);
+
+  const meaningfulChildren = Array.from(container.childNodes).filter((node) => {
+    if (node.nodeType === Node.COMMENT_NODE) {
+      return false;
+    }
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      return node.textContent?.trim().length;
+    }
+
+    return true;
+  });
+
+  if (meaningfulChildren.length !== 1 || !(meaningfulChildren[0] instanceof HTMLElement)) {
+    throw new Error(
+      `Base UI: \`<${name}>\` render templates must resolve to exactly one HTML element ` +
+        'so attributes, ids, and children can be applied correctly. ' +
+        'Update the `render` template to return a single root element.',
+    );
+  }
+
+  return meaningfulChildren[0];
+}
+
+function AccordionRootHelper<Value = unknown>(props: AccordionRootProps<Value>) {
+  return html`<accordion-root
+    .defaultValue=${props.defaultValue ?? []}
+    .value=${props.value}
+    .onValueChange=${props.onValueChange}
+    .hiddenUntilFound=${props.hiddenUntilFound ?? false}
+    .keepMounted=${props.keepMounted ?? false}
+    .loopFocus=${props.loopFocus ?? true}
+    .multiple=${props.multiple ?? false}
+    .disabled=${props.disabled ?? false}
+    .orientation=${props.orientation ?? 'vertical'}
+    .render=${props.render}
+  ></accordion-root>`;
+}
+
+function AccordionItemHelper<Value = unknown>(props: AccordionItemProps<Value>) {
+  return html`<accordion-item
+    .itemValue=${props.value}
+    .disabled=${props.disabled ?? false}
+    .onOpenChange=${props.onOpenChange}
+    .render=${props.render}
+  ></accordion-item>`;
+}
+
+function AccordionHeaderHelper(props: AccordionHeaderProps) {
+  return html`<accordion-header .render=${props.render}></accordion-header>`;
+}
+
+function AccordionTriggerHelper(props: AccordionTriggerProps) {
+  return html`<accordion-trigger
+    .nativeButton=${props.nativeButton ?? true}
+    .render=${props.render}
+  ></accordion-trigger>`;
+}
+
+function AccordionPanelHelper(props: AccordionPanelProps) {
+  return html`<accordion-panel
+    .hiddenUntilFound=${props.hiddenUntilFound ?? false}
+    .keepMounted=${props.keepMounted ?? false}
+    .render=${props.render}
+  ></accordion-panel>`;
+}
+
 // ─── Namespace exports ──────────────────────────────────────────────────────────
 
 export namespace AccordionRoot {
+  export type Props<Value = unknown> = AccordionRootProps<Value>;
   export type State = AccordionRootState;
   export type ChangeEventReason = AccordionRootChangeEventReason;
   export type ChangeEventDetails = AccordionRootChangeEventDetails;
 }
 
 export namespace AccordionItem {
+  export type Props<Value = unknown> = AccordionItemProps<Value>;
   export type State = AccordionItemState;
   export type ChangeEventReason = AccordionItemChangeEventReason;
   export type ChangeEventDetails = AccordionItemChangeEventDetails;
 }
 
 export namespace AccordionHeader {
+  export type Props = AccordionHeaderProps;
   export type State = AccordionHeaderState;
 }
 
 export namespace AccordionTrigger {
+  export type Props = AccordionTriggerProps;
   export type State = AccordionTriggerState;
 }
 
 export namespace AccordionPanel {
+  export type Props = AccordionPanelProps;
   export type State = AccordionPanelState;
 }
+
+export const Accordion = {
+  Root: AccordionRootHelper,
+  Item: AccordionItemHelper,
+  Header: AccordionHeaderHelper,
+  Trigger: AccordionTriggerHelper,
+  Panel: AccordionPanelHelper,
+} as const;
 
 // ─── Global type declarations ───────────────────────────────────────────────────
 

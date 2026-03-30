@@ -1,38 +1,223 @@
 # Tooltip
 
-<Subtitle>A popup that appears when an element is hovered or focused.</Subtitle>
-<Meta name="description" content="A Lit tooltip component for Base UI." />
+<Subtitle>
+  A popup that appears when an element is hovered or focused, showing a hint for sighted users.
+</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit tooltip component that appears when an element is hovered or focused, showing a hint for sighted users."
+/>
 
-import HeroDemo from './demos/hero/css-modules';
-import DetachedSimpleDemo from './demos/detached-triggers-simple/css-modules';
-import DetachedFullDemo from './demos/detached-triggers-full/css-modules';
-import DetachedControlledDemo from './demos/detached-triggers-controlled/css-modules';
+import { DemoTooltipHero } from './demos/hero';
+import { DemoTooltipDetachedTriggersSimple } from './demos/detached-triggers-simple';
+import { DemoTooltipDetachedTriggersControlled } from './demos/detached-triggers-controlled';
+import { DemoTooltipDetachedTriggersFull } from './demos/detached-triggers-full';
+import { TypesTooltip } from './types';
 
-<HeroDemo />
+<DemoTooltipHero />
 
-## Detached Triggers
+## Usage guidelines
 
-<DetachedSimpleDemo />
-
-## Multiple Triggers
-
-<DetachedFullDemo />
-
-## Controlled
-
-<DetachedControlledDemo />
+- **Prefer using tooltips as visual labels only**: Tooltips should act as supplementary visual labels for sighted mouse and keyboard users. Tooltips alone are not accessible to touch or screen reader users. See [Alternatives to tooltips](#alternatives-to-tooltips) for more details.
+- **Provide an accessible name for the trigger**: Tooltips are visual-only elements and are not a replacement for labeling the trigger. The tooltip's trigger must have an `aria-label` attribute that closely matches the tooltip's content to ensure consistency for screen reader users.
 
 ## Anatomy
 
-```html title="Anatomy"
-<tooltip-root>
-  <tooltip-trigger>Open</tooltip-trigger>
-  <tooltip-popup>
-    <tooltip-arrow></tooltip-arrow>
-  </tooltip-popup>
-</tooltip-root>
+Import the component and assemble its parts:
+
+```ts title="Anatomy"
+import '@base-ui/lit/tooltip';
+
+html`<tooltip-provider>
+  <tooltip-root>
+    <tooltip-trigger></tooltip-trigger>
+    <tooltip-portal>
+      <tooltip-positioner>
+        <tooltip-popup>
+          <tooltip-arrow></tooltip-arrow>
+        </tooltip-popup>
+      </tooltip-positioner>
+    </tooltip-portal>
+  </tooltip-root>
+</tooltip-provider>`;
 ```
 
+## Alternatives to tooltips
+
+Tooltips should be supplementary popups that provide non-essential clarity in high-density UIs. A user should not miss critical information if they never see a tooltip.
+
+Tooltips don't work well with touch input. Unlike mouse pointers with hover capability, there's no easily discoverable way to reveal a tooltip before tapping its trigger on a touch device.
+
+iOS doesn't provide a system-standard, touch-friendly tooltip affordance, while Android may show a tooltip on long press. However, on the web, long press is often used to trigger contextual menus in the browser, which can lead to potential conflicts. For this reason, tooltips are disabled on touch devices.
+
+### Infotips
+
+Popups that open when hovering an info icon should use [Popover](/lit/components/popover) with hover interaction instead of a tooltip. This way, touch users and screen reader users can access the content.
+
+To know when to reach for a popover instead of a tooltip, consider the **purpose** of the trigger element:
+If the trigger's purpose is to open the popup itself, it's a popover. If the trigger's purpose is unrelated to opening the popup, it's a tooltip.
+
+### Description text
+
+Tooltips are designed for sighted users and are not a reliable way to deliver important information to touch users or assistive technologies. If the description is important to understanding the element, don't hide it behind a tooltip. Use inline text or [Popover](/lit/components/popover) if space is limited.
+
+### Contextual feedback messages
+
+Use [Toast](/lit/components/toast) for contextual feedback messages that should be announced more reliably and can contain richer content.
+
+## Examples
+
+### Detached triggers
+
+A tooltip can be controlled by a trigger located either inside or outside the `<tooltip-root>` component.
+For simple, one-off interactions, place the `<tooltip-trigger>` inside `<tooltip-root>`, as shown in the example at the top of this page.
+
+However, if defining the tooltip's content next to its trigger is not practical, you can use a detached trigger.
+This involves placing the `<tooltip-trigger>` outside of `<tooltip-root>` and linking them with a handle created by the `createTooltipHandle()` function.
+
+```ts title="Detached triggers"
+import { Tooltip } from '@base-ui/lit/tooltip';
+
+const demoTooltip = Tooltip.createHandle();
+
+html`
+  <tooltip-trigger .handle=${demoTooltip}>Button</tooltip-trigger>
+
+  <tooltip-root .handle=${demoTooltip}> ... </tooltip-root>
+`;
+```
+
+<DemoTooltipDetachedTriggersSimple />
+
+### Multiple triggers
+
+A single tooltip can be opened by multiple trigger elements.
+You can achieve this by using the same `handle` for several detached triggers.
+
+The tooltip can render different content depending on which trigger opened it.
+This is achieved by passing a `payload` to the `<tooltip-trigger>` and using the active payload when rendering the popup content.
+
+The payload can be strongly typed by providing a type argument to the `createTooltipHandle()` function:
+
+```ts title="Detached triggers with payload"
+import { Tooltip } from '@base-ui/lit/tooltip';
+
+const demoTooltip = Tooltip.createHandle<{ text: string }>();
+
+html`
+  <tooltip-trigger .handle=${demoTooltip} .payload=${{ text: 'Trigger 1' }}>
+    Trigger 1
+  </tooltip-trigger>
+
+  <tooltip-trigger .handle=${demoTooltip} .payload=${{ text: 'Trigger 2' }}>
+    Trigger 2
+  </tooltip-trigger>
+
+  <tooltip-root .handle=${demoTooltip}>
+    <tooltip-portal>
+      <tooltip-positioner .sideOffset=${10}>
+        <tooltip-popup>
+          <tooltip-arrow></tooltip-arrow>
+          ${demoTooltip.activePayload
+            ? html`<span>Tooltip opened by ${demoTooltip.activePayload.text}</span>`
+            : null}
+        </tooltip-popup>
+      </tooltip-positioner>
+    </tooltip-portal>
+  </tooltip-root>
+`;
+```
+
+<DemoTooltipDetachedTriggersFull />
+
+### Controlled mode with multiple triggers
+
+You can control the tooltip's open state externally using the `open` and `onOpenChange` properties on `<tooltip-root>`.
+This allows you to manage the tooltip's visibility based on your application's state.
+When using multiple triggers, you have to manage which trigger is active with the `triggerId` property on `<tooltip-root>` and the `id` property on each `<tooltip-trigger>`.
+
+Note that there is no separate `onTriggerIdChange` callback.
+Instead, the `onOpenChange` callback receives event details that contain the trigger element that initiated the state change.
+
+<DemoTooltipDetachedTriggersControlled />
+
+### Animating the Tooltip
+
+You can animate a tooltip as it moves between different trigger elements.
+This includes animating its position, size, and content.
+
+#### Position and Size
+
+To animate the tooltip's position, apply CSS transitions to the `left`, `right`, `top`, and `bottom` properties of the **Positioner** part.
+To animate its size, transition the `width` and `height` of the **Popup** part.
+
+#### Content
+
+The tooltip also supports content transitions.
+This is useful when different triggers display different content within the same tooltip.
+
+To enable content animations, wrap the content in the `<tooltip-viewport>` part.
+This part provides features to create direction-aware animations.
+It renders a `div` with a `data-activation-direction` attribute (`left`, `right`, `up`, or `down`) that indicates the new trigger's position relative to the previous one.
+
+Inside the `<tooltip-viewport>`, the content is further wrapped in `div`s with data attributes to help with styling:
+
+- `data-current`: The currently visible content when no transitions are present or the incoming content.
+- `data-previous`: The outgoing content during a transition.
+
+You can use these attributes to style the enter and exit animations.
+
+<DemoTooltipDetachedTriggersFull />
+
+## API reference
+
+### Provider
+
+<TypesTooltip.Provider />
+
+### Root
+
+<TypesTooltip.Root />
+
+### Trigger
+
+<TypesTooltip.Trigger />
+
+### Portal
+
+<TypesTooltip.Portal />
+
+### Positioner
+
+<TypesTooltip.Positioner />
+
+### Popup
+
+<TypesTooltip.Popup />
+
+### Arrow
+
+<TypesTooltip.Arrow />
+
+### createHandle
+
+<TypesTooltip.createHandle />
+
+### Handle
+
+<TypesTooltip.Handle />
+
 export const metadata = {
-  keywords: ['Lit Tooltip', 'Tooltip', 'Base UI Lit'],
+  keywords: [
+    'Lit Tooltip',
+    'Tooltip Component',
+    'Detached Trigger Tooltip',
+    'Hint',
+    'Help Text',
+    'Hover Text',
+    'Hover Hint',
+    'Accessible Tooltip',
+    'Animated Tooltip',
+    'Base UI Lit',
+  ],
 };

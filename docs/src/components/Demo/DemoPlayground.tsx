@@ -14,12 +14,14 @@ export function DemoPlayground({ component, variant, children }: DemoPlaygroundP
   return (
     <ErrorBoundary FallbackComponent={DemoErrorFallback}>
       <div className="DemoPlayground">
-        <div
-          aria-label="Component demo"
-          data-demo={kebabCase(variant)}
-          className="DemoPlaygroundInner"
-        >
-          {component}
+        <div className="DemoPlaygroundScroll">
+          <div
+            aria-label="Component demo"
+            data-demo={kebabCase(variant)}
+            className="DemoPlaygroundInner"
+          >
+            {component}
+          </div>
         </div>
         {children}
       </div>

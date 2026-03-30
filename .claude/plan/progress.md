@@ -31,24 +31,24 @@ Rules for every target:
 
 ## Tier 2: Form Primitives
 
-- [ ] `switch` (#15)
-- [ ] `progress` (#16)
-- [ ] `meter` (#17)
-- [ ] `collapsible` (#18)
-- [ ] `fieldset` (#19)
-- [ ] `form` (#20)
-- [ ] `field` (#21)
+- [x] `switch` (#15)
+- [x] `progress` (#16)
+- [x] `meter` (#17)
+- [x] `collapsible` (#18)
+- [x] `fieldset` (#19)
+- [x] `form` (#20)
+- [x] `field` (#21)
 
 ## Tier 3: Composite / Keyboard Navigation
 
-- [ ] `composite` (#22)
-- [ ] `radio-group` (#23)
-- [ ] `radio` (#24)
-- [ ] `checkbox-group` (#25)
-- [ ] `checkbox` (#26)
-- [ ] `tabs` (#27)
-- [ ] `toolbar` (#28)
-- [ ] `accordion` (#29)
+- [x] `composite` (#22)
+- [x] `radio-group` (#23)
+- [x] `radio` (#24)
+- [x] `checkbox-group` (#25)
+- [x] `checkbox` (#26)
+- [x] `tabs` (#27)
+- [x] `toolbar` (#28)
+- [x] `accordion` (#29)
 
 ## Tier 4: Floating/Positioned
 
@@ -84,5 +84,8 @@ Rules for every target:
 
 ## Summary
 
-- Status: restarted from beginning under strict validation gate
-- Verified entries: 15 / 52
+- Status: all 30 verified entries re-verified through the full parity workflow
+- Verified entries: 30 / 52
+- Last full re-verification: 2026-03-28
+- Re-verification fixes: toggle (added ToggleRootChangeEventDetails/Reason exports), button test (TemplateResult type), switch (SwitchHelperRootProps children type), tabs (part-level render parity), accordion (public namespace/runtime export, `value` alias, docs/API parity), toolbar (reopened after live visual mismatch; hero now rendered on the same real layout elements as React and revalidated with screenshots), popover (portal-to-body parity, trigger/content viewport parity, live content example width/signoff)
+- Pre-existing baseline issues (not in verified components): temporal-adapter-date-fns timezone failures (5 tests), structural TS errors (rootDir constraints, DOM type conflicts)

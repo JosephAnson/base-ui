@@ -1,30 +1,249 @@
 # Popover
 
-<Subtitle>An anchored popup for Lit templates.</Subtitle>
-<Meta name="description" content="An anchored popup for Lit templates." />
+<Subtitle>An accessible popup anchored to a button.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled Lit popover component that displays an accessible popup anchored to a button."
+/>
 
-import HeroDemo from './demos/hero/css-modules';
-import OpenOnHoverDemo from './demos/open-on-hover/css-modules';
+import { DemoPopoverHero } from './demos/hero';
+import { DemoPopoverOpenOnHover } from './demos/open-on-hover';
+import { DemoPopoverDetachedTriggersSimple } from './demos/detached-triggers-simple';
+import { DemoPopoverDetachedTriggersControlled } from './demos/detached-triggers-controlled';
+import { DemoPopoverDetachedTriggersFull } from './demos/detached-triggers-full';
+import { TypesPopover } from './types';
 
-<HeroDemo />
-
-## Open On Hover
-
-<OpenOnHoverDemo />
+<DemoPopoverHero />
 
 ## Anatomy
 
-```html title="Anatomy"
-<popover-root>
-  <popover-trigger>Open</popover-trigger>
-  <popover-popup>Content</popover-popup>
-</popover-root>
+Import the component registration and assemble its parts:
+
+```ts title="Anatomy"
+import '@base-ui/lit/popover';
+import { html } from 'lit';
+
+html`
+  <popover-root>
+    <popover-trigger></popover-trigger>
+    <popover-portal>
+      <popover-backdrop></popover-backdrop>
+      <popover-positioner>
+        <popover-popup>
+          <popover-arrow></popover-arrow>
+          <popover-viewport>
+            <popover-title></popover-title>
+            <popover-description></popover-description>
+            <popover-close></popover-close>
+          </popover-viewport>
+        </popover-popup>
+      </popover-positioner>
+    </popover-portal>
+  </popover-root>
+`;
 ```
 
-## Status
+## Examples
 
-The Lit docs currently cover the shipping package surface with live examples and regression fixtures.
+### Opening on hover
+
+This example shows how you can configure the popover to open on hover using the `openOnHover` property.
+
+You can use the `delay` property to specify how long to wait, in milliseconds, before the popover opens on hover.
+
+<DemoPopoverOpenOnHover />
+
+### Detached triggers
+
+A popover can be controlled by a trigger located either inside or outside the `<popover-root>` element.
+For simple, one-off interactions, place the `<popover-trigger>` inside `<popover-root>`, as shown in the example at the top of this page.
+
+However, if defining the popover's content next to its trigger is not practical, you can use a detached trigger.
+This involves placing the `<popover-trigger>` outside of `<popover-root>` and linking them with a handle created by the `createPopoverHandle()` function.
+
+```ts title="Detached triggers"
+import { createPopoverHandle } from '@base-ui/lit/popover';
+
+const demoPopover = createPopoverHandle();
+
+html`
+  <popover-trigger .handle=${demoPopover}>Trigger</popover-trigger>
+
+  <popover-root .handle=${demoPopover}>
+    ...
+  </popover-root>
+`;
+```
+
+<DemoPopoverDetachedTriggersSimple />
+
+### Multiple triggers
+
+A single popover can be opened by multiple trigger elements.
+You can achieve this by using the same handle for several detached triggers, or by placing multiple `<popover-trigger>` elements inside a single `<popover-root>`.
+
+```ts title="Multiple triggers within the root"
+html`
+  <popover-root>
+    <popover-trigger>Trigger 1</popover-trigger>
+    <popover-trigger>Trigger 2</popover-trigger>
+  </popover-root>
+`;
+```
+
+```ts title="Multiple detached triggers"
+const demoPopover = createPopoverHandle();
+
+html`
+  <popover-trigger .handle=${demoPopover}>Trigger 1</popover-trigger>
+  <popover-trigger .handle=${demoPopover}>Trigger 2</popover-trigger>
+
+  <popover-root .handle=${demoPopover}>
+    ...
+  </popover-root>
+`;
+```
+
+The popover can render different content depending on which trigger opened it.
+This is achieved by passing a `payload` to the `<popover-trigger>` and using the active payload when rendering the popup content.
+
+The payload can be strongly typed by providing a type argument to the `createPopoverHandle()` function:
+
+```ts title="Detached triggers with payload"
+import { createPopoverHandle } from '@base-ui/lit/popover';
+import { html } from 'lit';
+
+const demoPopover = createPopoverHandle<{ text: string }>();
+
+html`
+  <popover-trigger .handle=${demoPopover} .payload=${{ text: 'Trigger 1' }}>
+    Trigger 1
+  </popover-trigger>
+
+  <popover-trigger .handle=${demoPopover} .payload=${{ text: 'Trigger 2' }}>
+    Trigger 2
+  </popover-trigger>
+
+  <popover-root .handle=${demoPopover}>
+    <popover-portal>
+      <popover-positioner .sideOffset=${8}>
+        <popover-popup>
+          <popover-arrow></popover-arrow>
+          <popover-title>Popover</popover-title>
+          ${demoPopover.activePayload !== undefined
+            ? html`
+                <popover-description>
+                  This has been opened by ${demoPopover.activePayload.text}
+                </popover-description>
+              `
+            : null}
+        </popover-popup>
+      </popover-positioner>
+    </popover-portal>
+  </popover-root>
+`;
+```
+
+### Controlled mode with multiple triggers
+
+You can control the popover's open state externally using the `open` and `onOpenChange` properties on `<popover-root>`.
+This allows you to manage the popover's visibility based on your application's state.
+When using multiple triggers, you have to manage which trigger is active with the `triggerId` property on `<popover-root>` and the `id` property on each `<popover-trigger>`.
+
+Note that there is no separate `onTriggerIdChange` callback.
+Instead, the `onOpenChange` callback receives event details that contain the trigger element that initiated the state change.
+
+<DemoPopoverDetachedTriggersControlled />
+
+### Animating the Popover
+
+You can animate a popover as it moves between different trigger elements.
+This includes animating its position, size, and content.
+
+#### Position and Size
+
+To animate the popover's position, apply CSS transitions to the `left`, `right`, `top`, and `bottom` properties of the **Positioner** part.
+To animate its size, transition the `width` and `height` of the **Popup** part.
+
+#### Content
+
+The popover also supports content transitions.
+This is useful when different triggers display different content within the same popover.
+
+To enable content animations, wrap the content in the `<popover-viewport>` part.
+This part provides features to create direction-aware animations.
+It renders a `div` with a `data-activation-direction` attribute (`left`, `right`, `up`, or `down`) that indicates the new trigger's position relative to the previous one.
+
+Inside the `<popover-viewport>`, the content is further wrapped in `div`s with data attributes to help with styling:
+
+- `data-current`: The currently visible content when no transitions are present or the incoming content.
+- `data-previous`: The outgoing content during a transition.
+
+You can use these attributes to style the enter and exit animations.
+
+<DemoPopoverDetachedTriggersFull />
+
+## API reference
+
+### Root
+
+<TypesPopover.Root />
+
+### Trigger
+
+<TypesPopover.Trigger />
+
+### Backdrop
+
+<TypesPopover.Backdrop />
+
+### Portal
+
+<TypesPopover.Portal />
+
+### Positioner
+
+<TypesPopover.Positioner />
+
+### Popup
+
+<TypesPopover.Popup />
+
+### Arrow
+
+<TypesPopover.Arrow />
+
+### Title
+
+<TypesPopover.Title />
+
+### Description
+
+<TypesPopover.Description />
+
+### Close
+
+<TypesPopover.Close />
+
+### Viewport
+
+<TypesPopover.Viewport />
+
+### createHandle
+
+<TypesPopover.createHandle />
+
+### Handle
+
+<TypesPopover.Handle />
 
 export const metadata = {
-  keywords: ['Lit Popover', 'Popover', 'Base UI Lit'],
+  keywords: [
+    'Lit Popover',
+    'Popover Component',
+    'Popup Menu',
+    'Anchored Popup',
+    'Detached Trigger Popover',
+    'Base UI Lit',
+  ],
 };

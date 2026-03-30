@@ -266,6 +266,7 @@ import {
   type ToggleRootProps as RootToggleRootProps,
   type ToggleRootState as RootToggleRootState,
   type ToggleState as RootToggleState,
+  Toolbar as rootToolbar,
   ToolbarRootElement as rootToolbarRootElement,
   type ToolbarRootState as RootToolbarRootState,
   type ToolbarGroupState as RootToolbarGroupState,
@@ -375,7 +376,10 @@ import {
   Toggle as subpathToggle,
   ToggleRootElement as subpathToggleRootElement,
 } from '@base-ui/lit/toggle';
-import { ToolbarRootElement as subpathToolbarRootElement } from '@base-ui/lit/toolbar';
+import {
+  Toolbar as subpathToolbar,
+  ToolbarRootElement as subpathToolbarRootElement,
+} from '@base-ui/lit/toolbar';
 import {
   ToggleGroup as subpathToggleGroup,
   ToggleGroupRootElement as subpathToggleGroupRootElement,
@@ -1017,7 +1021,9 @@ describe('@base-ui/lit', () => {
   it('re-exports toolbar from the package root', async () => {
     const module = await import('@base-ui/lit');
 
+    expect(module.Toolbar).toBe(subpathToolbar);
     expect(module.ToolbarRootElement).toBe(subpathToolbarRootElement);
+    expect(rootToolbar).toBe(subpathToolbar);
     expect(rootToolbarRootElement).toBe(subpathToolbarRootElement);
   });
 

@@ -14,7 +14,7 @@
       "exportPath": "./accordion",
       "sourcePath": "./src/accordion/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./alert-dialog",
@@ -50,19 +50,19 @@
       "exportPath": "./checkbox",
       "sourcePath": "./src/checkbox/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./checkbox-group",
       "sourcePath": "./src/checkbox-group/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./collapsible",
       "sourcePath": "./src/collapsible/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./combobox",
@@ -74,7 +74,7 @@
       "exportPath": "./composite",
       "sourcePath": "./src/composite/index.ts",
       "category": "utility",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./context-menu",
@@ -110,19 +110,19 @@
       "exportPath": "./field",
       "sourcePath": "./src/field/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./fieldset",
       "sourcePath": "./src/fieldset/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./form",
       "sourcePath": "./src/form/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./input",
@@ -164,7 +164,7 @@
       "exportPath": "./meter",
       "sourcePath": "./src/meter/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./navigation-menu",
@@ -182,7 +182,7 @@
       "exportPath": "./popover",
       "sourcePath": "./src/popover/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./preview-card",
@@ -194,19 +194,19 @@
       "exportPath": "./progress",
       "sourcePath": "./src/progress/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./radio",
       "sourcePath": "./src/radio/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./radio-group",
       "sourcePath": "./src/radio-group/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./scroll-area",
@@ -236,7 +236,7 @@
       "exportPath": "./switch",
       "sourcePath": "./src/switch/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./temporal-adapter-date-fns",
@@ -260,7 +260,7 @@
       "exportPath": "./tabs",
       "sourcePath": "./src/tabs/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./toast",
@@ -284,7 +284,7 @@
       "exportPath": "./toolbar",
       "sourcePath": "./src/toolbar/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./tooltip",

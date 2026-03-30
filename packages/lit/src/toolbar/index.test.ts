@@ -1,7 +1,8 @@
+/* eslint-disable import/extensions, testing-library/render-result-naming-convention */
 import { html, nothing, render as renderTemplate } from 'lit';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import './index.ts';
+import { Toolbar } from './index.ts';
 
 describe('Toolbar', () => {
   const containers = new Set<HTMLDivElement>();
@@ -32,14 +33,21 @@ describe('Toolbar', () => {
   }
 
   function keydown(element: Element, key: string) {
-    element.dispatchEvent(
-      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key }),
-    );
+    element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key }));
   }
 
   // ── ToolbarRoot ───────────────────────────────────────────────────────
 
   describe('ToolbarRoot', () => {
+    it('exports the runtime namespace', () => {
+      expect(Toolbar.Root).toBe(customElements.get('toolbar-root'));
+      expect(Toolbar.Group).toBe(customElements.get('toolbar-group'));
+      expect(Toolbar.Button).toBe(customElements.get('toolbar-button'));
+      expect(Toolbar.Link).toBe(customElements.get('toolbar-link'));
+      expect(Toolbar.Input).toBe(customElements.get('toolbar-input'));
+      expect(Toolbar.Separator).toBe(customElements.get('toolbar-separator'));
+    });
+
     describe('ARIA attributes', () => {
       it('has role="toolbar"', async () => {
         const container = render(html`
@@ -78,6 +86,21 @@ describe('Toolbar', () => {
           'data-orientation',
           'horizontal',
         );
+      });
+
+      it('supports rendering a custom root element', async () => {
+        const container = render(html`
+          <toolbar-root class="Toolbar" .render=${html`<div data-testid="root-shell"></div>`}>
+            <toolbar-button>Click</toolbar-button>
+          </toolbar-root>
+        `);
+        await flush();
+
+        const root = container.querySelector('[data-testid="root-shell"]') as HTMLElement;
+        expect(root).toHaveAttribute('role', 'toolbar');
+        expect(root).toHaveAttribute('data-orientation', 'horizontal');
+        expect(root).toHaveClass('Toolbar');
+        expect(root.querySelector('toolbar-button')).not.toBeNull();
       });
     });
 
@@ -221,6 +244,22 @@ describe('Toolbar', () => {
 
         expect(container.querySelector('[data-testid="group"]')).toHaveAttribute('role', 'group');
       });
+
+      it('supports rendering a custom group element', async () => {
+        const container = render(html`
+          <toolbar-root>
+            <toolbar-group class="Group" .render=${html`<div data-testid="group-shell"></div>`}>
+              <toolbar-button>Button</toolbar-button>
+            </toolbar-group>
+          </toolbar-root>
+        `);
+        await flush();
+
+        const group = container.querySelector('[data-testid="group-shell"]') as HTMLElement;
+        expect(group).toHaveAttribute('role', 'group');
+        expect(group).toHaveAttribute('data-orientation', 'horizontal');
+        expect(group).toHaveClass('Group');
+      });
     });
 
     describe('prop: disabled', () => {
@@ -314,7 +353,9 @@ describe('Toolbar', () => {
       it('uses disabled attribute when focusableWhenDisabled is false', async () => {
         const container = render(html`
           <toolbar-root>
-            <toolbar-button disabled .focusableWhenDisabled=${false} data-testid="btn">Click</toolbar-button>
+            <toolbar-button disabled .focusableWhenDisabled=${false} data-testid="btn"
+              >Click</toolbar-button
+            >
           </toolbar-root>
         `);
         await flush();
@@ -461,6 +502,86 @@ describe('Toolbar', () => {
       expect(btn1.tabIndex).toBe(-1);
       expect(btn2.tabIndex).toBe(0);
       expect(link1.tabIndex).toBe(-1);
+    });
+  });
+
+  describe('ToolbarButton', () => {
+    it('supports rendering a custom button element', async () => {
+      const container = render(html`
+        <toolbar-root>
+          <toolbar-button
+            class="Button"
+            .render=${html`<button data-testid="button-shell"></button>`}
+          >
+            Bold
+          </toolbar-button>
+        </toolbar-root>
+      `);
+      await flush();
+
+      const button = container.querySelector('[data-testid="button-shell"]') as HTMLElement;
+      expect(button).toHaveAttribute('data-orientation', 'horizontal');
+      expect(button).toHaveClass('Button');
+      expect(button).toHaveTextContent('Bold');
+    });
+
+    it('keeps roving focus working with a rendered button element', async () => {
+      const container = render(html`
+        <toolbar-root>
+          <toolbar-button .render=${html`<button data-testid="button-shell"></button>`}>
+            Bold
+          </toolbar-button>
+          <toolbar-button data-testid="next-button">Italic</toolbar-button>
+        </toolbar-root>
+      `);
+      await flush();
+
+      const button = container.querySelector('[data-testid="button-shell"]') as HTMLElement;
+      const nextButton = container.querySelector('[data-testid="next-button"]') as HTMLElement;
+
+      button.focus();
+      keydown(button, 'ArrowRight');
+      await flush();
+      expect(nextButton).toHaveFocus();
+    });
+  });
+
+  describe('ToolbarInput', () => {
+    it('supports rendering a custom input element', async () => {
+      const container = render(html`
+        <toolbar-root>
+          <toolbar-input
+            class="Input"
+            .defaultValue=${'123'}
+            .render=${html`<input data-testid="input-shell" />`}
+          ></toolbar-input>
+        </toolbar-root>
+      `);
+      await flush();
+
+      const input = container.querySelector('[data-testid="input-shell"]') as HTMLInputElement;
+      expect(input).toHaveAttribute('data-orientation', 'horizontal');
+      expect(input).toHaveClass('Input');
+      expect(input.value).toBe('123');
+    });
+  });
+
+  describe('ToolbarSeparator', () => {
+    it('supports rendering a custom separator element', async () => {
+      const container = render(html`
+        <toolbar-root>
+          <toolbar-separator
+            class="Separator"
+            .render=${html`<div data-testid="separator-shell"></div>`}
+          ></toolbar-separator>
+        </toolbar-root>
+      `);
+      await flush();
+
+      const separator = container.querySelector('[data-testid="separator-shell"]') as HTMLElement;
+      expect(separator).toHaveAttribute('role', 'separator');
+      expect(separator).toHaveAttribute('aria-orientation', 'vertical');
+      expect(separator).toHaveClass('Separator');
     });
   });
 });

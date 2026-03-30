@@ -37,9 +37,10 @@ const floatingUiMocks = vi.hoisted(() => ({
 vi.mock('@floating-ui/react-dom', () => floatingUiMocks);
 
 import './index.ts';
-import type {
-  TooltipRootElement,
-  TooltipChangeEventDetails,
+import {
+  createTooltipHandle,
+  type TooltipRootElement,
+  type TooltipChangeEventDetails,
 } from './index.ts';
 
 describe('tooltip', () => {
@@ -104,32 +105,33 @@ describe('tooltip', () => {
     return container.querySelector('tooltip-root') as TooltipRootElement;
   }
 
+  function getLatestElement<T extends HTMLElement>(selector: string) {
+    const elements = Array.from(document.querySelectorAll(selector));
+    return elements[elements.length - 1] as T;
+  }
+
   function getTrigger(container: HTMLElement) {
     return container.querySelector('tooltip-trigger') as HTMLElement;
   }
 
-  function getPopup(container: HTMLElement) {
-    return container.querySelector('tooltip-popup') as HTMLElement;
+  function getPopup(_container: HTMLElement) {
+    return getLatestElement<HTMLElement>('tooltip-popup');
   }
 
-  function getPositioner(container: HTMLElement) {
-    return container.querySelector('tooltip-positioner') as HTMLElement;
+  function getPositioner(_container: HTMLElement) {
+    return getLatestElement<HTMLElement>('tooltip-positioner');
   }
 
-  function getArrow(container: HTMLElement) {
-    return container.querySelector('tooltip-arrow') as HTMLElement;
+  function getArrow(_container: HTMLElement) {
+    return getLatestElement<HTMLElement>('tooltip-arrow');
   }
 
   function mouseEnter(element: Element) {
-    element.dispatchEvent(
-      new MouseEvent('mouseenter', { bubbles: true, cancelable: true }),
-    );
+    element.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
   }
 
   function mouseLeave(element: Element) {
-    element.dispatchEvent(
-      new MouseEvent('mouseleave', { bubbles: true, cancelable: true }),
-    );
+    element.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
   }
 
   function renderTooltip(rootProps: Record<string, unknown> = {}) {
@@ -210,9 +212,7 @@ describe('tooltip', () => {
 
   it('closes on mouseleave', async () => {
     vi.useFakeTimers();
-    const container = render(
-      renderTooltip({ delay: 0, closeDelay: 0 }),
-    );
+    const container = render(renderTooltip({ delay: 0, closeDelay: 0 }));
     await advance();
 
     const trigger = getTrigger(container);
@@ -249,16 +249,12 @@ describe('tooltip', () => {
     const trigger = getTrigger(container);
 
     // Open via focus
-    trigger.dispatchEvent(
-      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
-    );
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
     await waitForUpdate();
     expect(getPopup(container)).not.toHaveAttribute('hidden');
 
     // Blur
-    trigger.dispatchEvent(
-      new FocusEvent('focusout', { bubbles: true, cancelable: true }),
-    );
+    trigger.dispatchEvent(new FocusEvent('focusout', { bubbles: true, cancelable: true }));
     await waitForUpdate();
 
     expect(getPopup(container)).toHaveAttribute('hidden');
@@ -271,9 +267,7 @@ describe('tooltip', () => {
     const trigger = getTrigger(container);
 
     // Open via focus
-    trigger.dispatchEvent(
-      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
-    );
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
     await waitForUpdate();
 
     const popup = getPopup(container);
@@ -293,16 +287,12 @@ describe('tooltip', () => {
     expect(trigger).not.toHaveAttribute('aria-describedby');
 
     // Open via focus
-    trigger.dispatchEvent(
-      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
-    );
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
     await waitForUpdate();
     expect(trigger).toHaveAttribute('aria-describedby');
 
     // Close via blur
-    trigger.dispatchEvent(
-      new FocusEvent('focusout', { bubbles: true, cancelable: true }),
-    );
+    trigger.dispatchEvent(new FocusEvent('focusout', { bubbles: true, cancelable: true }));
     await waitForUpdate();
     expect(trigger).not.toHaveAttribute('aria-describedby');
   });
@@ -310,9 +300,7 @@ describe('tooltip', () => {
   it('calls onOpenChange with reason on hover', async () => {
     vi.useFakeTimers();
     const handleOpenChange = vi.fn();
-    const container = render(
-      renderTooltip({ delay: 0, onOpenChange: handleOpenChange }),
-    );
+    const container = render(renderTooltip({ delay: 0, onOpenChange: handleOpenChange }));
     await advance();
 
     mouseEnter(getTrigger(container));
@@ -320,16 +308,14 @@ describe('tooltip', () => {
 
     expect(handleOpenChange).toHaveBeenCalledTimes(1);
     expect(handleOpenChange.mock.calls[0]?.[0]).toBe(true);
-    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe(
-      'trigger-hover',
-    );
+    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe('trigger-hover');
+    expect(handleOpenChange.mock.calls[0]?.[1].trigger).toBe(getTrigger(container));
+    expect(handleOpenChange.mock.calls[0]?.[1].isPropagationAllowed).toBe(false);
   });
 
   it('calls onOpenChange with reason on focus', async () => {
     const handleOpenChange = vi.fn();
-    const container = render(
-      renderTooltip({ onOpenChange: handleOpenChange }),
-    );
+    const container = render(renderTooltip({ onOpenChange: handleOpenChange }));
     await waitForUpdate();
 
     getTrigger(container).dispatchEvent(
@@ -339,20 +325,15 @@ describe('tooltip', () => {
 
     expect(handleOpenChange).toHaveBeenCalledTimes(1);
     expect(handleOpenChange.mock.calls[0]?.[0]).toBe(true);
-    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe(
-      'trigger-focus',
-    );
+    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe('trigger-focus');
+    expect(handleOpenChange.mock.calls[0]?.[1].trigger).toBe(getTrigger(container));
   });
 
   it('supports cancellation in onOpenChange', async () => {
-    const handleOpenChange = vi.fn(
-      (_open: boolean, details: TooltipChangeEventDetails) => {
-        details.cancel();
-      },
-    );
-    const container = render(
-      renderTooltip({ onOpenChange: handleOpenChange }),
-    );
+    const handleOpenChange = vi.fn((_open: boolean, details: TooltipChangeEventDetails) => {
+      details.cancel();
+    });
+    const container = render(renderTooltip({ onOpenChange: handleOpenChange }));
     await waitForUpdate();
 
     getTrigger(container).dispatchEvent(
@@ -374,9 +355,7 @@ describe('tooltip', () => {
     await waitForUpdate();
     handleOpenChange.mockClear();
 
-    document.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
-    );
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await waitForUpdate();
 
     expect(getPopup(container)).toHaveAttribute('hidden');
@@ -443,17 +422,13 @@ describe('tooltip', () => {
 
     expect(handleOpenChange).toHaveBeenCalledTimes(1);
     expect(handleOpenChange.mock.calls[0]?.[0]).toBe(false);
-    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe(
-      'trigger-press',
-    );
+    expect(handleOpenChange.mock.calls[0]?.[1].reason).toBe('trigger-press');
     expect(getPopup(container)).toHaveAttribute('hidden');
   });
 
   it('keeps tooltip when closeOnClick is false', async () => {
     vi.useFakeTimers();
-    const container = render(
-      renderTooltip({ delay: 0, closeOnClick: false }),
-    );
+    const container = render(renderTooltip({ delay: 0, closeOnClick: false }));
     await advance();
 
     const trigger = getTrigger(container);
@@ -483,9 +458,7 @@ describe('tooltip', () => {
   });
 
   it('disabled trigger prevents tooltip but keeps trigger interactive', async () => {
-    const container = render(
-      renderTooltip({ triggerDisabled: true }),
-    );
+    const container = render(renderTooltip({ triggerDisabled: true }));
     await waitForUpdate();
 
     const trigger = getTrigger(container);
@@ -494,9 +467,7 @@ describe('tooltip', () => {
     expect(trigger).not.toHaveAttribute('disabled');
     expect(trigger).not.toHaveAttribute('aria-disabled');
 
-    trigger.dispatchEvent(
-      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
-    );
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
     await waitForUpdate();
 
     expect(getPopup(container)).toHaveAttribute('hidden');
@@ -524,9 +495,7 @@ describe('tooltip', () => {
   });
 
   it('respects collisionAvoidance="none"', async () => {
-    const container = render(
-      renderTooltip({ collisionAvoidance: 'none' }),
-    );
+    const container = render(renderTooltip({ collisionAvoidance: 'none' }));
     await waitForUpdate();
 
     floatingUiMocks.computePosition.mockClear();
@@ -543,8 +512,7 @@ describe('tooltip', () => {
     const call = floatingUiMocks.computePosition.mock.calls[0] as
       | [Element, Element, { middleware?: Array<{ name?: string }> }]
       | undefined;
-    const middlewareNames =
-      call?.[2]?.middleware?.map((m: { name?: string }) => m.name) ?? [];
+    const middlewareNames = call?.[2]?.middleware?.map((m: { name?: string }) => m.name) ?? [];
 
     expect(middlewareNames).toContain('offset');
     expect(middlewareNames).toContain('hide');
@@ -562,9 +530,7 @@ describe('tooltip', () => {
   });
 
   it('passes disableAnchorTracking to autoUpdate', async () => {
-    const container = render(
-      renderTooltip({ disableAnchorTracking: true }),
-    );
+    const container = render(renderTooltip({ disableAnchorTracking: true }));
     await waitForUpdate();
 
     floatingUiMocks.autoUpdate.mockClear();
@@ -575,12 +541,7 @@ describe('tooltip', () => {
     await waitForUpdate();
 
     const autoUpdateCall = floatingUiMocks.autoUpdate.mock.calls[0] as
-      | [
-          Element,
-          Element,
-          () => void,
-          { elementResize?: boolean; layoutShift?: boolean },
-        ]
+      | [Element, Element, () => void, { elementResize?: boolean; layoutShift?: boolean }]
       | undefined;
 
     expect(autoUpdateCall?.[3]).toMatchObject({
@@ -622,17 +583,45 @@ describe('tooltip', () => {
     expect(popup).toHaveAttribute('data-open');
   });
 
+  it('supports detached triggers rendered before their root', async () => {
+    vi.useFakeTimers();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const handle = createTooltipHandle<string>();
+    const container = render(html`
+      <tooltip-provider>
+        <tooltip-trigger .handle=${handle} .payload=${'detached'} .delay=${0}>
+          Trigger
+        </tooltip-trigger>
+        <tooltip-root .handle=${handle}>
+          <tooltip-portal>
+            <tooltip-positioner>
+              <tooltip-popup>Detached content</tooltip-popup>
+            </tooltip-positioner>
+          </tooltip-portal>
+        </tooltip-root>
+      </tooltip-provider>
+    `);
+    await advance();
+
+    const trigger = getTrigger(container);
+
+    mouseEnter(trigger);
+    await advance();
+
+    expect(errorSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining('Tooltip parts must be placed within'),
+    );
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+    expect(handle.activePayload).toBe('detached');
+  });
+
   it('logs error when parts are used outside root', () => {
-    const errorSpy = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(html`<tooltip-trigger>Orphan</tooltip-trigger>`);
 
     expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'Tooltip parts must be placed within',
-      ),
+      expect.stringContaining('Tooltip parts must be placed within'),
     );
 
     errorSpy.mockRestore();
@@ -653,9 +642,7 @@ describe('tooltip', () => {
     `);
     await waitForUpdate();
 
-    const provider = container.querySelector(
-      'tooltip-provider',
-    ) as HTMLElement;
+    const provider = container.querySelector('tooltip-provider') as HTMLElement;
     expect(provider.style.display).toBe('contents');
   });
 
@@ -669,17 +656,13 @@ describe('tooltip', () => {
     expect(trigger).not.toHaveAttribute('data-popup-open');
 
     // Open via focus
-    trigger.dispatchEvent(
-      new FocusEvent('focusin', { bubbles: true, cancelable: true }),
-    );
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
     await waitForUpdate();
 
     expect(trigger).toHaveAttribute('data-popup-open');
 
     // Close via blur
-    trigger.dispatchEvent(
-      new FocusEvent('focusout', { bubbles: true, cancelable: true }),
-    );
+    trigger.dispatchEvent(new FocusEvent('focusout', { bubbles: true, cancelable: true }));
     await waitForUpdate();
 
     expect(trigger).not.toHaveAttribute('data-popup-open');
@@ -727,9 +710,7 @@ describe('tooltip', () => {
     const container = render(html`
       <tooltip-provider .timeout=${400}>
         <tooltip-root>
-          <tooltip-trigger data-testid="trigger-one" .delay=${0}>
-            One
-          </tooltip-trigger>
+          <tooltip-trigger data-testid="trigger-one" .delay=${0}> One </tooltip-trigger>
           <tooltip-portal>
             <tooltip-positioner>
               <tooltip-popup data-testid="popup-one">One</tooltip-popup>
@@ -737,9 +718,7 @@ describe('tooltip', () => {
           </tooltip-portal>
         </tooltip-root>
         <tooltip-root>
-          <tooltip-trigger data-testid="trigger-two" .delay=${100}>
-            Two
-          </tooltip-trigger>
+          <tooltip-trigger data-testid="trigger-two" .delay=${100}> Two </tooltip-trigger>
           <tooltip-portal>
             <tooltip-positioner>
               <tooltip-popup data-testid="popup-two">Two</tooltip-popup>
@@ -750,20 +729,14 @@ describe('tooltip', () => {
     `);
     await advance();
 
-    const triggerOne = container.querySelector(
-      '[data-testid="trigger-one"]',
-    ) as HTMLElement;
-    const triggerTwo = container.querySelector(
-      '[data-testid="trigger-two"]',
-    ) as HTMLElement;
+    const triggerOne = container.querySelector('[data-testid="trigger-one"]') as HTMLElement;
+    const triggerTwo = container.querySelector('[data-testid="trigger-two"]') as HTMLElement;
 
     // Open first tooltip
     mouseEnter(triggerOne);
     await advance();
 
-    expect(
-      container.querySelector('[data-testid="popup-one"]'),
-    ).not.toHaveAttribute('hidden');
+    expect(document.querySelector('[data-testid="popup-one"]')).not.toHaveAttribute('hidden');
 
     // Leave first, enter second (within warmth timeout)
     mouseLeave(triggerOne);
@@ -773,8 +746,6 @@ describe('tooltip', () => {
     // Even though delay is 100, provider warmth should open instantly
     await advance();
 
-    expect(
-      container.querySelector('[data-testid="popup-two"]'),
-    ).not.toHaveAttribute('hidden');
+    expect(document.querySelector('[data-testid="popup-two"]')).not.toHaveAttribute('hidden');
   });
 });
