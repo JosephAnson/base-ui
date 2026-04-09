@@ -1262,6 +1262,13 @@ export class PopoverRootElement extends ReactiveElement {
         isEventInside(target, this._backdropElement)
       )
         {return;}
+      // If a handle is present, check all registered triggers — not just the active one.
+      // Mirrors React's useDismiss which checks `store.context.triggerElements` (all triggers).
+      if (this.handle) {
+        for (const [, trigger] of this.handle.triggers) {
+          if (isEventInside(target, trigger)) {return;}
+        }
+      }
       this.toggle(false, event, 'outside-press');
     };
 
@@ -1376,7 +1383,13 @@ export class PopoverTriggerElement<Payload = unknown> extends BaseHTMLElement {
 
     this._registerDetachedTrigger();
     if (this._root) {
-      this._root.setActiveTriggerElement(this);
+      // For detached triggers (with handle), only restore active trigger if popup is open
+      // and this trigger was the last active one — prevents the last-connected detached
+      // trigger from incorrectly overwriting handle.activePayload on initial render.
+      // For inline triggers (no handle), always set as active trigger (original behavior).
+      if (!this.handle || (this._root.getOpen() && this.handle.activeTriggerId === this.id)) {
+        this._root.setActiveTriggerElement(this);
+      }
       this._root.addEventListener(POPOVER_STATE_CHANGE_EVENT, this._handler);
       queueMicrotask(() => this._syncAttributes());
     } else {
@@ -1611,7 +1624,9 @@ export class PopoverTriggerElement<Payload = unknown> extends BaseHTMLElement {
     if (this.handle) {
       this.handle.root = nextRoot;
     }
-    nextRoot.setActiveTriggerElement(this);
+    if (!this.handle || (nextRoot.getOpen() && this.handle.activeTriggerId === this.id)) {
+      nextRoot.setActiveTriggerElement(this);
+    }
     nextRoot.addEventListener(POPOVER_STATE_CHANGE_EVENT, this._handler);
     queueMicrotask(() => this._syncAttributes());
   }
@@ -1890,6 +1905,8 @@ export class PopoverPositionerElement extends BaseHTMLElement {
   private _cleanupAutoUpdate: (() => void) | null = null;
   private renderedElement: HTMLElement | null = null;
   private syncingRenderedElement = false;
+  private _wasOpen = false;
+  private _suppressNextPositionTransition = false;
 
   connectedCallback() {
     this._root = resolvePopoverRoot(this);
@@ -1931,10 +1948,18 @@ export class PopoverPositionerElement extends BaseHTMLElement {
     }
 
     const open = this._root.getOpen();
+    const wasOpen = this._wasOpen;
+    this._wasOpen = open;
 
     if (open) {
       target.removeAttribute('hidden');
       target.style.pointerEvents = '';
+      // Suppress CSS position transitions during initial positioning so the popup
+      // doesn't animate from (0,0). Mirrors React's getDisabledMountTransitionStyles
+      // which applies `transition: none` while transitionStatus === 'starting'.
+      if (!wasOpen) {
+        this._suppressNextPositionTransition = true;
+      }
       this._syncAutoUpdate();
     } else {
       target.setAttribute('hidden', '');
@@ -2013,11 +2038,27 @@ export class PopoverPositionerElement extends BaseHTMLElement {
         middleware: middleware as any,
       }).then(
         (result: Awaited<ReturnType<typeof computePosition>>) => {
+          // If this is the first position update after opening, suppress CSS transitions
+          // so the popup doesn't animate from (0,0) to the correct position.
+          // Mirrors React's getDisabledMountTransitionStyles (transition:none during 'starting').
+          const suppressTransition = this._suppressNextPositionTransition;
+          if (suppressTransition) {
+            this._suppressNextPositionTransition = false;
+            target.style.setProperty('transition', 'none');
+          }
+
           Object.assign(target.style, {
             left: `${result.x}px`,
             top: `${result.y}px`,
             position: this.positionMethod,
           });
+
+          if (suppressTransition) {
+            // Force a layout flush so the browser commits the position without transition,
+            // then re-enable transitions for subsequent moves (scroll, resize, trigger-switch).
+            void target.offsetWidth;
+            target.style.removeProperty('transition');
+          }
 
           const parsed = parsePlacement(result.placement);
           const arrowData = result.middlewareData.arrow as
@@ -2282,8 +2323,12 @@ export class PopoverPopupElement extends BaseHTMLElement {
       this._exitRunId += 1;
       if (wasOpen !== true && !this._mounted) {
         this._mounted = true;
-        this._root.setPopupMounted(true);
+        // Set _transitionStatus BEFORE setPopupMounted so the re-entrant _syncVisibility()
+        // call (fired synchronously by setPopupMounted) sees 'starting' and applies
+        // data-starting-style BEFORE removing [hidden]. This ensures the browser paints
+        // opacity:0 on the very first frame the popup becomes visible.
         this._transitionStatus = 'starting';
+        this._root.setPopupMounted(true);
         this._scheduleStartingCleanup();
         this._scheduleInitialFocus();
       } else if (this._transitionStatus === 'ending') {
@@ -2348,6 +2393,13 @@ export class PopoverPopupElement extends BaseHTMLElement {
       return;
     }
 
+    // Set starting/ending style BEFORE showing the element so the browser computes the
+    // initial opacity/transform from the CSS rule on the very first painted frame.
+    // If we set data-starting-style after removing [hidden], the element flashes at
+    // its final opacity (1) for one frame before the CSS rule can take effect.
+    target.toggleAttribute('data-starting-style', this._transitionStatus === 'starting');
+    target.toggleAttribute('data-ending-style', this._transitionStatus === 'ending');
+
     const hidden = !open && this._transitionStatus !== 'ending';
 
     if (hidden) {
@@ -2379,17 +2431,10 @@ export class PopoverPopupElement extends BaseHTMLElement {
       target.removeAttribute('aria-describedby');
     }
 
-    // Data attributes
+    // Data attributes (data-starting-style and data-ending-style are set above,
+    // before hidden is toggled, so the browser applies CSS rules on the first frame)
     target.toggleAttribute('data-open', open);
     target.toggleAttribute('data-closed', !open);
-    target.toggleAttribute(
-      'data-starting-style',
-      this._transitionStatus === 'starting',
-    );
-    target.toggleAttribute(
-      'data-ending-style',
-      this._transitionStatus === 'ending',
-    );
 
     // Instant type attribute
     const instantType = this._root.getInstantType();
@@ -2480,15 +2525,21 @@ export class PopoverPopupElement extends BaseHTMLElement {
 
   private _scheduleStartingCleanup() {
     this._clearFrame();
+    // Double rAF: the first rAF fires before the browser paints `data-starting-style`.
+    // The second rAF fires AFTER that paint, so the CSS transition has a painted "from"
+    // state to animate from. Mirrors React's useIsoLayoutEffect + AnimationFrame.request
+    // which runs after React commits data-starting-style to DOM and the browser paints.
     this._frameId = requestAnimationFrame(() => {
-      this._frameId = null;
-      if (!this._root || this._transitionStatus !== 'starting') {return;}
-      if (!this._root.getOpen()) {return;}
-      this._transitionStatus = undefined;
-      this._syncVisibility();
+      this._frameId = requestAnimationFrame(() => {
+        this._frameId = null;
+        if (!this._root || this._transitionStatus !== 'starting') {return;}
+        if (!this._root.getOpen()) {return;}
+        this._transitionStatus = undefined;
+        this._syncVisibility();
 
-      // Fire onOpenChangeComplete after enter animations finish
-      this._waitForOpenAnimations();
+        // Fire onOpenChangeComplete after enter animations finish
+        this._waitForOpenAnimations();
+      });
     });
   }
 
@@ -2715,8 +2766,11 @@ export class PopoverViewportElement extends BaseHTMLElement {
     // Measure old popup dimensions before DOM changes so we can animate from them.
     // Use getStyledElement() so offsetWidth is correct even when host is display:contents.
     const styledPopup = popup?.getStyledElement() ?? null;
-    const priorWidth = activationDirection && styledPopup ? styledPopup.offsetWidth : null;
-    const priorHeight = activationDirection && styledPopup ? styledPopup.offsetHeight : null;
+    // Use getBoundingClientRect for sub-pixel precision — offsetWidth rounds to integers which
+    // can misalign the CSS transition start-point from the actual displayed width.
+    const priorBcr = activationDirection && styledPopup ? styledPopup.getBoundingClientRect() : null;
+    const priorWidth = priorBcr?.width ?? null;
+    const priorHeight = priorBcr?.height ?? null;
 
     this._syncStructure(target);
 
@@ -2758,12 +2812,33 @@ export class PopoverViewportElement extends BaseHTMLElement {
               // Suppress transitions during measurement to avoid visual glitches.
               currentStyled.style.setProperty('transition', 'none');
 
-              // Use max-content (not auto) so the measurement doesn't trigger an
-              // un-animatable auto → px transition later.
-              currentStyled.style.setProperty('--popup-width', 'max-content');
-              currentStyled.style.setProperty('--popup-height', 'max-content');
-              const naturalWidth = currentStyled.offsetWidth;
-              const naturalHeight = currentStyled.offsetHeight;
+              // Mirror React's usePopupAutoResize measurement approach:
+              // 1. Set popup to 'auto' (not 'max-content') — 'max-content' in a calc() is
+              //    circular/invalid so [data-current]'s width calc breaks; 'auto' also breaks
+              //    the calc but lets the element fill its parent naturally.
+              // 2. Set positioner to 'max-content' so the popup's containing block is
+              //    unconstrained — without this the positioner stays at the old locked px width
+              //    and the popup can't grow beyond it, causing too-narrow measurements.
+              // 3. Override [data-current]'s width directly so it can size to its content.
+              const positionerEl = this._root.getPositionerElement();
+              const savedPositionerWidth = positionerEl?.style.getPropertyValue('--positioner-width') ?? '';
+              const savedPositionerHeight = positionerEl?.style.getPropertyValue('--positioner-height') ?? '';
+              positionerEl?.style.setProperty('--positioner-width', 'max-content');
+              positionerEl?.style.setProperty('--positioner-height', 'max-content');
+              currentStyled.style.setProperty('--popup-width', 'auto');
+              currentStyled.style.setProperty('--popup-height', 'auto');
+              currentContainer.style.setProperty('width', 'max-content');
+              // Use getBoundingClientRect for sub-pixel precision, matching React's
+              // getCssDimensions which uses getComputedStyle(element).width (also fractional).
+              // offsetWidth rounds to integers; a 0.3px rounding loss can make the text
+              // column just barely too narrow for the content (e.g. "Jason Eventon" wraps).
+              const bcr = currentStyled.getBoundingClientRect();
+              const naturalWidth = bcr.width;
+              const naturalHeight = bcr.height;
+              currentContainer.style.removeProperty('width');
+              // Restore positioner before committing new popup size.
+              positionerEl?.style.setProperty('--positioner-width', savedPositionerWidth);
+              positionerEl?.style.setProperty('--positioner-height', savedPositionerHeight);
 
               // Restore the old locked px values and force a layout to commit them.
               // This makes the CSS transition start from the old px (not from auto/max-content).
@@ -2776,6 +2851,13 @@ export class PopoverViewportElement extends BaseHTMLElement {
               // Re-enable transitions, then set new size — CSS animates old px → new px.
               currentStyled.style.removeProperty('transition');
               currentPopup.setWidthConstraint(naturalWidth, naturalHeight);
+
+              // Lock [data-current] at the new natural width so its content doesn't
+              // reflow while the popup animates from old → new size. Without this,
+              // [data-current] inherits --popup-width from the popup and re-lays out
+              // text at each intermediate width, causing a visible text-wrap flash.
+              // Mirrors React's previousContentDimensions pattern for [data-previous].
+              currentContainer.style.setProperty('--popup-width', `${naturalWidth}px`);
             }
 
             // Cancel the fallback timer — we're handling transition start here.
@@ -2894,11 +2976,11 @@ export class PopoverViewportElement extends BaseHTMLElement {
       );
     });
 
-    if (!this._pendingPreviousContent && current && contentNodes.length === 0) {
-      return;
-    }
-
-    if (!this._pendingPreviousContent && !current && contentNodes.length === 0) {
+    // Only restructure the DOM when a trigger-switch transition is in progress.
+    // Without pending previous content there is no transition — leave bare content
+    // nodes unwrapped so [data-current]'s width rule (which depends on --popup-width)
+    // never applies on initial open and causes a brief text-fold flash.
+    if (!this._pendingPreviousContent) {
       return;
     }
 
@@ -2950,6 +3032,9 @@ export class PopoverViewportElement extends BaseHTMLElement {
         }
 
         target.removeAttribute('data-transitioning');
+        // Clear the --popup-width lock set on [data-current] during the transition.
+        const currentEl = target.querySelector(':scope > [data-current]') as HTMLElement | null;
+        currentEl?.style.removeProperty('--popup-width');
         this._root?.getPopupElement()?.setWidthConstraint(null, null);
         this._transitionCleanupTimer = null;
       }, PopoverViewportElement.TRANSITION_DURATION_MS);

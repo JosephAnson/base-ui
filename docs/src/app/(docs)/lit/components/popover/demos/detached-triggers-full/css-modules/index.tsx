@@ -1,97 +1,58 @@
 'use client';
 import * as React from 'react';
-import { html, nothing, render as renderTemplate, svg } from 'lit';
+import { html, type TemplateResult, nothing, render as renderTemplate, svg } from 'lit';
 import '@base-ui/lit/avatar';
-import { createPopoverHandle, type PopoverRootElement } from '@base-ui/lit/popover';
+import { createPopoverHandle } from '@base-ui/lit/popover';
 import styles from './index.module.css';
 
-type PanelId = 'notifications' | 'activity' | 'profile';
+const demoPopover = createPopoverHandle<() => TemplateResult>();
 
 export default function PopoverDetachedTriggersFullDemo() {
   const hostRef = React.useRef<HTMLDivElement | null>(null);
-  const handleRef = React.useRef(createPopoverHandle<PanelId>());
-  const viewportId = React.useId();
-  const [activePanel, setActivePanel] = React.useState<PanelId>('notifications');
 
-  const syncPanel = React.useCallback((panel: PanelId) => {
-    setActivePanel((currentPanel) => (currentPanel === panel ? currentPanel : panel));
-  }, []);
-
-  const getPanelFromRoot = React.useCallback(() => {
+  const doRender = React.useCallback(() => {
     const host = hostRef.current;
-    const root = host?.querySelector('popover-root') as PopoverRootElement | null;
-    const payload = root?.handle?.activePayload;
-
-    if (payload === 'notifications' || payload === 'activity' || payload === 'profile') {
-      return payload;
-    }
-
-    const activeTrigger = root?.getActiveTriggerElement() as HTMLElement | null;
-
-    switch (activeTrigger?.id) {
-      case 'trigger-activity':
-        return 'activity' as const;
-      case 'trigger-profile':
-        return 'profile' as const;
-      case 'trigger-notifications':
-        return 'notifications' as const;
-      default:
-        return 'notifications' as const;
-    }
-  }, []);
-
-  const syncPanelFromRoot = React.useCallback(() => {
-    syncPanel(getPanelFromRoot());
-  }, [getPanelFromRoot, syncPanel]);
-
-  React.useEffect(() => {
-    const host = hostRef.current;
-
-    if (host == null) {
+    if (!host) {
       return;
     }
+
+    const payload = demoPopover.activePayload;
 
     renderTemplate(
       html`
         <div class=${styles.Container}>
           <popover-trigger
             class=${styles.IconButton}
-            .handle=${handleRef.current}
-            .payload=${'notifications' as PanelId}
-            id="trigger-notifications"
+            .handle=${demoPopover}
+            .payload=${notificationsPanel}
           >
             ${bellIcon('Notifications', styles.Icon)}
           </popover-trigger>
 
           <popover-trigger
             class=${styles.IconButton}
-            .handle=${handleRef.current}
-            .payload=${'activity' as PanelId}
-            id="trigger-activity"
+            .handle=${demoPopover}
+            .payload=${activityPanel}
           >
             ${listIcon('Activity', styles.Icon)}
           </popover-trigger>
 
           <popover-trigger
             class=${styles.IconButton}
-            .handle=${handleRef.current}
-            .payload=${'profile' as PanelId}
-            id="trigger-profile"
+            .handle=${demoPopover}
+            .payload=${profilePanel}
           >
             ${userIcon('Profile', styles.Icon)}
           </popover-trigger>
         </div>
 
-        <popover-root .handle=${handleRef.current}>
+        <popover-root .handle=${demoPopover}>
           <popover-portal>
             <popover-positioner class=${styles.Positioner} .sideOffset=${8}>
               <popover-popup class=${styles.Popup}>
                 <popover-arrow class=${styles.Arrow}>${arrowSvg(styles)}</popover-arrow>
-                <popover-viewport
-                  class=${styles.Viewport}
-                  data-demo-viewport-id=${viewportId}
-                >
-                  ${renderPanel(activePanel, styles)}
+                <popover-viewport class=${styles.Viewport}>
+                  ${payload ? payload() : nothing}
                 </popover-viewport>
               </popover-popup>
             </popover-positioner>
@@ -100,93 +61,66 @@ export default function PopoverDetachedTriggersFullDemo() {
       `,
       host,
     );
-  }, [activePanel, syncPanel, viewportId]);
+  }, []);
 
   React.useEffect(() => {
-    const host = hostRef.current;
+    doRender();
 
-    if (host == null) {
+    const host = hostRef.current;
+    if (!host) {
       return undefined;
     }
 
     const root = host.querySelector('popover-root');
-    root?.addEventListener('base-ui-popover-state-change', syncPanelFromRoot);
-    queueMicrotask(syncPanelFromRoot);
+    root?.addEventListener('base-ui-popover-state-change', doRender);
 
     return () => {
-      root?.removeEventListener('base-ui-popover-state-change', syncPanelFromRoot);
-    };
-  }, [syncPanelFromRoot, viewportId]);
-
-  React.useEffect(() => {
-    const host = hostRef.current;
-
-    return () => {
-      if (host == null) {
-        return;
-      }
-
+      root?.removeEventListener('base-ui-popover-state-change', doRender);
       renderTemplate(nothing, host);
     };
-  }, []);
+  }, [doRender]);
 
   return <div ref={hostRef} style={{ display: 'contents' }} />;
 }
 
-function renderPanel(panel: PanelId | undefined, css: Record<string, string>) {
-  switch (panel) {
-    case 'notifications':
-      return html`
-        ${renderTitle('Notifications', css)}
-        ${renderDescription('You are all caught up. Good job!', css)}
-      `;
-    case 'activity':
-      return html`
-        ${renderTitle('Activity', css)}
-        ${renderDescription('Nothing interesting happened recently.', css)}
-      `;
-    case 'profile':
-      return renderProfilePanel(css);
-    default:
-      return html`
-        ${renderTitle('Notifications', css)}
-        ${renderDescription('You are all caught up. Good job!', css)}
-      `;
-  }
-}
-
-function renderTitle(text: string, css: Record<string, string>) {
-  return html`<popover-title class=${css.Title}>${text}</popover-title>`;
-}
-
-function renderDescription(text: string, css: Record<string, string>) {
-  return html`<popover-description class=${css.Description}>${text}</popover-description>`;
-}
-
-function renderProfilePanel(css: Record<string, string>) {
+function notificationsPanel(): TemplateResult {
   return html`
-    <div class=${css.ProfilePanel}>
-      ${renderTitle('Jason Eventon', css)}
-      <avatar-root class=${css.Avatar}>
+    <popover-title class=${styles.Title}>Notifications</popover-title>
+    <popover-description class=${styles.Description}>
+      You are all caught up. Good job!
+    </popover-description>
+  `;
+}
+
+function activityPanel(): TemplateResult {
+  return html`
+    <popover-title class=${styles.Title}>Activity</popover-title>
+    <popover-description class=${styles.Description}>
+      Nothing interesting happened recently.
+    </popover-description>
+  `;
+}
+
+function profilePanel(): TemplateResult {
+  return html`
+    <div class=${styles.ProfilePanel}>
+      <popover-title class=${styles.Title}>Jason Eventon</popover-title>
+      <avatar-root class=${styles.Avatar}>
         <avatar-image
           alt="Jason Eventon"
-          class=${css.AvatarImage}
+          class=${styles.AvatarImage}
           src="https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=128&h=128&dpr=2&q=80"
           width="48"
           height="48"
         ></avatar-image>
       </avatar-root>
-      <span class=${css.Plan}>Pro plan</span>
-      <div class=${css.ProfileActions}>
-        ${renderActionLink('Profile settings')}
-        ${renderActionLink('Log out')}
+      <span class=${styles.Plan}>Pro plan</span>
+      <div class=${styles.ProfileActions}>
+        <a href="#">Profile settings</a>
+        <a href="#">Log out</a>
       </div>
     </div>
   `;
-}
-
-function renderActionLink(text: string) {
-  return html`<a href="#">${text}</a>`;
 }
 
 function bellIcon(ariaLabel: string, className: string) {

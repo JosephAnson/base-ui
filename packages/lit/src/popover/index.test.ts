@@ -1081,7 +1081,10 @@ describe('popover', () => {
 
     firstTrigger.click();
     await waitForUpdate();
-    expect(viewport.querySelector('[data-current]')?.textContent).toContain('first');
+    // On initial open there is no trigger switch, so content is NOT wrapped in [data-current].
+    // The viewport holds the raw content nodes directly.
+    expect(viewport.querySelector('[data-current]')).toBeNull();
+    expect(viewport.textContent).toContain('first');
 
     secondTrigger.click();
     await waitForUpdate();

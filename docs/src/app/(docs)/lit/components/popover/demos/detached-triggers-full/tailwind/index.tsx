@@ -1,53 +1,21 @@
 'use client';
 import * as React from 'react';
-import { html, nothing, render as renderTemplate, svg } from 'lit';
+import { html, type TemplateResult, nothing, render as renderTemplate, svg } from 'lit';
 import '@base-ui/lit/avatar';
-import { createPopoverHandle, type PopoverRootElement } from '@base-ui/lit/popover';
+import { createPopoverHandle } from '@base-ui/lit/popover';
 
-type PanelId = 'notifications' | 'activity' | 'profile';
+const demoPopover = createPopoverHandle<() => TemplateResult>();
 
 export default function PopoverDetachedTriggersFullDemo() {
   const hostRef = React.useRef<HTMLDivElement | null>(null);
-  const handleRef = React.useRef(createPopoverHandle<PanelId>());
-  const [activePanel, setActivePanel] = React.useState<PanelId>('notifications');
 
-  const syncPanel = React.useCallback((panel: PanelId) => {
-    setActivePanel((currentPanel) => (currentPanel === panel ? currentPanel : panel));
-  }, []);
-
-  const getPanelFromRoot = React.useCallback(() => {
+  const doRender = React.useCallback(() => {
     const host = hostRef.current;
-    const root = host?.querySelector('popover-root') as PopoverRootElement | null;
-    const payload = root?.handle?.activePayload;
-
-    if (payload === 'notifications' || payload === 'activity' || payload === 'profile') {
-      return payload;
-    }
-
-    const activeTrigger = root?.getActiveTriggerElement() as HTMLElement | null;
-
-    switch (activeTrigger?.id) {
-      case 'trigger-activity':
-        return 'activity' as const;
-      case 'trigger-profile':
-        return 'profile' as const;
-      case 'trigger-notifications':
-        return 'notifications' as const;
-      default:
-        return 'notifications' as const;
-    }
-  }, []);
-
-  const syncPanelFromRoot = React.useCallback(() => {
-    syncPanel(getPanelFromRoot());
-  }, [getPanelFromRoot, syncPanel]);
-
-  React.useEffect(() => {
-    const host = hostRef.current;
-
-    if (host == null) {
+    if (!host) {
       return;
     }
+
+    const payload = demoPopover.activePayload;
 
     renderTemplate(
       html`
@@ -59,9 +27,8 @@ export default function PopoverDetachedTriggersFullDemo() {
               focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-blue-600
               active:bg-gray-100 data-popup-open:bg-gray-100
             "
-            .handle=${handleRef.current}
-            .payload=${'notifications' as PanelId}
-            id="trigger-notifications"
+            .handle=${demoPopover}
+            .payload=${notificationsPanel}
           >
             ${bellIcon('Notifications')}
           </popover-trigger>
@@ -73,9 +40,8 @@ export default function PopoverDetachedTriggersFullDemo() {
               focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-blue-600
               active:bg-gray-100 data-popup-open:bg-gray-100
             "
-            .handle=${handleRef.current}
-            .payload=${'activity' as PanelId}
-            id="trigger-activity"
+            .handle=${demoPopover}
+            .payload=${activityPanel}
           >
             ${listIcon('Activity')}
           </popover-trigger>
@@ -87,14 +53,13 @@ export default function PopoverDetachedTriggersFullDemo() {
               focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-blue-600
               active:bg-gray-100 data-popup-open:bg-gray-100
             "
-            .handle=${handleRef.current}
-            .payload=${'profile' as PanelId}
-            id="trigger-profile"
+            .handle=${demoPopover}
+            .payload=${profilePanel}
           >
             ${userIcon('Profile')}
           </popover-trigger>
 
-          <popover-root .handle=${handleRef.current}>
+          <popover-root .handle=${demoPopover}>
             <popover-portal>
               <popover-positioner
                 class="
@@ -151,7 +116,7 @@ export default function PopoverDetachedTriggersFullDemo() {
                       data-[activation-direction~='right']:[&_[data-previous][data-ending-style]]:opacity-0
                     "
                   >
-                    ${renderPanel(activePanel)}
+                    ${payload ? payload() : nothing}
                   </popover-viewport>
                 </popover-popup>
               </popover-positioner>
@@ -161,93 +126,80 @@ export default function PopoverDetachedTriggersFullDemo() {
       `,
       host,
     );
-  }, [activePanel, syncPanel]);
+  }, []);
 
   React.useEffect(() => {
-    const host = hostRef.current;
+    doRender();
 
-    if (host == null) {
+    const host = hostRef.current;
+    if (!host) {
       return undefined;
     }
 
     const root = host.querySelector('popover-root');
-    root?.addEventListener('base-ui-popover-state-change', syncPanelFromRoot);
-    queueMicrotask(syncPanelFromRoot);
+    root?.addEventListener('base-ui-popover-state-change', doRender);
 
     return () => {
-      root?.removeEventListener('base-ui-popover-state-change', syncPanelFromRoot);
-    };
-  }, [syncPanelFromRoot]);
-
-  React.useEffect(() => {
-    const host = hostRef.current;
-
-    return () => {
-      if (host == null) {
-        return;
-      }
-
+      root?.removeEventListener('base-ui-popover-state-change', doRender);
       renderTemplate(nothing, host);
     };
-  }, []);
+  }, [doRender]);
 
   return <div ref={hostRef} style={{ display: 'contents' }} />;
 }
 
-function renderPanel(panel: PanelId | undefined) {
-  switch (panel) {
-    case 'notifications':
-      return html`
-        <popover-title class="m-0 text-base font-bold">Notifications</popover-title>
-        <popover-description class="m-0 text-base text-gray-600">
-          You are all caught up. Good job!
-        </popover-description>
-      `;
-    case 'activity':
-      return html`
-        <popover-title class="m-0 text-base font-bold">Activity</popover-title>
-        <popover-description class="m-0 text-base text-gray-600">
-          Nothing interesting happened recently.
-        </popover-description>
-      `;
-    case 'profile':
-      return html`
-        <div class="-mx-2 grid grid-cols-[auto_auto] gap-x-4">
-          <popover-title class="col-start-2 col-end-3 row-start-1 row-end-2 m-0 text-base font-bold">
-            Jason Eventon
-          </popover-title>
-          <avatar-root
-            class="
-              col-start-1 col-end-2 row-start-1 row-end-3 inline-flex h-12 w-12
-              items-center justify-center overflow-hidden rounded-full bg-gray-100
-              align-middle text-base leading-none font-bold text-gray-900 select-none
-            "
-          >
-            <avatar-image
-              src="https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=128&h=128&dpr=2&q=80"
-              width="48"
-              height="48"
-              alt="Jason Eventon"
-              class="h-full w-full object-cover"
-            ></avatar-image>
-          </avatar-root>
-          <span class="col-start-2 col-end-3 row-start-2 row-end-3 text-sm text-gray-600">
-            Pro plan
-          </span>
-          <div class="col-start-1 col-end-3 row-start-3 row-end-4 mt-2 flex flex-col gap-2 border-t border-gray-200 pt-2 text-sm">
-            <a href="#" class="text-gray-900 no-underline hover:underline">Profile settings</a>
-            <a href="#" class="text-gray-900 no-underline hover:underline">Log out</a>
-          </div>
-        </div>
-      `;
-    default:
-      return html`
-        <popover-title class="m-0 text-base font-bold">Notifications</popover-title>
-        <popover-description class="m-0 text-base text-gray-600">
-          You are all caught up. Good job!
-        </popover-description>
-      `;
-  }
+function notificationsPanel(): TemplateResult {
+  return html`
+    <popover-title class="m-0 text-base font-bold">Notifications</popover-title>
+    <popover-description class="m-0 text-base text-gray-600">
+      You are all caught up. Good job!
+    </popover-description>
+  `;
+}
+
+function activityPanel(): TemplateResult {
+  return html`
+    <popover-title class="m-0 text-base font-bold">Activity</popover-title>
+    <popover-description class="m-0 text-base text-gray-600">
+      Nothing interesting happened recently.
+    </popover-description>
+  `;
+}
+
+function profilePanel(): TemplateResult {
+  return html`
+    <div class="-mx-2 grid grid-cols-[auto_auto] gap-x-4">
+      <popover-title
+        class="col-start-2 col-end-3 row-start-1 row-end-2 m-0 text-base font-bold"
+      >
+        Jason Eventon
+      </popover-title>
+      <avatar-root
+        class="
+          col-start-1 col-end-2 row-start-1 row-end-3 inline-flex h-12 w-12
+          items-center justify-center overflow-hidden rounded-full bg-gray-100
+          align-middle text-base leading-none font-bold text-gray-900 select-none
+        "
+      >
+        <avatar-image
+          src="https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=128&h=128&dpr=2&q=80"
+          width="48"
+          height="48"
+          alt="Jason Eventon"
+          class="h-full w-full object-cover"
+        ></avatar-image>
+      </avatar-root>
+      <span class="col-start-2 col-end-3 row-start-2 row-end-3 text-sm text-gray-600">
+        Pro plan
+      </span>
+      <div
+        class="col-start-1 col-end-3 row-start-3 row-end-4 mt-2 flex flex-col gap-2 border-t border-gray-200 pt-2 text-sm"
+      >
+        <a href="#" class="text-gray-900 no-underline hover:underline">Profile settings</a>
+        <a href="#" class="text-gray-900 no-underline hover:underline">Log out</a>
+      </div>
+    </div>
+  `;
 }
 
 function arrowSvg() {
