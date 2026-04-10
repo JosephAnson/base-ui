@@ -290,7 +290,7 @@
       "exportPath": "./tooltip",
       "sourcePath": "./src/tooltip/index.ts",
       "category": "component",
-      "status": "pending"
+      "status": "verified"
     },
     {
       "exportPath": "./types",

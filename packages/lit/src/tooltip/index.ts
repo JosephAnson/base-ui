@@ -124,6 +124,17 @@ export class TooltipHandle<Payload = unknown> {
   triggers = new Map<string, TooltipTriggerElement<Payload>>();
   activeTriggerId: string | null = null;
   activePayload: Payload | undefined;
+  private _subscribers = new Set<() => void>();
+
+  /** Subscribe to state changes. Returns an unsubscribe function. */
+  subscribe(fn: () => void): () => void {
+    this._subscribers.add(fn);
+    return () => this._subscribers.delete(fn);
+  }
+
+  _notify() {
+    this._subscribers.forEach((fn) => fn());
+  }
 
   open(triggerId?: string) {
     const nextTrigger =
@@ -370,9 +381,16 @@ export class TooltipRootElement<Payload = unknown> extends ReactiveElement {
     this._transitionStatus = undefined;
   }
 
-  protected override updated() {
+  protected override updated(changedProperties: Map<PropertyKey, unknown>) {
     this._syncAttributes();
     this._publishStateChange();
+
+    if (changedProperties.has('disabled') && this.disabled && this.getOpen()) {
+      const event = new Event('base-ui-tooltip-disabled-change');
+      this._hoverActive = false;
+      this._focusActive = false;
+      this._openFromState(false, event, 'disabled');
+    }
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -643,6 +661,7 @@ export class TooltipRootElement<Payload = unknown> extends ReactiveElement {
     if (nextKey === this._lastPublishedStateKey) return;
     this._lastPublishedStateKey = nextKey;
     this.dispatchEvent(new CustomEvent(TOOLTIP_STATE_CHANGE_EVENT));
+    this.handle?._notify();
   }
 
   private _syncInitialTrigger() {
@@ -1074,6 +1093,12 @@ export class TooltipPositionerElement extends BaseHTMLElement {
     this.toggleAttribute('data-closed', !open);
     this.setAttribute('data-side', ps.side);
     this.setAttribute('data-align', ps.align);
+
+    if (open && this._root.disableHoverablePopup) {
+      this.style.pointerEvents = 'none';
+    } else {
+      this.style.removeProperty('pointer-events');
+    }
   }
 }
 

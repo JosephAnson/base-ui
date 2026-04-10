@@ -140,6 +140,7 @@ describe('tooltip', () => {
         .defaultOpen=${rootProps.defaultOpen ?? false}
         .open=${rootProps.open}
         .onOpenChange=${rootProps.onOpenChange}
+        .onOpenChangeComplete=${rootProps.onOpenChangeComplete}
         ?disabled=${rootProps.disabled ?? false}
       >
         <tooltip-trigger
@@ -702,6 +703,189 @@ describe('tooltip', () => {
 
     // At 80ms, close timer fires + drain all effects
     await advance(1);
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('does not call onOpenChange when open state does not change', async () => {
+    const handleOpenChange = vi.fn();
+    const container = render(renderTooltip({ onOpenChange: handleOpenChange }));
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+
+    // Open via focus
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
+    await waitForUpdate();
+    expect(handleOpenChange).toHaveBeenCalledTimes(1);
+    handleOpenChange.mockClear();
+
+    // Focus again — already open, should not fire
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
+    await waitForUpdate();
+    expect(handleOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('should close if open when becoming disabled', async () => {
+    const container = render(html``);
+
+    function rerender(disabled: boolean) {
+      renderTemplate(
+        html`
+          <tooltip-root .defaultOpen=${true} ?disabled=${disabled}>
+            <tooltip-trigger .delay=${0}>Trigger</tooltip-trigger>
+            <tooltip-portal>
+              <tooltip-positioner>
+                <tooltip-popup>Content</tooltip-popup>
+              </tooltip-positioner>
+            </tooltip-portal>
+          </tooltip-root>
+        `,
+        container,
+      );
+    }
+
+    rerender(false);
+    await waitForUpdate();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+
+    rerender(true);
+    await waitForUpdate();
+    expect(getPopup(container)).toHaveAttribute('hidden');
+  });
+
+  it('does not throw error when disabled is combined with defaultOpen', async () => {
+    expect(() => {
+      render(renderTooltip({ defaultOpen: true, disabled: true }));
+    }).not.toThrow();
+  });
+
+  it('applies pointer-events: none to the positioner when disableHoverablePopup is true', async () => {
+    const container = render(
+      html`
+        <tooltip-root .disableHoverablePopup=${true}>
+          <tooltip-trigger .delay=${0}>Trigger</tooltip-trigger>
+          <tooltip-portal>
+            <tooltip-positioner>
+              <tooltip-popup>Content</tooltip-popup>
+            </tooltip-positioner>
+          </tooltip-portal>
+        </tooltip-root>
+      `,
+    );
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
+    await waitForUpdate();
+
+    expect(getPositioner(container).style.pointerEvents).toBe('none');
+  });
+
+  it('does not apply pointer-events: none to the positioner when disableHoverablePopup is false', async () => {
+    const container = render(
+      html`
+        <tooltip-root .disableHoverablePopup=${false}>
+          <tooltip-trigger .delay=${0}>Trigger</tooltip-trigger>
+          <tooltip-portal>
+            <tooltip-positioner>
+              <tooltip-popup>Content</tooltip-popup>
+            </tooltip-positioner>
+          </tooltip-portal>
+        </tooltip-root>
+      `,
+    );
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
+    await waitForUpdate();
+
+    expect(getPositioner(container).style.pointerEvents).toBe('');
+  });
+
+  it('allowPropagation() prevents stopPropagation on Escape while still closing', async () => {
+    const stopPropagationSpy = vi.spyOn(Event.prototype, 'stopPropagation');
+
+    const container = render(
+      renderTooltip({
+        defaultOpen: true,
+        onOpenChange: (_open: boolean, details: TooltipChangeEventDetails) => {
+          if (!_open && details.reason === 'escape-key') {
+            details.allowPropagation();
+          }
+        },
+      }),
+    );
+    await waitForUpdate();
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await waitForUpdate();
+
+    // Still closes
+    expect(getPopup(container)).toHaveAttribute('hidden');
+    // But stopPropagation was NOT called
+    expect(stopPropagationSpy).not.toHaveBeenCalled();
+    stopPropagationSpy.mockRestore();
+  });
+
+  it('calls onOpenChangeComplete on open and close', async () => {
+    const handleComplete = vi.fn();
+    const container = render(
+      renderTooltip({
+        onOpenChangeComplete: handleComplete,
+      }),
+    );
+    await waitForUpdate();
+
+    const trigger = getTrigger(container);
+
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
+    await waitForUpdate();
+
+    expect(handleComplete).toHaveBeenCalledTimes(1);
+    expect(handleComplete.mock.calls[0]?.[0]).toBe(true);
+    handleComplete.mockClear();
+
+    trigger.dispatchEvent(new FocusEvent('focusout', { bubbles: true, cancelable: true }));
+    await waitForUpdate();
+
+    expect(handleComplete).toHaveBeenCalledTimes(1);
+    expect(handleComplete.mock.calls[0]?.[0]).toBe(false);
+  });
+
+  it('does not call onOpenChangeComplete on mount when not open', async () => {
+    const handleComplete = vi.fn();
+    render(renderTooltip({ onOpenChangeComplete: handleComplete }));
+    await waitForUpdate();
+
+    expect(handleComplete).not.toHaveBeenCalled();
+  });
+
+  it('actionsRef.unmount() unmounts the tooltip imperatively', async () => {
+    const actionsRef: { current: { close: () => void; unmount: () => void } | null } = {
+      current: null,
+    };
+    const container = render(
+      html`
+        <tooltip-root .defaultOpen=${true} .actionsRef=${actionsRef}>
+          <tooltip-trigger .delay=${0}>Trigger</tooltip-trigger>
+          <tooltip-portal>
+            <tooltip-positioner>
+              <tooltip-popup>Content</tooltip-popup>
+            </tooltip-positioner>
+          </tooltip-portal>
+        </tooltip-root>
+      `,
+    );
+    await waitForUpdate();
+
+    expect(getPopup(container)).not.toHaveAttribute('hidden');
+    expect(actionsRef.current).not.toBeNull();
+
+    actionsRef.current!.unmount();
+    await waitForUpdate();
+
     expect(getPopup(container)).toHaveAttribute('hidden');
   });
 

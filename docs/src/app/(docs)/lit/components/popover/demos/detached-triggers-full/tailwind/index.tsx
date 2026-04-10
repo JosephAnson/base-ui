@@ -130,18 +130,10 @@ export default function PopoverDetachedTriggersFullDemo() {
 
   React.useEffect(() => {
     doRender();
-
-    const host = hostRef.current;
-    if (!host) {
-      return undefined;
-    }
-
-    const root = host.querySelector('popover-root');
-    root?.addEventListener('base-ui-popover-state-change', doRender);
-
+    const unsubscribe = demoPopover.subscribe(doRender);
     return () => {
-      root?.removeEventListener('base-ui-popover-state-change', doRender);
-      renderTemplate(nothing, host);
+      unsubscribe();
+      renderTemplate(nothing, hostRef.current!);
     };
   }, [doRender]);
 

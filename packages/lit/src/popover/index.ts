@@ -199,6 +199,17 @@ export class PopoverHandle<Payload = unknown> {
   triggers = new Map<string, PopoverTriggerElement<Payload>>();
   activeTriggerId: string | null = null;
   activePayload: Payload | undefined;
+  private _subscribers = new Set<() => void>();
+
+  /** Subscribe to state changes. Returns an unsubscribe function. */
+  subscribe(fn: () => void): () => void {
+    this._subscribers.add(fn);
+    return () => this._subscribers.delete(fn);
+  }
+
+  _notify() {
+    this._subscribers.forEach((fn) => fn());
+  }
 
   open(triggerId?: string) {
     const trigger = triggerId ? this.triggers.get(triggerId) : undefined;
@@ -1317,6 +1328,7 @@ export class PopoverRootElement extends ReactiveElement {
     if (nextKey === this._lastPublishedStateKey) {return;}
     this._lastPublishedStateKey = nextKey;
     this.dispatchEvent(new CustomEvent(POPOVER_STATE_CHANGE_EVENT));
+    this.handle?._notify();
   }
 }
 
