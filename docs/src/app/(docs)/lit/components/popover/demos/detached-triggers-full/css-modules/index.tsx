@@ -7,6 +7,35 @@ import styles from './index.module.css';
 
 const demoPopover = createPopoverHandle<() => TemplateResult>();
 
+/**
+ * Replaces un-upgraded custom elements with fresh `document.createElement`
+ * versions. Works around a browser bug where `document.importNode` on Lit
+ * template content intermittently fails to upgrade custom elements when the
+ * target container has been moved to a different DOM position by a portal.
+ */
+function ensureCustomElementUpgrade(root: Element) {
+  const toReplace: [Element, Element][] = [];
+  root.querySelectorAll('*').forEach((el) => {
+    if (
+      el.localName.includes('-') &&
+      customElements.get(el.localName) &&
+      !el.matches(':defined')
+    ) {
+      const fresh = document.createElement(el.localName);
+      for (const attr of Array.from(el.attributes)) {
+        fresh.setAttribute(attr.name, attr.value);
+      }
+      toReplace.push([el, fresh]);
+    }
+  });
+  for (const [old, fresh] of toReplace.reverse()) {
+    while (old.firstChild) {
+      fresh.appendChild(old.firstChild);
+    }
+    old.replaceWith(fresh);
+  }
+}
+
 export default function PopoverDetachedTriggersFullDemo() {
   const hostRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -61,6 +90,18 @@ export default function PopoverDetachedTriggersFullDemo() {
       `,
       host,
     );
+
+    // Fix un-upgraded custom elements inside the portal-moved viewport.
+    // Must run synchronously after renderTemplate but before MutationObserver
+    // microtasks fire, so the viewport's transition logic measures upgraded
+    // elements with correct dimensions.
+    const portalContainers = document.querySelectorAll('[data-base-ui-popover-portal]');
+    for (const portal of portalContainers) {
+      const viewport = portal.querySelector('popover-viewport');
+      if (viewport) {
+        ensureCustomElementUpgrade(viewport);
+      }
+    }
   }, []);
 
   React.useEffect(() => {
@@ -68,7 +109,7 @@ export default function PopoverDetachedTriggersFullDemo() {
     const unsubscribe = demoPopover.subscribe(doRender);
     return () => {
       unsubscribe();
-      renderTemplate(nothing, hostRef.current!);
+      if (hostRef.current) renderTemplate(nothing, hostRef.current);
     };
   }, [doRender]);
 
